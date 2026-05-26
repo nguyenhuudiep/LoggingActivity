@@ -1,0 +1,223 @@
+@model LogActionManagementViewModel
+
+@{
+    ViewData["Title"] = "Cấu hình action log";
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            isActive = Model.Filter.IsActive,
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
+
+    string BuildEditUrl(string? id)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            isActive = Model.Filter.IsActive,
+            page = Model.Filter.Page,
+            pageSize = Model.Filter.PageSize,
+            editCode = id
+        })!;
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Configuration</span>
+        <h1 class="page-title">Cấu hình action log</h1>
+        <p class="page-subtitle">Định nghĩa danh mục action dùng chung cho việc ghi log, lọc dashboard và cấu hình cảnh báo theo action.</p>
+    </div>
+</section>
+
+@if (Model.UnconfiguredActionWarnings.Any())
+{
+    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
+        <div class="dashboard-warning__header">
+            <strong>Phát hiện action log chưa được cấu hình</strong>
+            <span class="text-secondary">Các action dưới đây đang tồn tại trong dữ liệu log nhưng chưa được định nghĩa trong danh mục action.</span>
+        </div>
+        <div class="dashboard-warning__list">
+            @foreach (var warning in Model.UnconfiguredActionWarnings)
+            {
+                <div class="dashboard-warning__item">
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.Action</span>
+                    <span>@warning.Count log đang dùng action này.</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form asp-action="Save" method="post" class="row g-3 align-items-end">
+            @Html.AntiForgeryToken()
+            <input asp-for="Input.ExistingCode" type="hidden" />
+            <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+            <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+            <input type="hidden" name="page" value="@Model.Filter.Page" />
+            <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+            <div asp-validation-summary="ModelOnly" class="text-danger small col-12"></div>
+            <div class="col-xl-3 col-lg-3 col-md-6">
+                <label asp-for="Input.Code" class="form-label">Mã action</label>
+                <input asp-for="Input.Code" class="form-control" placeholder="LOGIN_FAILED" />
+                <span asp-validation-for="Input.Code" class="text-danger"></span>
+            </div>
+            <div class="col-xl-3 col-lg-3 col-md-6">
+                <label asp-for="Input.DisplayName" class="form-label">Tên hiển thị</label>
+                <input asp-for="Input.DisplayName" class="form-control" placeholder="Đăng nhập thất bại" />
+                <span asp-validation-for="Input.DisplayName" class="text-danger"></span>
+            </div>
+            <div class="col-xl-4 col-lg-4 col-md-6">
+                <label asp-for="Input.Description" class="form-label">Mô tả</label>
+                <input asp-for="Input.Description" class="form-control" placeholder="Mô tả ngắn cho action" />
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+            <div class="col-xl-2 col-lg-2 col-md-6 d-flex align-items-end justify-content-lg-end gap-2">
+                @if (!string.IsNullOrWhiteSpace(Model.Input.ExistingCode))
+                {
+                    <a class="btn btn-outline-secondary" href="@BuildEditUrl(null)">Hủy</a>
+                }
+                <button type="submit" class="btn btn-dark">@(string.IsNullOrWhiteSpace(Model.Input.ExistingCode) ? "Lưu action" : "Cập nhật")</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
+            <div class="col-lg-6 col-md-12">
+                <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
+                <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Mã action, tên hiển thị hoặc mô tả" />
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label asp-for="Filter.IsActive" class="form-label">Trạng thái</label>
+                <select asp-for="Filter.IsActive" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="Tất cả trạng thái">
+                    <option value="">Tất cả</option>
+                    <option value="true">Active</option>
+                    <option value="false">Paused</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label asp-for="Filter.PageSize" class="form-label">Kích thước</label>
+                <select asp-for="Filter.PageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <div class="filter-actions">
+                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
+                    <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Danh mục action</h2>
+            <p class="data-card__subtitle">Các action này sẽ được dùng cho cấu hình cảnh báo và là nền cho việc lưu log theo action tương ứng sau này.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Mã action</th>
+                    <th>Tên hiển thị</th>
+                    <th>Mô tả</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var action in Model.Actions.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">@action.Code</td>
+                        <td>@action.DisplayName</td>
+                        <td>@action.Description</td>
+                        <td>
+                            @if (action.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
+                            }
+                        </td>
+                        <td>@action.UpdatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td class="text-end">
+                            <div class="table-actions justify-content-end">
+                                <a class="btn btn-sm btn-outline-dark" href="@BuildEditUrl(action.Code)">Sửa</a>
+                                <form asp-action="ToggleStatus" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="code" value="@action.Code" />
+                                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+                                    <input type="hidden" name="page" value="@Model.Filter.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">@(action.IsActive ? "Tắt" : "Bật")</button>
+                                </form>
+                                <form asp-action="Delete" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="code" value="@action.Code" />
+                                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+                                    <input type="hidden" name="page" value="@Model.Filter.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Actions.Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-secondary py-4">Chưa có action log nào được định nghĩa.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.Actions.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Actions.Page / @Model.Actions.TotalPages - Tổng @Model.Actions.TotalCount action</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Actions.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Actions.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Actions.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Actions.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Actions.Page >= Model.Actions.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Actions.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

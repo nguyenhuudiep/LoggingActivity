@@ -1,0 +1,252 @@
+@model AlertRuleManagementViewModel
+
+@{
+    ViewData["Title"] = "Cấu hình cảnh báo";
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            actionCode = Model.Filter.ActionCode,
+            isActive = Model.Filter.IsActive,
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
+
+    string BuildEditUrl(string? action)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            actionCode = Model.Filter.ActionCode,
+            isActive = Model.Filter.IsActive,
+            page = Model.Filter.Page,
+            pageSize = Model.Filter.PageSize,
+            editAction = action
+        })!;
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Configuration</span>
+        <h1 class="page-title">Cấu hình cảnh báo</h1>
+        <p class="page-subtitle">Thiết lập ngưỡng số log tối đa theo ngày cho từng action đã được định nghĩa trong hệ thống.</p>
+    </div>
+</section>
+
+@if (Model.ActiveWarnings.Any())
+{
+    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
+        <div class="dashboard-warning__header">
+            <strong>Cảnh báo đang hoạt động</strong>
+            <span class="text-secondary">Các userId có action đã chạm hoặc vượt ngưỡng log trong ngày hiện tại.</span>
+        </div>
+        <div class="dashboard-warning__list">
+            @foreach (var warning in Model.ActiveWarnings)
+            {
+                <div class="dashboard-warning__item">
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.UserId - @warning.UserName - @warning.Action</span>
+                    <span>
+                        @if (warning.IsAtLimit)
+                        {
+                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
+                        }
+                        else
+                        {
+                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng @warning.DailyLimit thêm @warning.ExceededBy log.
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form asp-action="Save" method="post" class="row g-3 align-items-end">
+            @Html.AntiForgeryToken()
+            <input asp-for="Input.ExistingAction" type="hidden" />
+            <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+            <input type="hidden" name="actionCode" value="@Model.Filter.ActionCode" />
+            <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+            <input type="hidden" name="page" value="@Model.Filter.Page" />
+            <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+            <div asp-validation-summary="ModelOnly" class="text-danger small col-12"></div>
+            <div class="col-lg-4 col-md-6">
+                <label asp-for="Input.Action" class="form-label">Action</label>
+                <select asp-for="Input.Action" class="form-select" data-enhanced-select data-placeholder="Chọn action cảnh báo">
+                    <option value="">Chọn action</option>
+                    @foreach (var action in Model.AvailableActions)
+                    {
+                        <option value="@action.Code">@action.DisplayName (@action.Code)</option>
+                    }
+                </select>
+                <span asp-validation-for="Input.Action" class="text-danger"></span>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <label asp-for="Input.DailyLimit" class="form-label">Ngưỡng tối đa/ngày</label>
+                <input asp-for="Input.DailyLimit" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.DailyLimit" class="text-danger"></span>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="form-check form-switch mt-4 pt-2">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label">Đang bật</label>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 d-flex justify-content-lg-end gap-2">
+                @if (!string.IsNullOrWhiteSpace(Model.Input.ExistingAction))
+                {
+                    <a class="btn btn-outline-secondary" href="@BuildEditUrl(null)">Hủy</a>
+                }
+                <button type="submit" class="btn btn-dark">@(string.IsNullOrWhiteSpace(Model.Input.ExistingAction) ? "Lưu cấu hình" : "Cập nhật")</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
+            <div class="col-lg-4 col-md-12">
+                <label class="form-label" for="alertRuleSearchTerm">Từ khóa</label>
+                <input id="alertRuleSearchTerm" name="searchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Action cảnh báo" />
+            </div>
+            <div class="col-lg-3 col-md-4">
+                <label class="form-label" for="alertRuleActionCode">Action</label>
+                <select id="alertRuleActionCode" name="actionCode" class="form-select" data-enhanced-select data-placeholder="Tất cả action">
+                    <option value="">Tất cả</option>
+                    @foreach (var action in Model.AvailableActions)
+                    {
+                        <option value="@action.Code" selected="@(action.Code == Model.Filter.ActionCode)">@action.DisplayName (@action.Code)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label" for="alertRuleIsActive">Trạng thái</label>
+                <select id="alertRuleIsActive" name="isActive" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="Tất cả trạng thái">
+                    <option value="" selected="@(!Model.Filter.IsActive.HasValue)">Tất cả</option>
+                    <option value="true" selected="@(Model.Filter.IsActive == true)">Active</option>
+                    <option value="false" selected="@(Model.Filter.IsActive == false)">Paused</option>
+                </select>
+            </div>
+            <div class="col-lg-1 col-md-4">
+                <label class="form-label" for="alertRulePageSize">Kích thước</label>
+                <select id="alertRulePageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                    <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                    <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                    <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-12">
+                <div class="filter-actions">
+                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
+                    <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Danh sách rule cảnh báo</h2>
+            <p class="data-card__subtitle">Mỗi rule áp dụng cho một action log đã được định nghĩa trong màn cấu hình action log.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Action</th>
+                    <th>Ngưỡng/ngày</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rule in Model.Rules.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">@rule.Action</td>
+                        <td>@rule.DailyLimit</td>
+                        <td>
+                            @if (rule.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis">Paused</span>
+                            }
+                        </td>
+                        <td>@rule.UpdatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td class="text-end">
+                            <div class="table-actions justify-content-end">
+                                <a class="btn btn-sm btn-outline-dark" href="@BuildEditUrl(rule.Action)">Sửa</a>
+                                <form asp-action="ToggleStatus" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="action" value="@rule.Action" />
+                                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                                    <input type="hidden" name="actionCode" value="@Model.Filter.ActionCode" />
+                                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+                                    <input type="hidden" name="page" value="@Model.Filter.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">@(rule.IsActive ? "Tắt" : "Bật")</button>
+                                </form>
+                                <form asp-action="Delete" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="action" value="@rule.Action" />
+                                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                                    <input type="hidden" name="actionCode" value="@Model.Filter.ActionCode" />
+                                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+                                    <input type="hidden" name="page" value="@Model.Filter.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Rules.Items.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-secondary py-4">Chưa có cấu hình cảnh báo nào.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.Rules.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Rules.Page / @Model.Rules.TotalPages - Tổng @Model.Rules.TotalCount cấu hình</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Rules.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Rules.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Rules.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Rules.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Rules.Page >= Model.Rules.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Rules.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

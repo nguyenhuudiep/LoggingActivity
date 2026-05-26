@@ -1,0 +1,88 @@
+@model LoginViewModel
+
+@{
+    ViewData["Title"] = "Đăng nhập";
+    Layout = "_Layout";
+}
+
+<section class="auth-shell">
+    <div class="card auth-card border-0 shadow-sm w-100">
+        <div class="row g-0 align-items-stretch">
+            <div class="col-lg-6 d-none d-lg-block">
+                <div class="auth-card__aside">
+                    <span class="auth-card__eyebrow">Admin Console</span>
+                    <h1 class="auth-card__title">Theo dõi truy cập, phân quyền và audit log trong một giao diện gọn gàng.</h1>
+                    <p class="auth-card__description">Hệ thống này được thiết kế cho đội vận hành: quản trị tài khoản, phân quyền truy cập và theo dõi activity log được gửi về từ các hệ thống tích hợp.</p>
+
+                    <div class="auth-benefit-list">
+                        <div class="auth-benefit">
+                            <span class="auth-benefit__icon">01</span>
+                            <div>
+                                <span class="auth-benefit__label">Quản lý truy cập tập trung</span>
+                                <span class="auth-benefit__text">Admin, Auditor và Integration được phân tách vai trò rõ ràng.</span>
+                            </div>
+                        </div>
+                        <div class="auth-benefit">
+                            <span class="auth-benefit__icon">02</span>
+                            <div>
+                                <span class="auth-benefit__label">Dashboard thống kê trực quan</span>
+                                <span class="auth-benefit__text">Lọc log nhận từ API, xem xu hướng 7 ngày và phân tích top action nhanh hơn.</span>
+                            </div>
+                        </div>
+                        <div class="auth-benefit">
+                            <span class="auth-benefit__icon">03</span>
+                            <div>
+                                <span class="auth-benefit__label">Sẵn sàng cho đối tác</span>
+                                <span class="auth-benefit__text">Quản lý API key và theo dõi luồng activity từ các hệ thống kết nối.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="auth-card__content p-4 p-lg-5">
+                    <div class="mb-4">
+                        <span class="page-eyebrow">Welcome back</span>
+                        <h2 class="h2 fw-bold mb-2">Đăng nhập hệ thống</h2>
+                        <p class="text-secondary mb-0">Sử dụng tài khoản quản trị để truy cập khu vực cấu hình, thống kê và theo dõi activity log tích hợp.</p>
+                    </div>
+
+                    <form asp-action="Login" method="post">
+                        @Html.AntiForgeryToken()
+                        <input asp-for="ReturnUrl" type="hidden" />
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="UserName" class="form-label"></label>
+                            <input asp-for="UserName" class="form-control" autocomplete="username" placeholder="Nhập tên đăng nhập" />
+                            <span asp-validation-for="UserName" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Password" class="form-label"></label>
+                            <input asp-for="Password" class="form-control" autocomplete="current-password" placeholder="Nhập mật khẩu" />
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-check mb-4">
+                            <input asp-for="RememberMe" class="form-check-input" />
+                            <label asp-for="RememberMe" class="form-check-label"></label>
+                        </div>
+
+                        <button type="submit" class="btn btn-dark w-100">Đăng nhập</button>
+                    </form>
+
+                    <div class="seed-credentials mt-4 p-4">
+                        <div class="fw-bold mb-2">Tài khoản seed mặc định</div>
+                        <div class="text-secondary small">Username: <strong class="text-dark">admin</strong></div>
+                        <div class="text-secondary small">Password: <strong class="text-dark">Admin@123456</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

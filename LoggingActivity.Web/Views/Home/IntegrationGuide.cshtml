@@ -1,0 +1,144 @@
+@{
+    ViewData["Title"] = "Hướng dẫn tích hợp API";
+    var baseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Integration guide</span>
+        <h1 class="page-title">Hướng dẫn tích hợp API</h1>
+        <p class="page-subtitle">Tài liệu nhanh để đối tác gửi activity log, tra cứu danh sách log và lấy thống kê bằng các endpoint tích hợp.</p>
+    </div>
+    <div class="page-toolbar">
+        <a class="btn btn-dark" asp-controller="Home" asp-action="Index">Về dashboard</a>
+        <a class="btn btn-outline-dark" asp-controller="Logs" asp-action="Index">Mở log và thống kê</a>
+    </div>
+</section>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-4 col-md-6">
+        <div class="mini-stat h-100">
+            <div class="mini-stat__label">Xác thực</div>
+            <div class="mini-stat__value">X-Api-Key</div>
+            <div class="mini-stat__text">Mỗi partner dùng API key riêng, truyền qua header <strong>X-Api-Key</strong> cho mọi request.</div>
+        </div>
+    </div>
+    <div class="col-lg-4 col-md-6">
+        <div class="mini-stat h-100">
+            <div class="mini-stat__label">Định dạng dữ liệu</div>
+            <div class="mini-stat__value">JSON</div>
+            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong>, <strong>userName</strong> và <strong>action</strong>.</div>
+        </div>
+    </div>
+    <div class="col-lg-4 col-md-12">
+        <div class="mini-stat h-100">
+            <div class="mini-stat__label">Base URL</div>
+            <div class="mini-stat__value integration-guide__base-url">@baseUrl</div>
+            <div class="mini-stat__text">Thay thế host thực tế của môi trường triển khai nếu hệ thống được publish ở domain khác.</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm surface-panel integration-guide-card">
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <h2 class="section-header__title">1. Gửi activity log</h2>
+                        <p class="section-header__subtitle">API dùng để partner đẩy một bản ghi log mới vào hệ thống.</p>
+                    </div>
+                </div>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--post">POST</span>
+                    <span class="request-chip">/api/partner/activity</span>
+                </div>
+                <pre class="api-block mb-3"><code>curl -X POST "@baseUrl/api/partner/activity" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
+  -d '{
+    "userId": 260001,
+    "userName": "nguyen.van.a",
+    "action": "Login",
+    "description": "Nội dung mô tả từ đối tác",
+    "endpoint": "/auth/login"
+  }'</code></pre>
+                <pre class="api-block api-block--light mb-0"><code>{
+  "userId": 260001,
+  "userName": "nguyen.van.a",
+  "action": "Login",
+  "description": "Nội dung mô tả từ đối tác",
+  "endpoint": "/auth/login"
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm surface-panel integration-guide-card">
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <h2 class="section-header__title">2. Lấy danh sách log</h2>
+                        <p class="section-header__subtitle">API dùng để truy vấn log của chính partner đang gọi, có hỗ trợ phân trang và lọc theo ngày.</p>
+                    </div>
+                </div>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--get">GET</span>
+                    <span class="request-chip">/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=Login</span>
+                </div>
+                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=Login" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY"</code></pre>
+                <pre class="api-block api-block--light mb-0"><code>{
+  "items": [
+    {
+      "partnerId": "6a152cdb5e3857756e533609",
+      "partnerName": "ERP",
+      "externalUserId": 260001,
+      "userName": "nguyen.van.a",
+      "action": "Login",
+      "description": "Partner ERP, username nguyen.van.a thực hiện thao tác Login.",
+      "createdAtUtc": "2026-05-26T09:00:00Z"
+    }
+  ],
+  "totalCount": 1,
+  "page": 1,
+  "pageSize": 10,
+  "totalPages": 1
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm surface-panel integration-guide-card">
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <h2 class="section-header__title">3. Lấy thống kê log</h2>
+                        <p class="section-header__subtitle">API dùng để lấy số liệu tổng quan log của partner trong một khoảng thời gian.</p>
+                    </div>
+                </div>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--get">GET</span>
+                    <span class="request-chip">/api/partner/statistics?from=2026-05-20&amp;to=2026-05-26</span>
+                </div>
+                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/statistics?from=2026-05-20&amp;to=2026-05-26" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY"</code></pre>
+                <pre class="api-block api-block--light mb-0"><code>{
+  "totalLogs": 120,
+  "todayLogs": 18,
+  "integratedLogs": 120,
+  "dailyActivity": [
+    { "label": "2026-05-20", "value": 12 },
+    { "label": "2026-05-21", "value": 14 }
+  ],
+  "topActions": [
+    { "label": "Login", "value": 35 },
+    { "label": "Search", "value": 22 }
+  ]
+}</code></pre>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,188 @@
+﻿@{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var isLoginPage = string.Equals(currentController, "Auth", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "Login", StringComparison.OrdinalIgnoreCase);
+
+    string SidebarLinkClass(string controller, string? action = null)
+    {
+        var isActive = string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)
+            && (action is null || string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase));
+
+        return isActive ? "sidebar-link active" : "sidebar-link";
+    }
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - LoggingActivity.Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/select2/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/LoggingActivity.Web.styles.css" asp-append-version="true" />
+</head>
+<body>
+    @if (isAuthenticated)
+    {
+        <div class="admin-shell">
+            <aside id="adminSidebar" class="admin-sidebar">
+                <div class="admin-sidebar__brand">
+                    <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
+                        <span class="brand-mark__icon">LA</span>
+                        <span>
+                            <span class="brand-mark__title">Logging Activity</span>
+                            <span class="brand-mark__subtitle">Enterprise console</span>
+                        </span>
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section__label">Overview</div>
+                    <nav class="sidebar-nav">
+                        <a class="@SidebarLinkClass("Home", "Index")" asp-controller="Home" asp-action="Index">
+                            <span class="sidebar-link__icon">D</span>
+                            <span class="sidebar-link__text">Dashboard</span>
+                        </a>
+                        @if (User.IsInRole(SystemRoles.Admin))
+                        {
+                            <a class="@SidebarLinkClass("Users")" asp-controller="Users" asp-action="Index">
+                                <span class="sidebar-link__icon">U</span>
+                                <span class="sidebar-link__text">Tài khoản</span>
+                            </a>
+                        }
+                        @if (User.IsInRole(SystemRoles.Admin) || User.IsInRole(SystemRoles.Auditor))
+                        {
+                            <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index">
+                                <span class="sidebar-link__icon">L</span>
+                                <span class="sidebar-link__text">Log &amp; Thống kê</span>
+                            </a>
+                            <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index">
+                                <span class="sidebar-link__icon">H</span>
+                                <span class="sidebar-link__text">Lịch sử cảnh báo</span>
+                            </a>
+                        }
+                    </nav>
+                </div>
+
+                @if (User.IsInRole(SystemRoles.Admin))
+                {
+                    <div class="sidebar-section">
+                        <div class="sidebar-section__label">Configuration</div>
+                        <nav class="sidebar-nav">
+                            <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index">
+                                <span class="sidebar-link__icon">A</span>
+                                <span class="sidebar-link__text">Action log</span>
+                            </a>
+                            <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index">
+                                <span class="sidebar-link__icon">P</span>
+                                <span class="sidebar-link__text">Partner</span>
+                            </a>
+                            <a class="@SidebarLinkClass("AlertRules")" asp-controller="AlertRules" asp-action="Index">
+                                <span class="sidebar-link__icon">C</span>
+                                <span class="sidebar-link__text">Cảnh báo log</span>
+                            </a>
+                        </nav>
+                    </div>
+                }
+
+            </aside>
+
+            <div class="admin-main">
+                <header class="admin-topbar">
+                    <div class="admin-topbar__left">
+                        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </button>
+                        <div>
+                            <div class="topbar-title">@ViewData["Title"]</div>
+                            <div class="topbar-breadcrumb">Logging Activity / @currentController</div>
+                        </div>
+                    </div>
+                    <div class="admin-topbar__right">
+                        <div class="topbar-chip topbar-chip--status">
+                            <span class="topbar-chip__dot"></span>
+                            <span class="topbar-chip__content">
+                                <span class="topbar-chip__label">Workspace</span>
+                                <span class="topbar-chip__meta">Production style admin UI</span>
+                            </span>
+                        </div>
+                        <div class="user-chip user-chip--dark">
+                            <span class="user-chip__avatar">@((User.Identity?.Name ?? "U").Substring(0, 1).ToUpperInvariant())</span>
+                            <span class="user-chip__content">
+                                <span class="user-chip__label">@User.Identity?.Name</span>
+                                <span class="user-chip__meta">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span>
+                            </span>
+                        </div>
+                        <form asp-controller="Auth" asp-action="Logout" method="post" class="topbar-logout-form">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-sm btn-outline-primary btn-soft topbar-logout-button" type="submit">Đăng xuất</button>
+                        </form>
+                    </div>
+                </header>
+
+                <div class="admin-content">
+                    <main role="main">
+                        @if (TempData["StatusMessage"] is string statusMessage)
+                        {
+                            <div class="alert alert-success alert-dismissible fade show alert-soft mb-4" role="alert">
+                                @statusMessage
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        }
+                        @RenderBody()
+                    </main>
+                </div>
+
+                <footer class="app-footer admin-footer">
+                    <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+                        <span>&copy; 2026 Logging Activity</span>
+                        <span>Operational analytics, access governance and partner observability</span>
+                    </div>
+                </footer>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="auth-layout-shell @(isLoginPage ? "auth-layout-shell--login" : string.Empty)">
+            <header class="auth-layout-header">
+                <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
+                    <span class="brand-mark__icon">LA</span>
+                    <span>
+                        <span class="brand-mark__title">Logging Activity</span>
+                        <span class="brand-mark__subtitle">Security and operations console</span>
+                    </span>
+                </a>
+            </header>
+
+            <div class="auth-layout-content">
+                <main role="main">
+                    @if (TempData["StatusMessage"] is string statusMessage)
+                    {
+                        <div class="alert alert-success alert-dismissible fade show alert-soft mb-4" role="alert">
+                            @statusMessage
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+                    @RenderBody()
+                </main>
+            </div>
+        </div>
+    }
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/select2/select2.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

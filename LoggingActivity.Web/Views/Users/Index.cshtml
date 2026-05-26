@@ -1,0 +1,160 @@
+@model UserManagementViewModel
+
+@{
+    ViewData["Title"] = "Quản lý tài khoản";
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            role = Model.Filter.Role,
+            isActive = Model.Filter.IsActive,
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Identity management</span>
+        <h1 class="page-title">Quản lý tài khoản và phân quyền</h1>
+        <p class="page-subtitle">Tạo tài khoản mới và phân quyền cho đội vận hành theo một giao diện gọn, rõ ràng và dễ kiểm soát.</p>
+    </div>
+    <div class="page-toolbar">
+        <a class="btn btn-dark" asp-action="Create">Tạo tài khoản</a>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
+            <div class="col-lg-4 col-md-6">
+                <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
+                <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Tên đăng nhập, hiển thị, email" />
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.Role" class="form-label">Quyền</label>
+                <select asp-for="Filter.Role" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="Tất cả quyền">
+                    <option value="">Tất cả</option>
+                    @foreach (var role in SystemRoles.All)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.IsActive" class="form-label">Trạng thái</label>
+                <select asp-for="Filter.IsActive" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="Tất cả trạng thái">
+                    <option value="">Tất cả</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.PageSize" class="form-label">Kích thước</label>
+                <select asp-for="Filter.PageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-12">
+                <div class="filter-actions">
+                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
+                    <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Tổng tài khoản</div><div class="metric-card__value">@Model.Statistics.TotalUsers</div><div class="metric-card__meta">Số tài khoản trong phạm vi lọc hiện tại.</div></div></div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Đang hoạt động</div><div class="metric-card__value">@Model.Statistics.ActiveUsers</div><div class="metric-card__meta">Tài khoản hiện có thể đăng nhập hoặc gọi API.</div></div></div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Tạm khóa</div><div class="metric-card__value">@Model.Statistics.InactiveUsers</div><div class="metric-card__meta">Tài khoản bị tắt trong vùng dữ liệu đang xem.</div></div></div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Danh sách tài khoản</h2>
+            <p class="data-card__subtitle">Trạng thái truy cập, vai trò và thông tin hệ thống tích hợp được tổng hợp theo bộ lọc hiện tại.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Tên đăng nhập</th>
+                    <th>Tên hiển thị</th>
+                    <th>Email</th>
+                    <th>Quyền</th>
+                    <th>Trạng thái</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in Model.Users.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">@user.UserName</td>
+                        <td>@user.DisplayName</td>
+                        <td>@user.Email</td>
+                        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@user.Role</span></td>
+                        <td>
+                            @if (user.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger-emphasis">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <div class="table-actions">
+                                <a class="btn btn-sm btn-outline-dark" asp-action="Edit" asp-route-id="@user.Id">Sửa</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Users.Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-secondary py-4">Không có tài khoản phù hợp bộ lọc.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.Users.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Users.Page / @Model.Users.TotalPages - Tổng @Model.Users.TotalCount tài khoản</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Users.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Users.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Users.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Users.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Users.Page >= Model.Users.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Users.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>

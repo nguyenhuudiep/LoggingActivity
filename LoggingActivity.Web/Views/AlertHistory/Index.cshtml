@@ -1,0 +1,123 @@
+@model AlertHistoryListViewModel
+
+@{
+    ViewData["Title"] = "Lịch sử cảnh báo";
+
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Monitoring</span>
+        <h1 class="page-title">Lịch sử cảnh báo</h1>
+        <p class="page-subtitle">Lưu lại toàn bộ cảnh báo đã phát sinh theo mốc thời gian, có thể lọc theo khoảng ngày và xem rõ user, partner, action liên quan.</p>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form">
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label" for="alertHistoryFrom">Từ ngày</label>
+                <input id="alertHistoryFrom" name="from" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label" for="alertHistoryTo">Đến ngày</label>
+                <input id="alertHistoryTo" name="to" type="date" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label" for="alertHistoryPageSize">Kích thước</label>
+                <select id="alertHistoryPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                    <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                    <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                    <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-lg-4 col-md-8">
+                <div class="filter-actions">
+                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
+                    <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Danh sách cảnh báo đã ghi nhận</h2>
+            <p class="data-card__subtitle">Mỗi dòng là một lần user chạm ngưỡng action trong ngày và đã được hệ thống lưu lịch sử cảnh báo.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 alert-history-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Thời điểm</th>
+                    <th>Ngày cảnh báo</th>
+                    <th>Partner</th>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Action</th>
+                    <th>Ngưỡng</th>
+                    <th>Số log</th>
+                    <th>Nội dung cảnh báo</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var alert in Model.Alerts.Items)
+                {
+                    <tr>
+                        <td>@alert.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@alert.AlertDateUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td>@alert.PartnerName</td>
+                        <td>@alert.UserId</td>
+                        <td>@alert.UserName</td>
+                        <td><span class="badge bg-danger-subtle text-danger-emphasis">@alert.Action</span></td>
+                        <td>@alert.DailyLimit</td>
+                        <td>@alert.CurrentCount</td>
+                        <td>@alert.Message</td>
+                    </tr>
+                }
+                @if (!Model.Alerts.Items.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-secondary py-4">Chưa có lịch sử cảnh báo nào theo bộ lọc hiện tại.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Alerts.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Alerts.Page / @Model.Alerts.TotalPages - Tổng @Model.Alerts.TotalCount cảnh báo</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Alerts.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Alerts.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Alerts.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Alerts.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Alerts.Page >= Model.Alerts.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Alerts.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>

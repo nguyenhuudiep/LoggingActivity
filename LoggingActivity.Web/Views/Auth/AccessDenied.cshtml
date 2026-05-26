@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Không có quyền";
+}
+
+<section class="state-page">
+    <div class="card state-card border-0 shadow-sm w-100">
+        <div class="row g-0 align-items-stretch">
+            <div class="col-lg-5 d-none d-lg-block">
+                <div class="state-card__media">
+                    <span class="state-card__code">403 Access</span>
+                    <h1 class="state-card__title">Quyền truy cập không phù hợp với chức năng này.</h1>
+                    <p class="state-card__description">Hệ thống vẫn hoạt động bình thường, nhưng tài khoản hiện tại không được cấp vai trò cần thiết để mở khu vực bạn vừa yêu cầu.</p>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="state-card__content p-4 p-lg-5">
+                    <span class="page-eyebrow">Phân quyền hệ thống</span>
+                    <h2 class="h2 fw-bold mb-3">Truy cập bị từ chối</h2>
+                    <p class="text-secondary mb-0">Vui lòng quay lại dashboard hoặc dùng tài khoản có vai trò phù hợp như Admin hay Auditor để tiếp tục thao tác.</p>
+                    <div class="state-actions">
+                        <a class="btn btn-dark" asp-controller="Home" asp-action="Index">Quay lại dashboard</a>
+                        <a class="btn btn-outline-dark" asp-controller="Auth" asp-action="Login">Đăng nhập lại</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

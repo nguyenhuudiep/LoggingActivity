@@ -1,0 +1,114 @@
+﻿@using System.Text.Json
+@model HomeDashboardViewModel
+
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Operations dashboard</span>
+        <h1 class="page-title">Xin chào @ViewData["DisplayName"]</h1>
+        <p class="page-subtitle">Một giao diện quản trị để tiếp nhận, tra cứu và phân tích activity log được đẩy về từ hệ thống khác qua API tích hợp.</p>
+    </div>
+    <div class="page-toolbar">
+        @if (User.IsInRole(SystemRoles.Admin) || User.IsInRole(SystemRoles.Auditor))
+        {
+            <a class="btn btn-dark" asp-controller="Logs" asp-action="Index">Mở dashboard log</a>
+        }
+        @if (User.IsInRole(SystemRoles.Admin))
+        {
+            <a class="btn btn-outline-dark" asp-controller="Users" asp-action="Index">Quản lý tài khoản</a>
+        }
+    </div>
+</section>
+
+@if (Model.ActiveWarnings.Any())
+{
+    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
+        <div class="dashboard-warning__header">
+            <strong>Cảnh báo chạm ngưỡng log trong ngày</strong>
+            <a class="btn btn-sm btn-outline-dark" asp-controller="Logs" asp-action="Index">Mở dashboard log</a>
+        </div>
+        <div class="dashboard-warning__list">
+            @foreach (var warning in Model.ActiveWarnings)
+            {
+                <div class="dashboard-warning__item">
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.UserId - @warning.UserName - @warning.Action</span>
+                    <span>
+                        @if (warning.IsAtLimit)
+                        {
+                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
+                        }
+                        else
+                        {
+                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng @warning.DailyLimit thêm @warning.ExceededBy log.
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (Model.UnconfiguredActionWarnings.Any())
+{
+    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
+        <div class="dashboard-warning__header">
+            <strong>Cảnh báo action chưa được cấu hình</strong>
+            <a class="btn btn-sm btn-outline-dark" asp-controller="LogActions" asp-action="Index">Mở cấu hình action</a>
+        </div>
+        <div class="dashboard-warning__list">
+            @foreach (var warning in Model.UnconfiguredActionWarnings)
+            {
+                <div class="dashboard-warning__item">
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.Action</span>
+                    <span>Đã xuất hiện @warning.Count log nhưng action này chưa có trong danh mục cấu hình.</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 surface-panel" data-action-trend-chart
+             data-chart-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.DailyActivity.Select(point => point.Label.Substring(5)))'
+             data-chart-datasets='@JsonSerializer.Serialize(Model.OverviewStatistics.ActionDailySeries.Select(series => new { label = series.Action, values = series.Values }))'>
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <span class="page-eyebrow">Tổng quan log</span>
+                        <h2 class="section-header__title">Biểu đồ log theo ngày, partner và action</h2>
+                        <p class="section-header__subtitle">Theo dõi xu hướng log 7 ngày gần nhất, chỉ hiển thị 5 cặp partner - action có tổng log cao nhất.</p>
+                    </div>
+                </div>
+                <div class="chart-stage">
+                    <canvas id="actionTrendChart" aria-label="Biểu đồ tổng quan log theo ngày, partner và action"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-header__title">API tích hợp</h2>
+                        <p class="section-header__subtitle">Các endpoint để hệ thống khác gửi activity log và truy vấn dữ liệu đã ghi nhận.</p>
+                    </div>
+                    <a class="btn btn-outline-dark" asp-controller="Home" asp-action="IntegrationGuide">Chi tiết</a>
+                </div>
+                <pre class="api-block mb-0"><code>POST /api/partner/activity
+GET  /api/partner/activity?page=1&amp;pageSize=10
+GET  /api/partner/statistics</code></pre>
+                <p class="text-secondary mt-3 mb-0">Hệ thống tích hợp xác thực bằng header <strong>X-Api-Key</strong> và gửi activity log qua các endpoint ingestion này.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+}

@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.vscode/
+.copilot-tmp/
+*.user
+*.suo
+*.cache
+*.pdb
+LoggingActivity.Web/bin/
+LoggingActivity.Web/obj/

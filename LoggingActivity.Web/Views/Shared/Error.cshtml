@@ -1,0 +1,38 @@
+﻿@model ErrorViewModel
+@{
+    ViewData["Title"] = "Lỗi hệ thống";
+}
+
+<section class="state-page">
+    <div class="card state-card border-0 shadow-sm w-100">
+        <div class="row g-0 align-items-stretch">
+            <div class="col-lg-5 d-none d-lg-block">
+                <div class="state-card__media">
+                    <span class="state-card__code">500 Server error</span>
+                    <h1 class="state-card__title">Đã có lỗi phát sinh khi xử lý yêu cầu.</h1>
+                    <p class="state-card__description">Đội vận hành có thể dùng request id để đối chiếu log và truy tìm nhanh nguyên nhân trong hệ thống giám sát.</p>
+                </div>
+            </div>
+            <div class="col-lg-7">
+                <div class="state-card__content p-4 p-lg-5">
+                    <span class="page-eyebrow">Incident response</span>
+                    <h2 class="h2 fw-bold mb-3">Hệ thống tạm thời không xử lý được yêu cầu này.</h2>
+                    <p class="text-secondary">Nếu lỗi lặp lại, hãy gửi request id cho quản trị viên để kiểm tra log và hành vi hệ thống tại thời điểm phát sinh.</p>
+
+                    @if (Model.ShowRequestId)
+                    {
+                        <div class="request-chip mt-4">
+                            <strong>Request ID</strong>
+                            <code>@Model.RequestId</code>
+                        </div>
+                    }
+
+                    <div class="state-actions">
+                        <a class="btn btn-dark" asp-controller="Home" asp-action="Index">Về trang chủ</a>
+                        <a class="btn btn-outline-dark" href="javascript:history.back()">Quay lại trang trước</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,50 @@
+﻿@{
+    ViewData["Title"] = "Chính sách bảo mật";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Privacy and compliance</span>
+        <h1 class="page-title">@ViewData["Title"]</h1>
+        <p class="page-subtitle">Trang này mô tả cách hệ thống Logging Activity tiếp nhận, sử dụng và bảo vệ dữ liệu activity log do các hệ thống tích hợp gửi về qua API.</p>
+    </div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card policy-card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="section-header__title">Dữ liệu được ghi nhận</h2>
+                <ul class="policy-list mt-3">
+                    <li>Thông tin định danh ứng dụng gửi log như API key, username ánh xạ và vai trò tích hợp.</li>
+                    <li>Nhật ký activity gồm thời gian, địa chỉ IP, endpoint, action và mô tả do hệ thống ngoài gửi sang.</li>
+                    <li>Dữ liệu thống kê phát sinh từ các bản ghi đã được tiếp nhận qua API tích hợp.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card policy-card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="section-header__title">Mục đích sử dụng</h2>
+                <ul class="policy-list mt-3">
+                    <li>Tập trung hóa activity log từ nhiều hệ thống vào một điểm lưu trữ và tra cứu.</li>
+                    <li>Phân tích hành vi nghiệp vụ để phục vụ kiểm toán, giám sát và điều tra sự cố.</li>
+                    <li>Giám sát lưu lượng tích hợp và xác minh API key khi cần.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card policy-card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="section-header__title">Nguyên tắc bảo vệ</h2>
+                <ul class="policy-list mt-3">
+                    <li>Chỉ người dùng có quyền phù hợp mới xem được dữ liệu quản trị và activity log đã tiếp nhận.</li>
+                    <li>Thông tin nhạy cảm phải được bảo vệ ở tầng cấu hình, hạ tầng và truy cập ứng dụng.</li>
+                    <li>Dữ liệu log được sử dụng cho mục đích vận hành và tuân thủ, không phục vụ mục đích ngoài phạm vi hệ thống.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,72 @@
+@model IReadOnlyList<Partner>
+
+@{
+    ViewData["Title"] = "Cấu hình partner";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Partner configuration</span>
+        <h1 class="page-title">Quản lý partner gửi log</h1>
+        <p class="page-subtitle">Mỗi partner có API key riêng để gọi endpoint tạo log. Bạn chỉ cần quản lý theo tên partner và trạng thái hoạt động.</p>
+    </div>
+    <div class="page-toolbar">
+        <a class="btn btn-dark" asp-action="Create">Tạo partner</a>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Danh sách partner</h2>
+            <p class="data-card__subtitle">Quản lý tên đối tác tích hợp, trạng thái hoạt động và API key dùng để gửi log.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Tên partner</th>
+                    <th>Trạng thái</th>
+                    <th>API key</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var partner in Model)
+                {
+                    <tr>
+                        <td class="fw-semibold">@partner.Name</td>
+                        <td>
+                            @if (partner.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger-emphasis">Inactive</span>
+                            }
+                        </td>
+                        <td><code class="key-pill">@partner.ApiKey</code></td>
+                        <td class="text-end">
+                            <div class="table-actions">
+                                <a class="btn btn-sm btn-outline-dark" asp-action="Edit" asp-route-id="@partner.Id">Sửa</a>
+                                <form asp-action="RegenerateApiKey" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="partnerId" value="@partner.Id" />
+                                    <button class="btn btn-sm btn-outline-primary" type="submit">Tạo lại key</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-secondary py-4">Chưa có partner nào được cấu hình.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

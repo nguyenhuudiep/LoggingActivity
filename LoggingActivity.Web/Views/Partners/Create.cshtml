@@ -1,0 +1,50 @@
+@model PartnerEditViewModel
+
+@{
+    ViewData["Title"] = "Tạo partner";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <section class="page-hero">
+            <div class="page-hero__content">
+                <span class="page-eyebrow">New partner</span>
+                <h1 class="page-title">Tạo partner mới</h1>
+                <p class="page-subtitle">Chỉ cần nhập tên đối tác. Hệ thống sẽ tự sinh API key riêng sau khi lưu.</p>
+            </div>
+            <div class="page-toolbar">
+                <a class="btn btn-outline-dark" asp-action="Index">Quay lại</a>
+            </div>
+        </section>
+
+        <div class="card border-0 shadow-sm form-shell">
+            <div class="card-body p-4">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="Name" class="form-label"></label>
+                            <input asp-for="Name" class="form-control" />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input asp-for="IsActive" class="form-check-input" />
+                                <label asp-for="IsActive" class="form-check-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-shell__footer">
+                        <a class="btn btn-outline-secondary" asp-action="Index">Hủy</a>
+                        <button type="submit" class="btn btn-dark">Lưu partner</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

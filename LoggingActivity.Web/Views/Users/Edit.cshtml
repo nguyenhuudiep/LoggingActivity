@@ -1,0 +1,75 @@
+@model UserEditViewModel
+
+@{
+    ViewData["Title"] = "Cập nhật tài khoản";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <section class="page-hero">
+            <div class="page-hero__content">
+                <span class="page-eyebrow">Account maintenance</span>
+                <h1 class="page-title">Cập nhật tài khoản</h1>
+                <p class="page-subtitle">Điều chỉnh phân quyền, trạng thái hoạt động và thay đổi mật khẩu khi cần cho từng tài khoản.</p>
+            </div>
+            <div class="page-toolbar">
+                <a class="btn btn-outline-dark" asp-action="Index">Quay lại</a>
+            </div>
+        </section>
+
+        <div class="card border-0 shadow-sm form-shell">
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="Id" type="hidden" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="UserName" class="form-label"></label>
+                            <input asp-for="UserName" class="form-control" readonly />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="DisplayName" class="form-label"></label>
+                            <input asp-for="DisplayName" class="form-control" />
+                            <span asp-validation-for="DisplayName" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Email" class="form-label"></label>
+                            <input asp-for="Email" class="form-control" />
+                            <span asp-validation-for="Email" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Role" class="form-label"></label>
+                            <select asp-for="Role" class="form-select" data-enhanced-select data-hide-search="true" asp-items="new SelectList(SystemRoles.All)"></select>
+                            <span asp-validation-for="Role" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Password" class="form-label"></label>
+                            <input asp-for="Password" class="form-control" />
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ConfirmPassword" class="form-label"></label>
+                            <input asp-for="ConfirmPassword" class="form-control" />
+                            <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mb-3">
+                                <input asp-for="IsActive" class="form-check-input" />
+                                <label asp-for="IsActive" class="form-check-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-shell__footer">
+                        <a class="btn btn-outline-secondary" asp-action="Index">Hủy</a>
+                        <button type="submit" class="btn btn-dark">Lưu thay đổi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
