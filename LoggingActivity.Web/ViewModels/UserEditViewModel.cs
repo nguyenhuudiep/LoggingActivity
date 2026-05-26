@@ -22,6 +22,8 @@ public sealed class UserEditViewModel : IValidatableObject
     [Required(ErrorMessage = "Vui lòng chọn quyền.")]
     public string Role { get; set; } = SystemRoles.Auditor;
 
+    public List<string> SelectedPermissions { get; set; } = new();
+
     [Display(Name = "Đang hoạt động")]
     public bool IsActive { get; set; } = true;
 
@@ -45,6 +47,12 @@ public sealed class UserEditViewModel : IValidatableObject
         if (!string.Equals(Password, ConfirmPassword, StringComparison.Ordinal))
         {
             yield return new ValidationResult("Mật khẩu xác nhận không khớp.", new[] { nameof(ConfirmPassword) });
+        }
+
+        if (string.Equals(Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
+            && (SelectedPermissions is null || SelectedPermissions.Count == 0))
+        {
+            yield return new ValidationResult("Vui lòng chọn ít nhất một quyền chức năng cho tài khoản Admin.", new[] { nameof(SelectedPermissions) });
         }
     }
 }

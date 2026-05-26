@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]
-public sealed class AlertHistoryController : Controller
+public sealed class AlertHistoryController : AppController
 {
     private readonly AlertHistoryService _alertHistoryService;
 
@@ -19,6 +19,12 @@ public sealed class AlertHistoryController : Controller
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] AlertHistoryFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         filter.From ??= DateTime.Today.AddDays(-6);
         filter.To ??= DateTime.Today;
 

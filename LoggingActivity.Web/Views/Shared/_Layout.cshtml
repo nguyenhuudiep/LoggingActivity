@@ -4,6 +4,13 @@
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var isLoginPage = string.Equals(currentController, "Auth", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "Login", StringComparison.OrdinalIgnoreCase);
+    var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
+    var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+    var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
+    var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
+    var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
+    var canManageAlertRules = User.HasAdminFunctionPermission(AdminFunctionPermissions.AlertRuleManagement);
+    var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules;
 
     string SidebarLinkClass(string controller, string? action = null)
     {
@@ -51,19 +58,22 @@
                             <span class="sidebar-link__icon">D</span>
                             <span class="sidebar-link__text">Dashboard</span>
                         </a>
-                        @if (User.IsInRole(SystemRoles.Admin))
+                        @if (User.IsInRole(SystemRoles.Admin) && canManageUsers)
                         {
                             <a class="@SidebarLinkClass("Users")" asp-controller="Users" asp-action="Index">
                                 <span class="sidebar-link__icon">U</span>
                                 <span class="sidebar-link__text">Tài khoản</span>
                             </a>
                         }
-                        @if (User.IsInRole(SystemRoles.Admin) || User.IsInRole(SystemRoles.Auditor))
+                        @if (canAccessLogs)
                         {
                             <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index">
                                 <span class="sidebar-link__icon">L</span>
                                 <span class="sidebar-link__text">Log &amp; Thống kê</span>
                             </a>
+                        }
+                        @if (canAccessAlertHistory)
+                        {
                             <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index">
                                 <span class="sidebar-link__icon">H</span>
                                 <span class="sidebar-link__text">Lịch sử cảnh báo</span>
@@ -72,23 +82,32 @@
                     </nav>
                 </div>
 
-                @if (User.IsInRole(SystemRoles.Admin))
+                @if (User.IsInRole(SystemRoles.Admin) && hasAdminConfigurationAccess)
                 {
                     <div class="sidebar-section">
                         <div class="sidebar-section__label">Configuration</div>
                         <nav class="sidebar-nav">
+                            @if (canManageLogActions)
+                            {
                             <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index">
                                 <span class="sidebar-link__icon">A</span>
                                 <span class="sidebar-link__text">Action log</span>
                             </a>
+                            }
+                            @if (canManagePartners)
+                            {
                             <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index">
                                 <span class="sidebar-link__icon">P</span>
                                 <span class="sidebar-link__text">Partner</span>
                             </a>
+                            }
+                            @if (canManageAlertRules)
+                            {
                             <a class="@SidebarLinkClass("AlertRules")" asp-controller="AlertRules" asp-action="Index">
                                 <span class="sidebar-link__icon">C</span>
                                 <span class="sidebar-link__text">Cảnh báo log</span>
                             </a>
+                            }
                         </nav>
                     </div>
                 }

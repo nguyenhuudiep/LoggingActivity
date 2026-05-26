@@ -35,6 +35,14 @@ public sealed class AuthService
             new(ClaimTypes.Role, user.Role)
         };
 
+        if (string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            claims.AddRange(user.FunctionPermissions
+                .Where(permission => !string.IsNullOrWhiteSpace(permission))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));
+        }
+
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
 

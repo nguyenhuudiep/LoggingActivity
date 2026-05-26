@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin)]
-public sealed class UsersController : Controller
+public sealed class UsersController : AppController
 {
     private readonly UserService _userService;
 
@@ -19,6 +19,12 @@ public sealed class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] UserFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         var query = new UserQuery
         {
             SearchTerm = filter.SearchTerm,
@@ -42,6 +48,12 @@ public sealed class UsersController : Controller
     [HttpGet]
     public IActionResult Create()
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         return View(new UserEditViewModel { IsCreateMode = true, IsActive = true });
     }
 
@@ -49,6 +61,12 @@ public sealed class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(UserEditViewModel model, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         model.IsCreateMode = true;
         if (!ModelState.IsValid)
         {
@@ -61,6 +79,7 @@ public sealed class UsersController : Controller
             DisplayName = model.DisplayName.Trim(),
             Email = model.Email.Trim(),
             Role = model.Role,
+            FunctionPermissions = model.SelectedPermissions,
             IsActive = model.IsActive
         }, model.Password!, cancellationToken);
 
@@ -77,6 +96,12 @@ public sealed class UsersController : Controller
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         var user = await _userService.GetByIdAsync(id, cancellationToken);
         if (user is null)
         {
@@ -90,6 +115,11 @@ public sealed class UsersController : Controller
             DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role,
+            SelectedPermissions = string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
+                ? (user.FunctionPermissions.Count == 0
+                    ? AdminFunctionPermissions.All.Select(permission => permission.Code).ToList()
+                    : user.FunctionPermissions.ToList())
+                : new List<string>(),
             IsActive = user.IsActive
         });
     }
@@ -98,6 +128,12 @@ public sealed class UsersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(UserEditViewModel model, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -109,6 +145,7 @@ public sealed class UsersController : Controller
             DisplayName = model.DisplayName.Trim(),
             Email = model.Email.Trim(),
             Role = model.Role,
+            FunctionPermissions = model.SelectedPermissions,
             IsActive = model.IsActive
         }, model.Password, cancellationToken);
 

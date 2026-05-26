@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin)]
-public sealed class LogActionsController : Controller
+public sealed class LogActionsController : AppController
 {
     private readonly LogActionDefinitionService _logActionDefinitionService;
     private readonly AlertRuleService _alertRuleService;
@@ -21,6 +21,12 @@ public sealed class LogActionsController : Controller
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] LogActionFilterViewModel filter, string? editCode, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogActionManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         return View(await BuildViewModelAsync(filter, null, editCode, cancellationToken));
     }
 
@@ -28,6 +34,12 @@ public sealed class LogActionsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([Bind(Prefix = "Input")] LogActionDefinitionInputViewModel model, [FromQuery] LogActionFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogActionManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!ModelState.IsValid)
         {
             return View(nameof(Index), await BuildViewModelAsync(filter, model, model.ExistingCode, cancellationToken));
@@ -56,6 +68,12 @@ public sealed class LogActionsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string code, [FromQuery] LogActionFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogActionManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!string.IsNullOrWhiteSpace(code))
         {
             await _logActionDefinitionService.DeleteAsync(code, cancellationToken);
@@ -75,6 +93,12 @@ public sealed class LogActionsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleStatus(string code, [FromQuery] LogActionFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogActionManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!string.IsNullOrWhiteSpace(code))
         {
             var success = await _logActionDefinitionService.ToggleStatusAsync(code, cancellationToken);

@@ -47,6 +47,7 @@ public sealed class UserService
             return (false, "Tên đăng nhập đã tồn tại.");
         }
 
+        user.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
         user.CreatedAtUtc = DateTime.UtcNow;
         user.UpdatedAtUtc = DateTime.UtcNow;
@@ -66,6 +67,7 @@ public sealed class UserService
         existingUser.DisplayName = user.DisplayName;
         existingUser.Email = user.Email;
         existingUser.Role = user.Role;
+        existingUser.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
         existingUser.IsActive = user.IsActive;
 
         if (!string.IsNullOrWhiteSpace(newPassword))
@@ -81,5 +83,24 @@ public sealed class UserService
     {
         var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
         return Task.FromResult(result != PasswordVerificationResult.Failed);
+    }
+
+    private static List<string> NormalizeFunctionPermissions(string role, IEnumerable<string>? permissions)
+    {
+        if (!string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            return new List<string>();
+        }
+
+        var requestedPermissions = permissions?
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        return AdminFunctionPermissions.All
+            .Where(permission => requestedPermissions.Contains(permission.Code))
+            .Select(permission => permission.Code)
+            .ToList();
     }
 }

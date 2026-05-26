@@ -54,6 +54,23 @@
                             <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
                         </div>
                         <div class="col-12">
+                            <label class="form-label">Quyền chức năng cho nhóm Admin</label>
+                            <div class="permission-grid">
+                                @foreach (var permission in AdminFunctionPermissions.All)
+                                {
+                                    <label class="permission-card">
+                                        <input class="form-check-input permission-card__input" type="checkbox" name="SelectedPermissions" value="@permission.Code" checked="@(Model.SelectedPermissions.Contains(permission.Code))" />
+                                        <span class="permission-card__content">
+                                            <span class="permission-card__title">@permission.ShortDisplayName</span>
+                                            <span class="permission-card__text">@permission.Description</span>
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                            <div class="form-text">Chỉ áp dụng khi tài khoản thuộc nhóm Admin. Với Auditor, hệ thống bỏ qua phần quyền chức năng này.</div>
+                            <span asp-validation-for="SelectedPermissions" class="text-danger d-block mt-2"></span>
+                        </div>
+                        <div class="col-12">
                             <div class="form-check mb-3">
                                 <input asp-for="IsActive" class="form-check-input" />
                                 <label asp-for="IsActive" class="form-check-label"></label>

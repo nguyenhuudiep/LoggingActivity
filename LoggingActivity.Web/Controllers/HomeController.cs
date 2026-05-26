@@ -8,7 +8,7 @@ using LoggingActivity.Web.ViewModels;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize]
-public class HomeController : Controller
+public class HomeController : AppController
 {
     private readonly ILogger<HomeController> _logger;
     private readonly AlertRuleService _alertRuleService;
@@ -42,6 +42,12 @@ public class HomeController : Controller
     [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]
     public IActionResult IntegrationGuide()
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         return View();
     }
 

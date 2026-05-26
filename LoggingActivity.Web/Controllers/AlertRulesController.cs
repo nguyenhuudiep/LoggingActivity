@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin)]
-public sealed class AlertRulesController : Controller
+public sealed class AlertRulesController : AppController
 {
     private readonly AlertRuleService _alertRuleService;
     private readonly LogActionDefinitionService _logActionDefinitionService;
@@ -21,6 +21,12 @@ public sealed class AlertRulesController : Controller
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] AlertRuleFilterViewModel filter, string? editAction, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertRuleManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         return View(await BuildViewModelAsync(filter, null, editAction, cancellationToken));
     }
 
@@ -28,6 +34,12 @@ public sealed class AlertRulesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([Bind(Prefix = "Input")] AlertRuleInputViewModel model, AlertRuleFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertRuleManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!ModelState.IsValid)
         {
             return View(nameof(Index), await BuildViewModelAsync(filter, model, model.ExistingAction, cancellationToken));
@@ -58,6 +70,12 @@ public sealed class AlertRulesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string action, AlertRuleFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertRuleManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!string.IsNullOrWhiteSpace(action))
         {
             await _alertRuleService.DeleteAsync(action, cancellationToken);
@@ -78,6 +96,12 @@ public sealed class AlertRulesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleStatus(string action, AlertRuleFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertRuleManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!string.IsNullOrWhiteSpace(action))
         {
             var success = await _alertRuleService.ToggleStatusAsync(action, cancellationToken);

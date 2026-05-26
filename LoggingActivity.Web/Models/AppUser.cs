@@ -20,6 +20,8 @@ public sealed class AppUser
 
     public string Role { get; set; } = SystemRoles.Auditor;
 
+    public List<string> FunctionPermissions { get; set; } = new();
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

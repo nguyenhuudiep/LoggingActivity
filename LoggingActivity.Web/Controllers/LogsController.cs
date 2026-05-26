@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]
-public sealed class LogsController : Controller
+public sealed class LogsController : AppController
 {
     private readonly ActivityLogService _activityLogService;
     private readonly AlertRuleService _alertRuleService;
@@ -29,6 +29,12 @@ public sealed class LogsController : Controller
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] LogFilterViewModel filter, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         filter.From ??= DateTime.Today;
         filter.To ??= DateTime.Today;
 

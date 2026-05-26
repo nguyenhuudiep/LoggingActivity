@@ -3,6 +3,9 @@
 
 @{
     ViewData["Title"] = "Dashboard";
+    var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+    var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
+    var canAccessIntegrationGuide = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
 }
 
 <section class="page-hero">
@@ -12,11 +15,11 @@
         <p class="page-subtitle">Một giao diện quản trị để tiếp nhận, tra cứu và phân tích activity log được đẩy về từ hệ thống khác qua API tích hợp.</p>
     </div>
     <div class="page-toolbar">
-        @if (User.IsInRole(SystemRoles.Admin) || User.IsInRole(SystemRoles.Auditor))
+        @if (canAccessLogs)
         {
             <a class="btn btn-dark" asp-controller="Logs" asp-action="Index">Mở dashboard log</a>
         }
-        @if (User.IsInRole(SystemRoles.Admin))
+        @if (canManageUsers)
         {
             <a class="btn btn-outline-dark" asp-controller="Users" asp-action="Index">Quản lý tài khoản</a>
         }
@@ -28,7 +31,10 @@
     <div class="alert alert-warning dashboard-warning mb-4" role="alert">
         <div class="dashboard-warning__header">
             <strong>Cảnh báo chạm ngưỡng log trong ngày</strong>
-            <a class="btn btn-sm btn-outline-dark" asp-controller="Logs" asp-action="Index">Mở dashboard log</a>
+            @if (canAccessLogs)
+            {
+                <a class="btn btn-sm btn-outline-dark" asp-controller="Logs" asp-action="Index">Mở dashboard log</a>
+            }
         </div>
         <div class="dashboard-warning__list">
             @foreach (var warning in Model.ActiveWarnings)
@@ -98,7 +104,10 @@
                         <h2 class="section-header__title">API tích hợp</h2>
                         <p class="section-header__subtitle">Các endpoint để hệ thống khác gửi activity log và truy vấn dữ liệu đã ghi nhận.</p>
                     </div>
-                    <a class="btn btn-outline-dark" asp-controller="Home" asp-action="IntegrationGuide">Chi tiết</a>
+                    @if (canAccessIntegrationGuide)
+                    {
+                        <a class="btn btn-outline-dark" asp-controller="Home" asp-action="IntegrationGuide">Chi tiết</a>
+                    }
                 </div>
                 <pre class="api-block mb-0"><code>POST /api/partner/activity
 GET  /api/partner/activity?page=1&amp;pageSize=10

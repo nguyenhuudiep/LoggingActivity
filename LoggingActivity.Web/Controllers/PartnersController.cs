@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LoggingActivity.Web.Controllers;
 
 [Authorize(Roles = SystemRoles.Admin)]
-public sealed class PartnersController : Controller
+public sealed class PartnersController : AppController
 {
     private readonly PartnerService _partnerService;
 
@@ -19,6 +19,12 @@ public sealed class PartnersController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         var partners = await _partnerService.GetAllAsync(cancellationToken);
         return View(partners);
     }
@@ -26,6 +32,12 @@ public sealed class PartnersController : Controller
     [HttpGet]
     public IActionResult Create()
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         return View(new PartnerEditViewModel { IsCreateMode = true, IsActive = true });
     }
 
@@ -33,6 +45,12 @@ public sealed class PartnersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(PartnerEditViewModel model, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         model.IsCreateMode = true;
         if (!ModelState.IsValid)
         {
@@ -58,6 +76,12 @@ public sealed class PartnersController : Controller
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         var partner = await _partnerService.GetByIdAsync(id, cancellationToken);
         if (partner is null)
         {
@@ -77,6 +101,12 @@ public sealed class PartnersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(PartnerEditViewModel model, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -103,6 +133,12 @@ public sealed class PartnersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegenerateApiKey(string partnerId, CancellationToken cancellationToken)
     {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
         var apiKey = await _partnerService.RegenerateApiKeyAsync(partnerId, cancellationToken);
         if (apiKey is null)
         {

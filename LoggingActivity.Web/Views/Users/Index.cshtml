@@ -2,6 +2,29 @@
 
 @{
     ViewData["Title"] = "Quản lý tài khoản";
+
+    const int visiblePermissionBadgeCount = 2;
+
+    List<string> BuildPermissionLabels(AppUser user)
+    {
+        if (!string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            return new List<string> { "Theo vai trò Auditor" };
+        }
+
+        if (user.FunctionPermissions is null || user.FunctionPermissions.Count == 0)
+        {
+            return new List<string> { "Toàn quyền mặc định" };
+        }
+
+        var labels = AdminFunctionPermissions.All
+            .Where(permission => user.FunctionPermissions.Contains(permission.Code, StringComparer.OrdinalIgnoreCase))
+            .Select(permission => permission.DisplayName)
+            .ToList();
+
+        return labels.Count == 0 ? new List<string> { "Toàn quyền mặc định" } : labels;
+    }
+
     string BuildPageUrl(int page)
     {
         return Url.Action("Index", new
@@ -96,6 +119,7 @@
                     <th>Tên hiển thị</th>
                     <th>Email</th>
                     <th>Quyền</th>
+                    <th>Quyền chức năng</th>
                     <th>Trạng thái</th>
                     <th class="text-end">Thao tác</th>
                 </tr>
@@ -103,11 +127,29 @@
             <tbody>
                 @foreach (var user in Model.Users.Items)
                 {
+                    var permissionLabels = BuildPermissionLabels(user);
+                    var visiblePermissionLabels = permissionLabels.Take(visiblePermissionBadgeCount).ToList();
+                    var hiddenPermissionCount = Math.Max(0, permissionLabels.Count - visiblePermissionLabels.Count);
+                    var permissionDetail = string.Join(", ", permissionLabels);
+                    var permissionTooltip = string.Join("; ", permissionLabels);
                     <tr>
                         <td class="fw-semibold">@user.UserName</td>
                         <td>@user.DisplayName</td>
                         <td>@user.Email</td>
                         <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@user.Role</span></td>
+                        <td>
+                            <div class="permission-summary" title="@permissionTooltip">
+                                @foreach (var label in visiblePermissionLabels)
+                                {
+                                    <span class="permission-summary__badge">@label</span>
+                                }
+                                @if (hiddenPermissionCount > 0)
+                                {
+                                    <span class="permission-summary__badge permission-summary__badge--more">+@hiddenPermissionCount</span>
+                                }
+                            </div>
+                            <div class="permission-summary__detail">@permissionDetail</div>
+                        </td>
                         <td>
                             @if (user.IsActive)
                             {
@@ -128,7 +170,7 @@
                 @if (!Model.Users.Items.Any())
                 {
                     <tr>
-                        <td colspan="6" class="text-center text-secondary py-4">Không có tài khoản phù hợp bộ lọc.</td>
+                        <td colspan="7" class="text-center text-secondary py-4">Không có tài khoản phù hợp bộ lọc.</td>
                     </tr>
                 }
             </tbody>
