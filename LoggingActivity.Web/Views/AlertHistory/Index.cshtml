@@ -36,6 +36,7 @@
             </div>
             <div class="col-lg-2 col-md-4">
                 <label class="form-label" for="alertHistoryPageSize">Kích thước</label>
+                <select id="alertHistoryPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
                     <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
                     <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
                     <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
