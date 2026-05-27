@@ -17,7 +17,7 @@ public sealed class PartnersController : AppController
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index([FromQuery] PartnerFilterViewModel filter, CancellationToken cancellationToken)
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
         if (accessDenied is not null)
@@ -25,8 +25,17 @@ public sealed class PartnersController : AppController
             return accessDenied;
         }
 
-        var partners = await _partnerService.GetAllAsync(cancellationToken);
-        return View(partners);
+        var partners = await _partnerService.GetPagedAsync(new PartnerQuery
+        {
+            Page = filter.Page,
+            PageSize = filter.PageSize
+        }, cancellationToken);
+
+        return View(new PartnerListViewModel
+        {
+            Filter = filter,
+            Partners = partners
+        });
     }
 
     [HttpGet]

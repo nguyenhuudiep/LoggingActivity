@@ -1,0 +1,323 @@
+@model ActivityLogIngestQueueDashboardViewModel
+
+@{
+    ViewData["Title"] = "Hàng đợi ingest";
+
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            partnerId = Model.Filter.PartnerId,
+            status = Model.Filter.Status,
+            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
+
+    string BuildStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            ActivityLogIngestQueueStatuses.Pending => "bg-warning-subtle text-warning-emphasis",
+            ActivityLogIngestQueueStatuses.Processing => "bg-info-subtle text-info-emphasis",
+            ActivityLogIngestQueueStatuses.Failed => "bg-danger-subtle text-danger-emphasis",
+            ActivityLogIngestQueueStatuses.Completed => "bg-success-subtle text-success-emphasis",
+            _ => "bg-secondary-subtle text-secondary-emphasis"
+        };
+    }
+
+    string BuildRetryModalId(string? value)
+    {
+        var safeValue = System.Text.RegularExpressions.Regex.Replace(value ?? string.Empty, "[^a-zA-Z0-9_-]", "-");
+        return $"retryFailedQueueModal-{safeValue}";
+    }
+
+    string BuildErrorModalId(string? value)
+    {
+        var safeValue = System.Text.RegularExpressions.Regex.Replace(value ?? string.Empty, "[^a-zA-Z0-9_-]", "-");
+        return $"queueErrorModal-{safeValue}";
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Queue Monitor</span>
+        <h1 class="page-title">Giám sát hàng đợi ingest</h1>
+        <p class="page-subtitle">Theo dõi các request log đang chờ retry, đang xử lý hoặc thất bại để admin xử lý sự cố kịp thời.</p>
+    </div>
+    @if (User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard))
+    {
+        <div class="page-toolbar">
+            @if (Model.Summary.FailedCount > 0)
+            {
+                <form id="retryFailedBulkForm" asp-action="RetryFailedBulk" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="Filter.PartnerId" />
+                    <input type="hidden" asp-for="Filter.Status" />
+                    <input type="hidden" asp-for="Filter.From" />
+                    <input type="hidden" asp-for="Filter.To" />
+                    <input type="hidden" asp-for="Filter.Page" />
+                    <input type="hidden" asp-for="Filter.PageSize" />
+                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#retryFailedBulkModal">Retry tất cả lỗi</button>
+                </form>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.Summary.FailedCount > 0)
+{
+    <partial name="_DangerConfirmModal" model='new DangerConfirmModalViewModel
+    {
+        ModalId = "retryFailedBulkModal",
+        LabelId = "retryFailedBulkModalLabel",
+        Title = "Xác nhận retry toàn bộ request lỗi",
+        Message = "Bạn có chắc muốn đưa toàn bộ request đang thất bại theo bộ lọc hiện tại trở lại hàng đợi để xử lý lại ngay không?",
+        Hint = "Thao tác này chỉ áp dụng cho các bản ghi đang ở trạng thái Failed trong phạm vi partner và khoảng ngày hiện tại. Số lần thử của các bản ghi này sẽ được reset về 0.",
+        ConfirmText = "Retry tất cả lỗi",
+        FormId = "retryFailedBulkForm"
+    }' />
+}
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form ingest-queue-filter-form" data-auto-submit-selects>
+            <div class="col-12 col-xl-2 col-lg-6 col-md-6">
+                <label asp-for="Filter.PartnerId" class="form-label">Partner</label>
+                <select asp-for="Filter.PartnerId" class="form-select" data-enhanced-select data-placeholder="Tất cả partner">
+                    <option value="">Tất cả</option>
+                    @foreach (var partner in Model.AvailablePartners)
+                    {
+                        <option value="@partner.Id">@partner.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-xl-2 col-lg-6 col-md-6">
+                <label asp-for="Filter.Status" class="form-label">Trạng thái</label>
+                <select asp-for="Filter.Status" class="form-select" data-enhanced-select data-placeholder="All trạng thái">
+                    <option value="">All</option>
+                    @foreach (var status in Model.AvailableStatuses)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-xl-2 col-lg-3 col-md-6">
+                <label asp-for="Filter.From" class="form-label">Từ ngày</label>
+                <input asp-for="Filter.From" class="form-control" type="date" />
+            </div>
+            <div class="col-6 col-xl-2 col-lg-3 col-md-6">
+                <label asp-for="Filter.To" class="form-label">Đến ngày</label>
+                <input asp-for="Filter.To" class="form-control" type="date" />
+            </div>
+            <div class="col-6 col-xl-2 col-lg-3 col-md-6">
+                <label asp-for="Filter.PageSize" class="form-label">Kích thước</label>
+                <select asp-for="Filter.PageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="20">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+            <div class="col-6 col-xl-2 col-lg-3 col-md-6">
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-dark w-100">Lọc</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Tổng request</div><div class="metric-card__value">@Model.Summary.TotalCount</div><div class="metric-card__meta">Tổng số yêu cầu đi qua hàng đợi trong phạm vi lọc.</div></div></div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Đang chờ / retry</div><div class="metric-card__value">@Model.Summary.PendingCount</div><div class="metric-card__meta">Các request đang đợi được xử lý lại hoặc chưa tới lượt.</div></div></div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Đang xử lý</div><div class="metric-card__value">@Model.Summary.ProcessingCount</div><div class="metric-card__meta">Worker đã lease và đang thực thi những request này.</div></div></div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Thất bại</div><div class="metric-card__value">@Model.Summary.FailedCount</div><div class="metric-card__meta">Các request cần admin kiểm tra do đã quá số lần retry.</div></div></div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Chi tiết hàng đợi</h2>
+            <p class="data-card__subtitle">Hiển thị requestId, trạng thái hiện tại, số lần thử, lịch retry và thông tin lỗi cuối cùng.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 ingest-queue-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Thời gian nhận</th>
+                    <th>Request ID</th>
+                    <th>Partner / User</th>
+                    <th>Action</th>
+                    <th>Trạng thái</th>
+                    <th>Lần thử</th>
+                    <th>Lịch xử lý</th>
+                    <th>Lỗi cuối</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items.Items)
+                {
+                    var retryModalId = BuildRetryModalId(item.Id);
+                    var retryFormId = $"retryFailedForm-{item.Id}";
+                    var errorModalId = BuildErrorModalId(item.Id);
+                    <tr>
+                        <td>
+                            <div>@item.ReceivedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            <div class="text-secondary small">@item.Endpoint</div>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">@item.RequestId</div>
+                            <div class="text-secondary small">@item.HttpMethod</div>
+                        </td>
+                        <td>
+                            <div>@item.PartnerName</div>
+                            <div class="text-secondary small">@item.ExternalUserId - @item.UserName</div>
+                        </td>
+                        <td>
+                            <div><span class="badge bg-primary-subtle text-primary-emphasis">@item.Action</span></div>
+                            <div class="text-secondary small">@item.Description</div>
+                        </td>
+                        <td>
+                            <span class="badge @BuildStatusBadgeClass(item.Status)">@item.Status</span>
+                            @if (!string.IsNullOrWhiteSpace(item.LeaseOwner))
+                            {
+                                <div class="text-secondary small">Lease: @item.LeaseOwner</div>
+                            }
+                        </td>
+                        <td>@item.AttemptCount</td>
+                        <td>
+                            @if (item.Status == ActivityLogIngestQueueStatuses.Pending)
+                            {
+                                <div>Retry lúc @item.AvailableAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            }
+                            else if (item.Status == ActivityLogIngestQueueStatuses.Processing && item.LeaseExpiresAtUtc.HasValue)
+                            {
+                                <div>Lease tới @item.LeaseExpiresAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            }
+                            else if (item.ProcessedAtUtc.HasValue)
+                            {
+                                <div>Xong lúc @item.ProcessedAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            }
+                            <div class="text-secondary small">Cập nhật @item.UpdatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                        </td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(item.LastError))
+                            {
+                                <span class="text-secondary">-</span>
+                            }
+                            else
+                            {
+                                <div class="queue-error-preview">@item.LastError</div>
+                                <button type="button" class="btn btn-link btn-sm px-0 mt-1" data-bs-toggle="modal" data-bs-target="#@errorModalId">Xem chi tiết lỗi</button>
+                            }
+                        </td>
+                        <td class="text-end">
+                            @if (item.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard))
+                            {
+                                <form id="@retryFormId" asp-action="RetryFailed" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <input type="hidden" asp-for="Filter.PartnerId" />
+                                    <input type="hidden" asp-for="Filter.Status" />
+                                    <input type="hidden" asp-for="Filter.From" />
+                                    <input type="hidden" asp-for="Filter.To" />
+                                    <input type="hidden" asp-for="Filter.Page" />
+                                    <input type="hidden" asp-for="Filter.PageSize" />
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#@retryModalId">Retry ngay</button>
+                                </form>
+
+                            }
+                            else
+                            {
+                                <span class="text-secondary">-</span>
+                            }
+                        </td>
+                    </tr>
+
+                }
+                @if (!Model.Items.Items.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-secondary py-4">Không có request queue phù hợp bộ lọc.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Items.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Items.Page / @Model.Items.TotalPages - Tổng @Model.Items.TotalCount request</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Items.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Items.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Items.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Items.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Items.Page >= Model.Items.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Items.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@foreach (var item in Model.Items.Items.Where(static queueItem => !string.IsNullOrWhiteSpace(queueItem.LastError)))
+{
+    var errorModalId = BuildErrorModalId(item.Id);
+    <div class="modal fade" id="@errorModalId" tabindex="-1" aria-labelledby="@(errorModalId + "Label")" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header">
+                    <div>
+                        <div class="danger-modal__eyebrow">Chi tiết lỗi</div>
+                        <h2 class="modal-title fs-5 fw-bold mb-0" id="@(errorModalId + "Label")">Request @item.RequestId</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-secondary mb-2">Action: @item.Action</div>
+                    <div class="small text-secondary mb-3">Partner: @item.PartnerName - User: @item.ExternalUserId / @item.UserName</div>
+                    <div class="p-3 rounded-4 bg-light border small" style="white-space: pre-wrap;">@item.LastError</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@foreach (var item in Model.Items.Items.Where(queueItem => queueItem.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard)))
+{
+    var retryModalId = BuildRetryModalId(item.Id);
+    var retryFormId = $"retryFailedForm-{item.Id}";
+    <partial name="_DangerConfirmModal" model='new DangerConfirmModalViewModel
+    {
+        ModalId = retryModalId,
+        LabelId = $"{retryModalId}Label",
+        Title = "Xác nhận retry request thất bại",
+        Message = $"Bạn có chắc muốn đưa request {item.RequestId} trở lại hàng đợi để xử lý lại ngay không?",
+        Hint = "Thao tác này giữ nguyên requestId, reset số lần thử về 0 và chuyển trạng thái về Pending để worker xử lý lại.",
+        ConfirmText = "Retry ngay",
+        FormId = retryFormId
+    }' />
+}

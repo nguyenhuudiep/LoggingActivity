@@ -27,7 +27,7 @@
         <div class="mini-stat h-100">
             <div class="mini-stat__label">Định dạng dữ liệu</div>
             <div class="mini-stat__value">JSON</div>
-            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong>, <strong>userName</strong> và <strong>action</strong>.</div>
+            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong>, <strong>userName</strong>, <strong>action</strong>, <strong>description</strong> và nên có thêm <strong>requestId</strong> để chống trùng.</div>
         </div>
     </div>
     <div class="col-lg-4 col-md-12">
@@ -46,7 +46,7 @@
                 <div class="section-header mb-3">
                     <div>
                         <h2 class="section-header__title">1. Gửi activity log</h2>
-                        <p class="section-header__subtitle">API dùng để partner đẩy một bản ghi log mới vào hệ thống.</p>
+                        <p class="section-header__subtitle">API dùng để partner đẩy yêu cầu ghi log vào hàng đợi ingest. Hệ thống trả về ngay và xử lý bất đồng bộ phía sau.</p>
                     </div>
                 </div>
                 <div class="integration-guide__chips mb-3">
@@ -57,6 +57,7 @@
   -H "Content-Type: application/json" \
   -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
   -d '{
+    "requestId": "erp-click-20260527-103015-000123",
     "userId": 260001,
     "userName": "nguyen.van.a",
     "action": "Login",
@@ -64,12 +65,26 @@
     "endpoint": "/auth/login"
   }'</code></pre>
                 <pre class="api-block api-block--light mb-0"><code>{
+  "requestId": "erp-click-20260527-103015-000123",
   "userId": 260001,
   "userName": "nguyen.van.a",
   "action": "Login",
   "description": "Nội dung mô tả từ đối tác",
   "endpoint": "/auth/login"
 }</code></pre>
+                <div class="alert alert-info mt-3 mb-3" role="alert">
+                    <strong>Quy tắc đặt requestId:</strong> mỗi lần click hoặc mỗi event log phải có một mã mới. Chỉ dùng lại cùng một requestId khi client retry lại đúng cùng event do timeout hoặc lỗi mạng.
+                </div>
+                <pre class="api-block api-block--light mb-3"><code>Ví dụ requestId duy nhất:
+- erp-click-20260527-103015-000123
+- mobile-app-260001-login-20260527T103015123Z
+- 550e8400-e29b-41d4-a716-446655440000</code></pre>
+                <pre class="api-block api-block--light mb-0"><code>202 Accepted
+{
+  "message": "Đã tiếp nhận yêu cầu ghi log. Hệ thống sẽ xử lý bất đồng bộ trong hàng đợi.",
+  "requestId": "erp-click-20260527-103015-000123"
+}</code></pre>
+                <p class="text-secondary mt-3 mb-0">Nếu cùng partner gửi lại một <strong>requestId</strong> đã tiếp nhận trước đó, API vẫn trả về <strong>202 Accepted</strong> nhưng thông báo rằng request này đã được nhận trước, giúp đối tác retry an toàn mà không ghi trùng log.</p>
             </div>
         </div>
     </div>
@@ -79,15 +94,54 @@
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
-                        <h2 class="section-header__title">2. Lấy danh sách log</h2>
-                        <p class="section-header__subtitle">API dùng để truy vấn log của chính partner đang gọi, có hỗ trợ phân trang và lọc theo ngày.</p>
+                        <h2 class="section-header__title">2. Quy trình xử lý từ API tới lưu log thành công</h2>
+                        <p class="section-header__subtitle">Phần này mô tả rõ từng bước nội bộ sau khi client gọi API thành công để phía tích hợp hiểu đúng ý nghĩa của phản hồi 202 Accepted.</p>
+                    </div>
+                </div>
+                <ol class="mb-0 ps-3 d-grid gap-3">
+                    <li>
+                        <strong>Client gọi POST /api/partner/activity.</strong> Hệ thống kiểm tra header <strong>X-Api-Key</strong> để xác thực partner trước khi nhận dữ liệu log.
+                    </li>
+                    <li>
+                        <strong>API đưa request vào hàng đợi ingest.</strong> Dữ liệu như <strong>requestId</strong>, <strong>userId</strong>, <strong>userName</strong>, <strong>action</strong>, <strong>description</strong>, <strong>endpoint</strong>, IP và thời điểm nhận sẽ được lưu vào queue với trạng thái ban đầu là <strong>Pending</strong>.
+                    </li>
+                    <li>
+                        <strong>API trả ngay 202 Accepted cho client.</strong> Kết quả này chỉ có nghĩa là hệ thống đã tiếp nhận request để xử lý bất đồng bộ, chưa có nghĩa log đã được ghi xong vào bảng log chính.
+                    </li>
+                    <li>
+                        <strong>Worker nền lấy từng item trong queue để xử lý.</strong> Worker sẽ lease một item, chuyển sang trạng thái <strong>Processing</strong> và tăng số lần thử để tránh nhiều worker xử lý cùng một request.
+                    </li>
+                    <li>
+                        <strong>Hệ thống chuẩn hóa và kiểm tra action.</strong> Nếu action chưa tồn tại thì tự tạo mới theo mã viết hoa; nếu action đang bị tắt thì request sẽ không được ghi log và item queue bị đánh dấu lỗi.
+                    </li>
+                    <li>
+                        <strong>Log được lưu vào kho log chính.</strong> Khi action hợp lệ, hệ thống tạo bản ghi activity log chính thức với nguồn <strong>IntegratedApi</strong>, đồng thời chạy xử lý cảnh báo hậu kỳ nếu có cấu hình liên quan.
+                    </li>
+                    <li>
+                        <strong>Queue item được cập nhật kết quả cuối cùng.</strong> Nếu lưu log thành công thì item chuyển sang <strong>Completed</strong>; nếu lỗi tạm thời thì quay lại <strong>Pending</strong> để retry; nếu lỗi quá số lần cho phép thì chuyển sang <strong>Failed</strong> để admin theo dõi ở màn hàng đợi ingest.
+                    </li>
+                </ol>
+                <div class="alert alert-warning mt-4 mb-0" role="alert">
+                    <strong>Lưu ý tích hợp:</strong> Nếu client cần kiểm tra “log đã lưu xong hay chưa”, không nên chỉ dựa vào phản hồi 202 của API ghi log. Phản hồi đó chỉ xác nhận request đã vào hàng đợi. Trạng thái xử lý thực tế sẽ hoàn tất sau khi worker xử lý xong item queue.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm surface-panel integration-guide-card">
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <h2 class="section-header__title">3. Lấy danh sách log</h2>
+                        <p class="section-header__subtitle">API dùng để truy vấn log của chính partner đang gọi, có hỗ trợ phân trang, lọc ngày, action và từ khóa.</p>
                     </div>
                 </div>
                 <div class="integration-guide__chips mb-3">
                     <span class="request-chip request-chip--get">GET</span>
-                    <span class="request-chip">/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=Login</span>
+                    <span class="request-chip">/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=nguyen.van.a</span>
                 </div>
-                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=Login" \
+                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=nguyen.van.a" \
   -H "X-Api-Key: YOUR_PARTNER_API_KEY"</code></pre>
                 <pre class="api-block api-block--light mb-0"><code>{
   "items": [
@@ -96,8 +150,13 @@
       "partnerName": "ERP",
       "externalUserId": 260001,
       "userName": "nguyen.van.a",
-      "action": "Login",
-      "description": "Partner ERP, username nguyen.van.a thực hiện thao tác Login.",
+      "role": "Partner",
+      "action": "LOGIN",
+      "description": "Nội dung mô tả từ đối tác",
+      "endpoint": "/auth/login",
+      "source": "IntegratedApi",
+      "httpMethod": "POST",
+      "ipAddress": "10.10.1.25",
       "createdAtUtc": "2026-05-26T09:00:00Z"
     }
   ],
@@ -115,8 +174,8 @@
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
-                        <h2 class="section-header__title">3. Lấy thống kê log</h2>
-                        <p class="section-header__subtitle">API dùng để lấy số liệu tổng quan log của partner trong một khoảng thời gian.</p>
+                        <h2 class="section-header__title">4. Lấy thống kê log</h2>
+                        <p class="section-header__subtitle">API dùng để lấy số liệu tổng quan log của partner trong một khoảng thời gian, mặc định chỉ tính nguồn IntegratedApi.</p>
                     </div>
                 </div>
                 <div class="integration-guide__chips mb-3">
@@ -128,6 +187,7 @@
                 <pre class="api-block api-block--light mb-0"><code>{
   "totalLogs": 120,
   "todayLogs": 18,
+    "uniqueUsers": 14,
   "integratedLogs": 120,
   "dailyActivity": [
     { "label": "2026-05-20", "value": 12 },
@@ -136,6 +196,9 @@
   "topActions": [
     { "label": "Login", "value": 35 },
     { "label": "Search", "value": 22 }
+    ],
+    "actionDailySeries": [
+        { "action": "LOGIN", "values": [4, 5, 6, 7, 4, 5, 4] }
   ]
 }</code></pre>
             </div>

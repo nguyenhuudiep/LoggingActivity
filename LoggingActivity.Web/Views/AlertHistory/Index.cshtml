@@ -25,7 +25,7 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form">
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
             <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistoryFrom">Từ ngày</label>
                 <input id="alertHistoryFrom" name="from" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" class="form-control" />
@@ -36,7 +36,6 @@
             </div>
             <div class="col-lg-2 col-md-4">
                 <label class="form-label" for="alertHistoryPageSize">Kích thước</label>
-                <select id="alertHistoryPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
                     <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
                     <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
                     <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
@@ -44,7 +43,6 @@
             </div>
             <div class="col-lg-4 col-md-8">
                 <div class="filter-actions">
-                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                 </div>
             </div>

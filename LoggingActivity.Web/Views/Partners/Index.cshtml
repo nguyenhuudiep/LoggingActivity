@@ -1,7 +1,16 @@
-@model IReadOnlyList<Partner>
+@model PartnerListViewModel
 
 @{
     ViewData["Title"] = "Cấu hình partner";
+
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            page,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
 }
 
 <section class="page-hero">
@@ -33,7 +42,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var partner in Model)
+                @foreach (var partner in Model.Partners.Items)
                 {
                     <tr>
                         <td class="fw-semibold">@partner.Name</td>
@@ -60,7 +69,7 @@
                         </td>
                     </tr>
                 }
-                @if (!Model.Any())
+                @if (!Model.Partners.Items.Any())
                 {
                     <tr>
                         <td colspan="4" class="text-center text-secondary py-4">Chưa có partner nào được cấu hình.</td>
@@ -69,4 +78,26 @@
             </tbody>
         </table>
     </div>
+    @if (Model.Partners.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Partners.Page / @Model.Partners.TotalPages - Tổng @Model.Partners.TotalCount bản ghi</div>
+            <nav>
+                <ul class="pagination mb-0">
+                    <li class="page-item @(Model.Partners.Page <= 1 ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Partners.Page - 1)">Trước</a>
+                    </li>
+                    @for (var pageNumber = 1; pageNumber <= Model.Partners.TotalPages; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Partners.Page ? "active" : null)">
+                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Partners.Page >= Model.Partners.TotalPages ? "disabled" : null)">
+                        <a class="page-link" href="@BuildPageUrl(Model.Partners.Page + 1)">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
 </div>

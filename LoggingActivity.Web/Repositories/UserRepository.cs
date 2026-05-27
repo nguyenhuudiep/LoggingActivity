@@ -73,6 +73,11 @@ public sealed class UserRepository : IUserRepository
         };
     }
 
+    public Task<long> CountByRoleAsync(string role, CancellationToken cancellationToken = default)
+    {
+        return _context.Users.CountDocumentsAsync(user => user.Role == role, cancellationToken: cancellationToken);
+    }
+
     public Task CreateAsync(AppUser user, CancellationToken cancellationToken = default)
     {
         return _context.Users.InsertOneAsync(user, cancellationToken: cancellationToken);
@@ -82,6 +87,11 @@ public sealed class UserRepository : IUserRepository
     {
         user.UpdatedAtUtc = DateTime.UtcNow;
         return _context.Users.ReplaceOneAsync(existing => existing.Id == user.Id, user, cancellationToken: cancellationToken);
+    }
+
+    public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
+    {
+        return _context.Users.DeleteOneAsync(user => user.Id == id, cancellationToken);
     }
 
     private static FilterDefinition<AppUser> BuildFilter(UserQuery query)

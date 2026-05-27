@@ -158,4 +158,32 @@ public sealed class UsersController : AppController
         TempData["StatusMessage"] = "Cập nhật tài khoản thành công.";
         return RedirectToAction(nameof(Index));
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(string id, UserFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            var result = await _userService.DeleteAsync(id, User.Identity?.Name, cancellationToken);
+            TempData["StatusMessage"] = result.Success
+                ? "Đã xóa tài khoản thành công."
+                : result.Error ?? "Không thể xóa tài khoản.";
+        }
+
+        return RedirectToAction(nameof(Index), new
+        {
+            searchTerm = filter.SearchTerm,
+            role = filter.Role,
+            isActive = filter.IsActive,
+            page = filter.Page,
+            pageSize = filter.PageSize
+        });
+    }
 }

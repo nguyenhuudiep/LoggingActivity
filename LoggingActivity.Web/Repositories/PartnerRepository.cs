@@ -20,6 +20,28 @@ public sealed class PartnerRepository : IPartnerRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<PagedResult<Partner>> GetPagedAsync(PartnerQuery query, CancellationToken cancellationToken = default)
+    {
+        var safePage = Math.Max(1, query.Page);
+        var safePageSize = Math.Max(1, query.PageSize);
+        var filter = FilterDefinition<Partner>.Empty;
+
+        var totalCount = await _context.Partners.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var items = await _context.Partners.Find(filter)
+            .SortBy(partner => partner.Name)
+            .Skip((safePage - 1) * safePageSize)
+            .Limit(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Partner>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = safePage,
+            PageSize = safePageSize
+        };
+    }
+
     public Task<Partner?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         return _context.Partners.Find(partner => partner.Id == id).FirstOrDefaultAsync(cancellationToken)!;

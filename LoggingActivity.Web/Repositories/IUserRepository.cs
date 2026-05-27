@@ -14,7 +14,11 @@ public interface IUserRepository
 
     Task<UserStatistics> GetStatisticsAsync(UserQuery query, CancellationToken cancellationToken = default);
 
+    Task<long> CountByRoleAsync(string role, CancellationToken cancellationToken = default);
+
     Task CreateAsync(AppUser user, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(AppUser user, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(string id, CancellationToken cancellationToken = default);
 }

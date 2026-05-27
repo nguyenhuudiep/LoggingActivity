@@ -44,6 +44,52 @@ public sealed class LogActionDefinitionService
         return activeActions.Any(item => string.Equals(item.Code, normalizedCode, StringComparison.OrdinalIgnoreCase));
     }
 
+    public async Task<(bool Success, string? NormalizedCode, string? Error)> EnsureApiActionReadyAsync(string actionCode, CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = NormalizeActionCode(actionCode);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            return (false, null, "Mã action không được để trống.");
+        }
+
+        var allActions = await _repository.GetAllAsync(cancellationToken);
+        var existing = allActions.FirstOrDefault(item => string.Equals(item.Code, normalizedCode, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is null)
+        {
+            await _repository.UpsertAsync(new LogActionDefinition
+            {
+                Code = normalizedCode,
+                DisplayName = normalizedCode,
+                Description = string.Empty,
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            }, cancellationToken: cancellationToken);
+
+            return (true, normalizedCode, null);
+        }
+
+        if (!string.Equals(existing.Code, normalizedCode, StringComparison.Ordinal))
+        {
+            await _repository.UpsertAsync(new LogActionDefinition
+            {
+                Id = existing.Id,
+                Code = normalizedCode,
+                DisplayName = existing.DisplayName,
+                Description = existing.Description,
+                IsActive = existing.IsActive,
+                CreatedAtUtc = existing.CreatedAtUtc
+            }, existing.Code, cancellationToken);
+        }
+
+        if (!existing.IsActive)
+        {
+            return (false, normalizedCode, $"Action '{normalizedCode}' đang bị tắt. Hãy bật lại trong menu Action log trước khi gửi log.");
+        }
+
+        return (true, normalizedCode, null);
+    }
+
     public async Task<(bool Success, string? Error)> UpsertAsync(string? existingCode, string code, string displayName, string description, bool isActive, CancellationToken cancellationToken = default)
     {
         var normalizedCode = code.Trim();
@@ -77,14 +123,7 @@ public sealed class LogActionDefinitionService
             Description = description?.Trim() ?? string.Empty,
             IsActive = editingAction?.IsActive ?? existing?.IsActive ?? isActive,
             CreatedAtUtc = editingAction?.CreatedAtUtc ?? existing?.CreatedAtUtc ?? DateTime.UtcNow
-        }, cancellationToken);
-
-        if (editingAction is not null
-            && !string.Equals(editingAction.Code, normalizedCode, StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrWhiteSpace(editingAction.Id))
-        {
-            await _repository.DeleteAsync(editingAction.Code, cancellationToken);
-        }
+        }, editingAction?.Code, cancellationToken);
 
         return (true, null);
     }
@@ -98,12 +137,19 @@ public sealed class LogActionDefinitionService
         }
 
         existing.IsActive = !existing.IsActive;
-        await _repository.UpsertAsync(existing, cancellationToken);
+        await _repository.UpsertAsync(existing, cancellationToken: cancellationToken);
         return true;
     }
 
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         return _repository.DeleteAsync(id, cancellationToken);
+    }
+
+    private static string NormalizeActionCode(string code)
+    {
+        return string.IsNullOrWhiteSpace(code)
+            ? string.Empty
+            : code.Trim().ToUpperInvariant();
     }
 }

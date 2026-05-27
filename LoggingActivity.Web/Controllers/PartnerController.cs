@@ -12,15 +12,18 @@ public sealed class PartnerController : ControllerBase
 {
     private readonly PartnerService _partnerService;
     private readonly ActivityLogService _activityLogService;
+    private readonly ActivityLogIngestQueueService _activityLogIngestQueueService;
     private readonly LogActionDefinitionService _logActionDefinitionService;
 
     public PartnerController(
         PartnerService partnerService,
         ActivityLogService activityLogService,
+        ActivityLogIngestQueueService activityLogIngestQueueService,
         LogActionDefinitionService logActionDefinitionService)
     {
         _partnerService = partnerService;
         _activityLogService = activityLogService;
+        _activityLogIngestQueueService = activityLogIngestQueueService;
         _logActionDefinitionService = logActionDefinitionService;
     }
 
@@ -33,33 +36,16 @@ public sealed class PartnerController : ControllerBase
             return Unauthorized(new { message = "API key không hợp lệ." });
         }
 
-        if (!await _logActionDefinitionService.IsActiveActionConfiguredAsync(request.Action, cancellationToken))
-        {
-            return BadRequest(new
-            {
-                message = $"Action '{request.Action}' chưa được cấu hình hoặc đang bị tắt. Hãy cấu hình trong menu Action log trước khi gửi log."
-            });
-        }
-
-        await _activityLogService.AddAsync(new ActivityLog
-        {
-            PartnerId = partner.Id,
-            PartnerName = partner.Name,
-            UserId = partner.Id,
-            ExternalUserId = request.UserId,
-            UserName = request.UserName.Trim(),
-            Role = "Partner",
-            Action = request.Action,
-            Description = BuildIntegratedDescription(partner.Name, request.UserName, request.Action),
-            Endpoint = string.IsNullOrWhiteSpace(request.Endpoint) ? HttpContext.Request.Path : request.Endpoint,
-            Source = ActivityLogSources.IntegratedApi,
-            HttpMethod = HttpContext.Request.Method,
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-            CreatedAtUtc = DateTime.UtcNow
-        }, cancellationToken);
+        var enqueueResult = await _activityLogIngestQueueService.EnqueueAsync(partner, request, HttpContext, cancellationToken);
 
         SetPartnerContext(partner);
-        return Ok(new { message = "Đã ghi nhận activity log." });
+        return Accepted(new
+        {
+            message = enqueueResult.Accepted
+                ? "Đã tiếp nhận yêu cầu ghi log. Hệ thống sẽ xử lý bất đồng bộ trong hàng đợi."
+                : "Yêu cầu ghi log với requestId này đã được tiếp nhận trước đó.",
+            requestId = enqueueResult.RequestId
+        });
     }
 
     [HttpGet("activity")]
@@ -75,7 +61,7 @@ public sealed class PartnerController : ControllerBase
         {
             SearchTerm = filter.SearchTerm,
             PartnerId = partner.Id,
-            Action = filter.Action,
+            Action = string.IsNullOrWhiteSpace(filter.Action) ? null : filter.Action.Trim().ToUpperInvariant(),
             Source = string.IsNullOrWhiteSpace(filter.Source) ? ActivityLogSources.IntegratedApi : filter.Source,
             FromUtc = filter.From,
             ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
@@ -101,7 +87,7 @@ public sealed class PartnerController : ControllerBase
         {
             SearchTerm = filter.SearchTerm,
             PartnerId = partner.Id,
-            Action = filter.Action,
+            Action = string.IsNullOrWhiteSpace(filter.Action) ? null : filter.Action.Trim().ToUpperInvariant(),
             Source = string.IsNullOrWhiteSpace(filter.Source) ? ActivityLogSources.IntegratedApi : filter.Source,
             FromUtc = filter.From,
             ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
@@ -128,14 +114,5 @@ public sealed class PartnerController : ControllerBase
     {
         HttpContext.Items["PartnerUserId"] = partner.Id;
         HttpContext.Items["PartnerUserName"] = partner.Name;
-    }
-
-    private static string BuildIntegratedDescription(string? partnerName, string? userName, string? action)
-    {
-        var normalizedPartnerName = string.IsNullOrWhiteSpace(partnerName) ? "N/A" : partnerName.Trim();
-        var normalizedUserName = string.IsNullOrWhiteSpace(userName) ? "Anonymous" : userName.Trim();
-        var normalizedAction = string.IsNullOrWhiteSpace(action) ? "N/A" : action.Trim();
-
-        return $"Partner {normalizedPartnerName}, username {normalizedUserName} thực hiện thao tác {normalizedAction}.";
     }
 }

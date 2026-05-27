@@ -55,23 +55,61 @@ public sealed class LogActionDefinitionRepository : ILogActionDefinitionReposito
         };
     }
 
-    public Task UpsertAsync(LogActionDefinition definition, CancellationToken cancellationToken = default)
+    public async Task UpsertAsync(LogActionDefinition definition, string? existingCode = null, CancellationToken cancellationToken = default)
     {
         definition.UpdatedAtUtc = DateTime.UtcNow;
+
+        var normalizedExistingCode = string.IsNullOrWhiteSpace(existingCode) ? null : existingCode.Trim();
+
+        if (!string.IsNullOrWhiteSpace(normalizedExistingCode))
+        {
+            var existingDefinition = await _context.LogActionDefinitions
+                .Find(item => item.Code == normalizedExistingCode)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (existingDefinition is null)
+            {
+                return;
+            }
+
+            definition.Id = existingDefinition.Id;
+            definition.CreatedAtUtc = existingDefinition.CreatedAtUtc;
+
+            if (string.IsNullOrWhiteSpace(existingDefinition.Id))
+            {
+                await _context.LogActionDefinitions.ReplaceOneAsync(
+                    item => item.Code == normalizedExistingCode,
+                    definition,
+                    new ReplaceOptions { IsUpsert = false },
+                    cancellationToken);
+
+                return;
+            }
+
+            await _context.LogActionDefinitions.ReplaceOneAsync(
+                item => item.Id == existingDefinition.Id,
+                definition,
+                new ReplaceOptions { IsUpsert = false },
+                cancellationToken);
+
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(definition.Id))
         {
             definition.Id = ObjectId.GenerateNewId().ToString();
             definition.CreatedAtUtc = DateTime.UtcNow;
 
-            return _context.LogActionDefinitions.ReplaceOneAsync(
+            await _context.LogActionDefinitions.ReplaceOneAsync(
                 item => item.Code == definition.Code,
                 definition,
                 new ReplaceOptions { IsUpsert = true },
                 cancellationToken);
+
+            return;
         }
 
-        return _context.LogActionDefinitions.ReplaceOneAsync(
+        await _context.LogActionDefinitions.ReplaceOneAsync(
             item => item.Id == definition.Id,
             definition,
             new ReplaceOptions { IsUpsert = false },

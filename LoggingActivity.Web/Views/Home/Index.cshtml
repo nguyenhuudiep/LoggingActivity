@@ -102,7 +102,7 @@
                 <div class="section-header">
                     <div>
                         <h2 class="section-header__title">API tích hợp</h2>
-                        <p class="section-header__subtitle">Các endpoint để hệ thống khác gửi activity log và truy vấn dữ liệu đã ghi nhận.</p>
+                        <p class="section-header__subtitle">Các endpoint hiện tại để đối tác đẩy log vào hàng đợi xử lý và truy vấn dữ liệu của chính mình.</p>
                     </div>
                     @if (canAccessIntegrationGuide)
                     {
@@ -110,9 +110,18 @@
                     }
                 </div>
                 <pre class="api-block mb-0"><code>POST /api/partner/activity
-GET  /api/partner/activity?page=1&amp;pageSize=10
-GET  /api/partner/statistics</code></pre>
-                <p class="text-secondary mt-3 mb-0">Hệ thống tích hợp xác thực bằng header <strong>X-Api-Key</strong> và gửi activity log qua các endpoint ingestion này.</p>
+Header: X-Api-Key: YOUR_PARTNER_API_KEY
+Body: { requestId?, userId, userName, action, description, endpoint? }
+Response: 202 Accepted { message, requestId }
+
+requestId mẫu duy nhất:
+- erp-click-20260527-103015-000123
+- mobile-app-260001-login-20260527T103015123Z
+- 550e8400-e29b-41d4-a716-446655440000
+
+GET  /api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-24&amp;to=2026-05-27&amp;action=LOGIN
+GET  /api/partner/statistics?from=2026-05-24&amp;to=2026-05-27</code></pre>
+                <p class="text-secondary mt-3 mb-0">Partner xác thực bằng header <strong>X-Api-Key</strong>. API ghi log hiện tiếp nhận bất đồng bộ qua hàng đợi ingest, nên nên truyền <strong>requestId</strong> để chống ghi trùng khi phía đối tác retry request.</p>
             </div>
         </div>
     </div>

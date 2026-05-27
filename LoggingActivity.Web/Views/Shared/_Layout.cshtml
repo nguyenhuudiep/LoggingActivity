@@ -2,10 +2,13 @@
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var currentUserName = User.Identity?.Name ?? "Người dùng";
+    var currentUserRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Chưa phân quyền";
     var isLoginPage = string.Equals(currentController, "Auth", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "Login", StringComparison.OrdinalIgnoreCase);
     var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
     var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+    var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
     var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
@@ -43,11 +46,8 @@
             <aside id="adminSidebar" class="admin-sidebar">
                 <div class="admin-sidebar__brand">
                     <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
-                        <span class="brand-mark__icon">LA</span>
-                        <span>
-                            <span class="brand-mark__title">Logging Activity</span>
-                            <span class="brand-mark__subtitle">Enterprise console</span>
-                        </span>
+                        <img class="brand-mark__logo" src="~/img/tima-logo.svg" alt="Tima - Vay trong ngày" />
+                        <span class="visually-hidden">Tima - Vay trong ngày</span>
                     </a>
                 </div>
 
@@ -70,6 +70,13 @@
                             <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index">
                                 <span class="sidebar-link__icon">L</span>
                                 <span class="sidebar-link__text">Log &amp; Thống kê</span>
+                            </a>
+                        }
+                        @if (canAccessIngestQueue)
+                        {
+                            <a class="@SidebarLinkClass("IngestQueue")" asp-controller="IngestQueue" asp-action="Index">
+                                <span class="sidebar-link__icon">Q</span>
+                                <span class="sidebar-link__text">Hàng đợi ingest</span>
                             </a>
                         }
                         @if (canAccessAlertHistory)
@@ -128,18 +135,10 @@
                         </div>
                     </div>
                     <div class="admin-topbar__right">
-                        <div class="topbar-chip topbar-chip--status">
+                        <div class="topbar-chip topbar-chip--account">
                             <span class="topbar-chip__dot"></span>
                             <span class="topbar-chip__content">
-                                <span class="topbar-chip__label">Workspace</span>
-                                <span class="topbar-chip__meta">Production style admin UI</span>
-                            </span>
-                        </div>
-                        <div class="user-chip user-chip--dark">
-                            <span class="user-chip__avatar">@((User.Identity?.Name ?? "U").Substring(0, 1).ToUpperInvariant())</span>
-                            <span class="user-chip__content">
-                                <span class="user-chip__label">@User.Identity?.Name</span>
-                                <span class="user-chip__meta">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span>
+                                <span class="topbar-chip__identity">@currentUserName (@currentUserRole)</span>
                             </span>
                         </div>
                         <form asp-controller="Auth" asp-action="Logout" method="post" class="topbar-logout-form">
@@ -165,7 +164,6 @@
                 <footer class="app-footer admin-footer">
                     <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
                         <span>&copy; 2026 Logging Activity</span>
-                        <span>Operational analytics, access governance and partner observability</span>
                     </div>
                 </footer>
             </div>
@@ -176,11 +174,8 @@
         <div class="auth-layout-shell @(isLoginPage ? "auth-layout-shell--login" : string.Empty)">
             <header class="auth-layout-header">
                 <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
-                    <span class="brand-mark__icon">LA</span>
-                    <span>
-                        <span class="brand-mark__title">Logging Activity</span>
-                        <span class="brand-mark__subtitle">Security and operations console</span>
-                    </span>
+                    <img class="brand-mark__logo" src="~/img/tima-logo.svg" alt="Tima - Vay trong ngày" />
+                    <span class="visually-hidden">Tima - Vay trong ngày</span>
                 </a>
             </header>
 

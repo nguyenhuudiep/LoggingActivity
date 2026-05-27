@@ -79,6 +79,33 @@ public sealed class UserService
         return (true, null);
     }
 
+    public async Task<(bool Success, string? Error)> DeleteAsync(string id, string? currentUserName, CancellationToken cancellationToken = default)
+    {
+        var existingUser = await _userRepository.GetByIdAsync(id, cancellationToken);
+        if (existingUser is null)
+        {
+            return (false, "Không tìm thấy tài khoản.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentUserName)
+            && string.Equals(existingUser.UserName, currentUserName.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "Không thể xóa tài khoản đang đăng nhập.");
+        }
+
+        if (string.Equals(existingUser.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            var adminCount = await _userRepository.CountByRoleAsync(SystemRoles.Admin, cancellationToken);
+            if (adminCount <= 1)
+            {
+                return (false, "Không thể xóa tài khoản admin cuối cùng của hệ thống.");
+            }
+        }
+
+        await _userRepository.DeleteAsync(id, cancellationToken);
+        return (true, null);
+    }
+
     public Task<bool> VerifyPasswordAsync(AppUser user, string password)
     {
         var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);

@@ -36,6 +36,12 @@
             pageSize = Model.Filter.PageSize
         })!;
     }
+
+    string BuildDangerModalId(string prefix, string? value)
+    {
+        var safeValue = System.Text.RegularExpressions.Regex.Replace(value ?? string.Empty, "[^a-zA-Z0-9_-]", "-");
+        return $"{prefix}-{safeValue}";
+    }
 }
 
 <section class="page-hero">
@@ -84,7 +90,6 @@
             </div>
             <div class="col-lg-2 col-md-12">
                 <div class="filter-actions">
-                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                 </div>
             </div>
@@ -132,6 +137,8 @@
                     var hiddenPermissionCount = Math.Max(0, permissionLabels.Count - visiblePermissionLabels.Count);
                     var permissionDetail = string.Join(", ", permissionLabels);
                     var permissionTooltip = string.Join("; ", permissionLabels);
+                    var deleteModalId = BuildDangerModalId("deleteUserModal", user.Id);
+                    var deleteFormId = BuildDangerModalId("deleteUserForm", user.Id);
                     <tr>
                         <td class="fw-semibold">@user.UserName</td>
                         <td>@user.DisplayName</td>
@@ -163,6 +170,16 @@
                         <td class="text-end">
                             <div class="table-actions">
                                 <a class="btn btn-sm btn-outline-dark" asp-action="Edit" asp-route-id="@user.Id">Sửa</a>
+                                <form id="@deleteFormId" asp-action="Delete" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@user.Id" />
+                                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                                    <input type="hidden" name="role" value="@Model.Filter.Role" />
+                                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
+                                    <input type="hidden" name="page" value="@Model.Filter.Page" />
+                                    <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#@deleteModalId">Xóa</button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -200,3 +217,19 @@
         </div>
     }
 </div>
+
+@foreach (var user in Model.Users.Items)
+{
+    var deleteModalId = BuildDangerModalId("deleteUserModal", user.Id);
+    var deleteFormId = BuildDangerModalId("deleteUserForm", user.Id);
+    <partial name="_DangerConfirmModal" model='new DangerConfirmModalViewModel
+    {
+        ModalId = deleteModalId,
+        LabelId = $"{deleteModalId}Label",
+        Title = "Xác nhận xóa tài khoản",
+        Message = $"Bạn có chắc muốn xóa tài khoản {user.UserName} không?",
+        Hint = "Thao tác này sẽ xóa tài khoản khỏi hệ thống. Không thể tự xóa tài khoản đang đăng nhập và cũng không thể xóa admin cuối cùng.",
+        ConfirmText = "Xóa tài khoản",
+        FormId = deleteFormId
+    }' />
+}

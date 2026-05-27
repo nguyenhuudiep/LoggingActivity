@@ -13,10 +13,20 @@ public sealed class MongoDbContext
     {
         var settings = options.Value;
         var client = new MongoClient(settings.ConnectionString);
-        _database = client.GetDatabase(settings.DatabaseName);
+        var databaseName = !string.IsNullOrWhiteSpace(settings.DatabaseName)
+            ? settings.DatabaseName
+            : MongoUrl.Create(settings.ConnectionString).DatabaseName;
+
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new InvalidOperationException("MongoDB database name must be provided either in MongoDb:DatabaseName or inside the connection string.");
+        }
+
+        _database = client.GetDatabase(databaseName);
         Users = _database.GetCollection<AppUser>(settings.UsersCollectionName);
         Partners = _database.GetCollection<Partner>(settings.PartnersCollectionName);
         ActivityLogs = _database.GetCollection<ActivityLog>(settings.ActivityLogsCollectionName);
+        ActivityLogIngestQueue = _database.GetCollection<ActivityLogIngestQueueItem>(settings.ActivityLogIngestQueueCollectionName);
         AlertRules = _database.GetCollection<AlertRule>(settings.AlertRulesCollectionName);
         LogActionDefinitions = _database.GetCollection<LogActionDefinition>(settings.LogActionDefinitionsCollectionName);
         AlertHistories = _database.GetCollection<AlertHistory>(settings.AlertHistoriesCollectionName);
@@ -27,6 +37,8 @@ public sealed class MongoDbContext
     public IMongoCollection<Partner> Partners { get; }
 
     public IMongoCollection<ActivityLog> ActivityLogs { get; }
+
+    public IMongoCollection<ActivityLogIngestQueueItem> ActivityLogIngestQueue { get; }
 
     public IMongoCollection<AlertRule> AlertRules { get; }
 

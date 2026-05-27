@@ -1,0 +1,6 @@
+<svg width="300" height="150" viewBox="0 0 300 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="150" rx="28" fill="white" fill-opacity="0.01"/>
+  <path d="M206 20H244L268 44H248L268 68H230L206 44H226L206 20Z" fill="#FF5A1F"/>
+  <text x="16" y="72" fill="#18181B" font-family="Segoe UI, Arial, sans-serif" font-size="82" font-weight="800" letter-spacing="-3">tima</text>
+  <text x="52" y="126" fill="#18181B" fill-opacity="0.88" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="0.5">Vay trong ngày</text>
+</svg>

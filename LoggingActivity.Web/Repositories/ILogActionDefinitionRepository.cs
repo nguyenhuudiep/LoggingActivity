@@ -12,7 +12,7 @@ public interface ILogActionDefinitionRepository
 
     Task<PagedResult<LogActionDefinition>> GetPagedAsync(LogActionQuery query, CancellationToken cancellationToken = default);
 
-    Task UpsertAsync(LogActionDefinition definition, CancellationToken cancellationToken = default);
+    Task UpsertAsync(LogActionDefinition definition, string? existingCode = null, CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string code, CancellationToken cancellationToken = default);
 }

@@ -14,23 +14,111 @@ Hệ thống ASP.NET Core MVC kết hợp MongoDB để tiếp nhận activity l
 
 ## Cấu hình
 
-Cập nhật file `LoggingActivity.Web/appsettings.json` hoặc dùng biến môi trường / user-secrets cho các giá trị sau:
+File `LoggingActivity.Web/appsettings.json` chỉ giữ placeholder an toàn cho MongoDB connection string. Không lưu connection string thật trong source control.
+
+Thiết lập các giá trị sau bằng user-secrets hoặc environment variables:
 
 - `MongoDb:ConnectionString`: chuỗi kết nối MongoDB.
-- `MongoDb:DatabaseName`: tên database.
+- `MongoDb:DatabaseName`: tên database nếu chuỗi kết nối chưa chứa sẵn database.
 - `SeedAdmin:*`: tài khoản admin được tạo tự động khi khởi động lần đầu.
 
-Không lưu credential thật trong `appsettings.Development.json` hoặc source control. Project đã bật `User Secrets`, nên với môi trường local có thể cấu hình bằng lệnh:
+Project đã bật `User Secrets`, nên với môi trường local có thể cấu hình bằng lệnh:
 
 ```powershell
 dotnet user-secrets set "MongoDb:ConnectionString" "<your-mongodb-connection-string>" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
+dotnet user-secrets set "SeedAdmin:UserName" "admin" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
+dotnet user-secrets set "SeedAdmin:Email" "admin@example.com" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
+dotnet user-secrets set "SeedAdmin:Password" "<your-strong-password>" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
+```
+
+Nếu connection string của bạn chưa có phần database ở cuối URI, thêm tiếp:
+
+```powershell
+dotnet user-secrets set "MongoDb:DatabaseName" "logging_activity_db" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
+```
+
+Nếu trước đó đã có secret cũ, có thể kiểm tra hoặc ghi đè bằng:
+
+```powershell
+dotnet user-secrets list --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
 ```
 
 Nếu chạy trên server hoặc CI/CD, ưu tiên dùng environment variable:
 
 ```powershell
 $env:MongoDb__ConnectionString = "<your-mongodb-connection-string>"
+$env:SeedAdmin__UserName = "admin"
+$env:SeedAdmin__Email = "admin@example.com"
+$env:SeedAdmin__Password = "<your-strong-password>"
 ```
+
+Chỉ cần thêm `MongoDb__DatabaseName` nếu connection string không tự chứa database name.
+
+## Deploy qua GitHub Actions lên Linux VPS
+
+Repo đã có workflow mẫu tại [.github/workflows/deploy-linux-vps.yml](.github/workflows/deploy-linux-vps.yml). Workflow này sẽ:
+
+- build và publish project `LoggingActivity.Web`
+- upload artifact publish
+- copy artifact lên Linux VPS qua SSH
+- restart service bằng `systemctl`
+
+### 1. Tạo GitHub Secrets
+
+Trong GitHub repo, vào `Settings -> Secrets and variables -> Actions` và tạo các secret sau:
+
+- `VPS_HOST`: IP hoặc domain của server Linux
+- `VPS_PORT`: cổng SSH, thường là `22`
+- `VPS_USER`: user dùng để deploy
+- `VPS_SSH_KEY`: private key SSH của user deploy
+- `VPS_APP_PATH`: thư mục chứa app trên server, ví dụ `/var/www/loggingactivity`
+- `VPS_SERVICE_NAME`: tên service systemd, ví dụ `loggingactivity`
+
+### 2. Cấu hình app trên server
+
+Ví dụ tạo file service tại `/etc/systemd/system/loggingactivity.service`:
+
+```ini
+[Unit]
+Description=Logging Activity Web
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/loggingactivity
+ExecStart=/usr/bin/dotnet /var/www/loggingactivity/LoggingActivity.Web.dll
+Restart=always
+RestartSec=5
+SyslogIdentifier=loggingactivity
+User=www-data
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5137
+Environment=MongoDb__ConnectionString=<your-mongodb-connection-string>
+Environment=MongoDb__DatabaseName=logging_activity_db
+Environment=SeedAdmin__UserName=admin
+Environment=SeedAdmin__Email=admin@example.com
+Environment=SeedAdmin__Password=<your-strong-password>
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Sau đó trên VPS chạy:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable loggingactivity
+sudo systemctl start loggingactivity
+```
+
+### 3. Luồng deploy
+
+- push code lên nhánh `main`, hoặc chạy workflow thủ công bằng `workflow_dispatch`
+- GitHub Actions sẽ build, publish, copy file lên VPS và restart service
+- kiểm tra log service bằng lệnh `sudo journalctl -u loggingactivity -f`
+
+### 4. Reverse proxy gợi ý
+
+Nên chạy app sau Nginx. Ví dụ upstream tới `http://127.0.0.1:5137` rồi public domain qua Nginx để xử lý TLS/HTTPS ổn định hơn.
 
 ## Chạy ứng dụng
 
@@ -40,10 +128,7 @@ dotnet build .\LoggingActivity.Web\LoggingActivity.Web.csproj
 dotnet run --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
 ```
 
-Tài khoản mặc định:
-
-- Username: `admin`
-- Password: `Admin@123456`
+Tài khoản seed admin được tạo từ cấu hình `SeedAdmin:*` trong user-secrets hoặc environment variables.
 
 ## API tích hợp
 

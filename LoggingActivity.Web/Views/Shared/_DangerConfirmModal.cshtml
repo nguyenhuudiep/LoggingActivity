@@ -1,0 +1,29 @@
+@model DangerConfirmModalViewModel
+
+<div class="modal fade" id="@Model.ModalId" tabindex="-1" aria-labelledby="@Model.LabelId" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg danger-modal">
+            <div class="modal-header danger-modal__header">
+                <div class="danger-modal__title-wrap">
+                    <span class="danger-modal__icon">!</span>
+                    <div>
+                        <div class="danger-modal__eyebrow">Thao tác quản trị</div>
+                        <h2 class="modal-title fs-5 fw-bold mb-0" id="@Model.LabelId">@Model.Title</h2>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body danger-modal__body">
+                <p class="danger-modal__message">@Model.Message</p>
+                @if (!string.IsNullOrWhiteSpace(Model.Hint))
+                {
+                    <p class="danger-modal__hint mb-0">@Model.Hint</p>
+                }
+            </div>
+            <div class="modal-footer danger-modal__footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn btn-danger" form="@Model.FormId">@Model.ConfirmText</button>
+            </div>
+        </div>
+    </div>
+</div>

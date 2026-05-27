@@ -4,11 +4,11 @@ public sealed class SeedAdminOptions
 {
     public const string SectionName = "SeedAdmin";
 
-    public string UserName { get; set; } = "admin";
+    public string UserName { get; set; } = "<set-via-user-secrets-or-env>";
 
     public string DisplayName { get; set; } = "System Administrator";
 
-    public string Email { get; set; } = "admin@example.com";
+    public string Email { get; set; } = "<set-via-user-secrets-or-env>";
 
-    public string Password { get; set; } = "Admin@123456";
+    public string Password { get; set; } = "<set-via-user-secrets-or-env>";
 }

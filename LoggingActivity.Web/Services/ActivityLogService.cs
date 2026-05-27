@@ -1,5 +1,6 @@
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace LoggingActivity.Web.Services;
 
@@ -7,17 +8,30 @@ public sealed class ActivityLogService
 {
     private readonly IActivityLogRepository _activityLogRepository;
     private readonly AlertRuleService _alertRuleService;
+    private readonly ILogger<ActivityLogService> _logger;
 
-    public ActivityLogService(IActivityLogRepository activityLogRepository, AlertRuleService alertRuleService)
+    public ActivityLogService(
+        IActivityLogRepository activityLogRepository,
+        AlertRuleService alertRuleService,
+        ILogger<ActivityLogService> logger)
     {
         _activityLogRepository = activityLogRepository;
         _alertRuleService = alertRuleService;
+        _logger = logger;
     }
 
     public async Task AddAsync(ActivityLog logEntry, CancellationToken cancellationToken = default)
     {
         await _activityLogRepository.AddAsync(logEntry, cancellationToken);
-        await _alertRuleService.RecordTriggeredAlertAsync(logEntry, cancellationToken);
+
+        try
+        {
+            await _alertRuleService.RecordTriggeredAlertAsync(logEntry, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Không thể xử lý cảnh báo hậu kỳ cho log {Action} của user {UserId}.", logEntry.Action, logEntry.ExternalUserId);
+        }
     }
 
     public Task<PagedResult<ActivityLog>> GetPagedAsync(LogQuery query, CancellationToken cancellationToken = default)

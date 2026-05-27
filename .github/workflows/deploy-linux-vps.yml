@@ -1,0 +1,74 @@
+name: Build and Deploy to Linux VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH: LoggingActivity.Web/LoggingActivity.Web.csproj
+  PUBLISH_DIR: ./publish
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 7
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 7.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore $PROJECT_PATH
+
+      - name: Build application
+        run: dotnet build $PROJECT_PATH --configuration Release --no-restore
+
+      - name: Publish application
+        run: dotnet publish $PROJECT_PATH --configuration Release --no-build --output $PUBLISH_DIR
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: loggingactivity-publish
+          path: ${{ env.PUBLISH_DIR }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: loggingactivity-publish
+          path: ./publish
+
+      - name: Copy build to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: publish/*
+          target: ${{ secrets.VPS_APP_PATH }}
+          strip_components: 1
+
+      - name: Restart systemd service
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            sudo systemctl daemon-reload
+            sudo systemctl restart ${{ secrets.VPS_SERVICE_NAME }}
+            sudo systemctl status ${{ secrets.VPS_SERVICE_NAME }} --no-pager

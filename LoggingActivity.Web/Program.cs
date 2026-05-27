@@ -6,13 +6,35 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection(MongoDbSettings.SectionName));
-builder.Services.Configure<SeedAdminOptions>(builder.Configuration.GetSection(SeedAdminOptions.SectionName));
+builder.Services
+    .AddOptions<MongoDbSettings>()
+    .Bind(builder.Configuration.GetSection(MongoDbSettings.SectionName))
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.ConnectionString)
+        && !settings.ConnectionString.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
+        "MongoDb:ConnectionString must be configured via user-secrets or environment variables.")
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.DatabaseName)
+        || !string.IsNullOrWhiteSpace(MongoDB.Driver.MongoUrl.Create(settings.ConnectionString).DatabaseName),
+        "MongoDb:DatabaseName must be configured directly or included in the connection string.")
+    .ValidateOnStart();
+builder.Services
+    .AddOptions<SeedAdminOptions>()
+    .Bind(builder.Configuration.GetSection(SeedAdminOptions.SectionName))
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.UserName)
+        && !settings.UserName.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
+        "SeedAdmin:UserName must be configured via user-secrets or environment variables.")
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.Email)
+        && !settings.Email.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
+        "SeedAdmin:Email must be configured via user-secrets or environment variables.")
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.Password)
+        && !settings.Password.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
+        "SeedAdmin:Password must be configured via user-secrets or environment variables.")
+    .ValidateOnStart();
 
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IPartnerRepository, PartnerRepository>();
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
+builder.Services.AddScoped<IActivityLogIngestQueueRepository, ActivityLogIngestQueueRepository>();
 builder.Services.AddScoped<IAlertRuleRepository, AlertRuleRepository>();
 builder.Services.AddScoped<IAlertHistoryRepository, AlertHistoryRepository>();
 builder.Services.AddScoped<ILogActionDefinitionRepository, LogActionDefinitionRepository>();
@@ -20,10 +42,12 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<PartnerService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ActivityLogService>();
+builder.Services.AddScoped<ActivityLogIngestQueueService>();
 builder.Services.AddScoped<AlertRuleService>();
 builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();
+builder.Services.AddHostedService<ActivityLogIngestProcessorHostedService>();
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

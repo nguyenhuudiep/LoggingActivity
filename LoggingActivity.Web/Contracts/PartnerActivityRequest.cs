@@ -4,6 +4,8 @@ namespace LoggingActivity.Web.Contracts;
 
 public sealed class PartnerActivityRequest
 {
+    public string? RequestId { get; set; }
+
     [Range(1, int.MaxValue)]
     public int UserId { get; set; }
 

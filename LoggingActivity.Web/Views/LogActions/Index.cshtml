@@ -2,6 +2,13 @@
 
 @{
     ViewData["Title"] = "Cấu hình action log";
+
+    string BuildDangerModalId(string prefix, string? value)
+    {
+        var safeValue = System.Text.RegularExpressions.Regex.Replace(value ?? string.Empty, "[^a-zA-Z0-9_-]", "-");
+        return $"{prefix}-{safeValue}";
+    }
+
     string BuildPageUrl(int page)
     {
         return Url.Action("Index", new
@@ -114,7 +121,6 @@
             </div>
             <div class="col-lg-2 col-md-4">
                 <div class="filter-actions">
-                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                 </div>
             </div>
@@ -144,6 +150,8 @@
             <tbody>
                 @foreach (var action in Model.Actions.Items)
                 {
+                    var modalId = BuildDangerModalId("deleteLogActionModal", action.Code);
+                    var formId = BuildDangerModalId("deleteLogActionForm", action.Code);
                     <tr>
                         <td class="fw-semibold">@action.Code</td>
                         <td>@action.DisplayName</td>
@@ -171,15 +179,25 @@
                                     <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
                                     <button type="submit" class="btn btn-sm btn-outline-primary">@(action.IsActive ? "Tắt" : "Bật")</button>
                                 </form>
-                                <form asp-action="Delete" method="post">
+                                <form id="@formId" asp-action="Delete" method="post">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="code" value="@action.Code" />
                                     <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
                                     <input type="hidden" name="isActive" value="@Model.Filter.IsActive?.ToString()?.ToLowerInvariant()" />
                                     <input type="hidden" name="page" value="@Model.Filter.Page" />
                                     <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#@modalId">Xóa</button>
                                 </form>
+                                <partial name="_DangerConfirmModal" model='new DangerConfirmModalViewModel
+                                {
+                                    ModalId = modalId,
+                                    LabelId = $"{modalId}Label",
+                                    Title = "Xác nhận xóa action log",
+                                    Message = $"Bạn có chắc muốn xóa action log {action.Code} không?",
+                                    Hint = "Thao tác này chỉ xóa cấu hình action. Các bản ghi log lịch sử vẫn được giữ nguyên trong hệ thống.",
+                                    ConfirmText = "Xóa action",
+                                    FormId = formId
+                                }' />
                             </div>
                         </td>
                     </tr>

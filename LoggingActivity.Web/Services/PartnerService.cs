@@ -17,6 +17,11 @@ public sealed class PartnerService
         return _partnerRepository.GetAllAsync(cancellationToken);
     }
 
+    public Task<PagedResult<Partner>> GetPagedAsync(PartnerQuery query, CancellationToken cancellationToken = default)
+    {
+        return _partnerRepository.GetPagedAsync(query, cancellationToken);
+    }
+
     public Task<Partner?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         return _partnerRepository.GetByIdAsync(id, cancellationToken);

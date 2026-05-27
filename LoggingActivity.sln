@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlertHistorySeeder20260526"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserProbe20260526", ".copilot-tmp\UserProbe20260526\UserProbe20260526.csproj", "{7DA9310F-49B3-49C3-A490-94622182C618}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TempLogCleanup", "TempLogCleanup\TempLogCleanup.csproj", "{B0F66368-93D3-4F10-9B80-B766922A0CEE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -46,6 +48,10 @@ Global
 		{7DA9310F-49B3-49C3-A490-94622182C618}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7DA9310F-49B3-49C3-A490-94622182C618}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7DA9310F-49B3-49C3-A490-94622182C618}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0F66368-93D3-4F10-9B80-B766922A0CEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0F66368-93D3-4F10-9B80-B766922A0CEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0F66368-93D3-4F10-9B80-B766922A0CEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0F66368-93D3-4F10-9B80-B766922A0CEE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{645E38FD-46E9-4885-81B6-56BA7E48A498} = {1BC70246-3E23-4FA6-8CB7-4ECC7F090871}

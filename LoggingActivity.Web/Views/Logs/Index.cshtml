@@ -5,6 +5,11 @@
 
     string BuildDescription(ActivityLog log)
     {
+        if (!string.IsNullOrWhiteSpace(log.Description))
+        {
+            return log.Description;
+        }
+
         if (!string.IsNullOrWhiteSpace(log.PartnerName)
             && !string.IsNullOrWhiteSpace(log.UserName)
             && !string.IsNullOrWhiteSpace(log.Action))
@@ -86,7 +91,7 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form">
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
             <div class="col-lg-2 col-md-6">
                 <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
                 <input asp-for="Filter.SearchTerm" class="form-control" placeholder="User, mô tả, endpoint" />
@@ -121,7 +126,6 @@
             </div>
             <div class="col-lg-2 col-md-12">
                 <div class="filter-actions">
-                    <a class="btn btn-outline-secondary" asp-action="Index">Xóa lọc</a>
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                 </div>
             </div>
