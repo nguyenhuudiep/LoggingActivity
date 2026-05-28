@@ -20,7 +20,7 @@ public interface IActivityLogRepository
 
     Task<IReadOnlyList<DailyAlertCount>> GetDailyUserActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 
-    Task<long> GetUserActionCountAsync(int userId, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
+    Task<long> GetUserActionCountAsync(string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default);
 }

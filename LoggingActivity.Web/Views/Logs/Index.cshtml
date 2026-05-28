@@ -31,6 +31,26 @@
         return log.Description;
     }
 
+    string? BuildActorDetailsUrl(ActivityLog log)
+    {
+        if (string.IsNullOrWhiteSpace(log.DisplayActorIdentifier))
+        {
+            return null;
+        }
+
+        return Url.Action("ActorDetails", new
+        {
+            actorIdentifier = log.DisplayActorIdentifier,
+            actorIdentifierType = log.DisplayActorIdentifierType,
+            partnerId = Model.Filter.PartnerId,
+            action = Model.Filter.Action,
+            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            page = 1,
+            pageSize = 10
+        });
+    }
+
     string BuildPageUrl(int page)
     {
         return Url.Action("Index", new
@@ -59,21 +79,21 @@
     <div class="alert alert-warning dashboard-warning mb-4" role="alert">
         <div class="dashboard-warning__header">
             <strong>Cảnh báo đang hoạt động</strong>
-            <span class="text-secondary">Các userId có action đã chạm hoặc vượt ngưỡng log trong ngày hiện tại.</span>
+            <span class="text-secondary">Các key định danh có action đã chạm hoặc vượt ngưỡng log trong ngày hiện tại.</span>
         </div>
         <div class="dashboard-warning__list">
             @foreach (var warning in Model.ActiveWarnings)
             {
                 <div class="dashboard-warning__item">
-                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.UserId - @warning.UserName - @warning.Action</span>
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.DisplayActorIdentifier - @warning.UserName - @warning.Action</span>
                     <span>
                         @if (warning.IsAtLimit)
                         {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
+                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
                         }
                         else
                         {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng cấu hình @warning.DailyLimit thêm @warning.ExceededBy log.
+                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng cấu hình @warning.DailyLimit thêm @warning.ExceededBy log.
                         }
                     </span>
                 </div>
@@ -107,7 +127,7 @@
             <input asp-for="Filter.PageSize" type="hidden" />
             <div class="col-lg-2 col-md-6">
                 <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
-                <input asp-for="Filter.SearchTerm" class="form-control" placeholder="User, mô tả, endpoint" />
+                <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Key, user, mô tả, endpoint" />
             </div>
             <div class="col-lg-2 col-md-6">
                 <label asp-for="Filter.PartnerId" class="form-label">Partner</label>
@@ -175,7 +195,7 @@
                     <th class="table-stt-col">STT</th>
                     <th>Thời gian</th>
                     <th>Partner</th>
-                    <th>User ID</th>
+                    <th>Key</th>
                     <th>Username</th>
                     <th>Action</th>
                     <th>Mô tả</th>
@@ -185,11 +205,21 @@
             <tbody>
                 @foreach (var log in Model.Logs.Items)
                 {
+                    var actorDetailsUrl = BuildActorDetailsUrl(log);
                     <tr>
                         <td class="table-stt-cell">@(rowNumber++)</td>
                         <td>@log.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@(string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName)</td>
-                        <td>@(log.ExternalUserId?.ToString() ?? "N/A")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(actorDetailsUrl))
+                            {
+                                <a class="actor-key-trigger" data-actor-log-trigger href="@actorDetailsUrl">@log.DisplayActorIdentifier</a>
+                            }
+                            else
+                            {
+                                <span class="text-secondary">N/A</span>
+                            }
+                        </td>
                         <td>@log.UserName</td>
                         <td><span class="badge bg-primary-subtle text-primary-emphasis">@log.Action</span></td>
                         <td>@BuildDescription(log)</td>
@@ -276,4 +306,23 @@
             </div>
         </div>
     }
+</div>
+
+<div class="modal fade" id="actorLogDetailsModal" tabindex="-1" aria-labelledby="actorLogDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div data-actor-log-modal-content>
+                <div class="modal-header">
+                    <div>
+                        <div class="danger-modal__eyebrow">Chi tiết theo key</div>
+                        <h2 class="modal-title fs-5 fw-bold mb-0" id="actorLogDetailsModalLabel">Đang tải dữ liệu</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body py-5 text-center text-secondary">
+                    Đang tải bản ghi theo key...
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

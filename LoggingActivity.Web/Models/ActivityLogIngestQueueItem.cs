@@ -18,7 +18,11 @@ public sealed class ActivityLogIngestQueueItem
 
     public string PartnerName { get; set; } = "N/A";
 
-    public int ExternalUserId { get; set; }
+    public int? ExternalUserId { get; set; }
+
+    public string ActorIdentifier { get; set; } = string.Empty;
+
+    public string ActorIdentifierType { get; set; } = ActorIdentifierTypes.Unknown;
 
     public string UserName { get; set; } = "Anonymous";
 
@@ -51,6 +55,12 @@ public sealed class ActivityLogIngestQueueItem
     public DateTime? ProcessedAtUtc { get; set; }
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    [BsonIgnore]
+    public string DisplayActorIdentifier => ActorIdentityHelper.ResolveIdentifier(this);
+
+    [BsonIgnore]
+    public string DisplayActorIdentifierType => ActorIdentityHelper.ResolveType(this);
 }
 
 public static class ActivityLogIngestQueueStatuses

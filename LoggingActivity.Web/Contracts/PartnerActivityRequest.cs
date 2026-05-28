@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using LoggingActivity.Web.Infrastructure;
 
 namespace LoggingActivity.Web.Contracts;
 
@@ -6,11 +8,13 @@ public sealed class PartnerActivityRequest
 {
     public string? RequestId { get; set; }
 
-    [Range(1, int.MaxValue)]
-    public int UserId { get; set; }
-
     [Required]
-    public string UserName { get; set; } = string.Empty;
+    [JsonConverter(typeof(FlexibleStringJsonConverter))]
+    public string UserId { get; set; } = string.Empty;
+
+    public string? UserKeyType { get; set; }
+
+    public string? UserName { get; set; }
 
     [Required]
     public string Action { get; set; } = string.Empty;

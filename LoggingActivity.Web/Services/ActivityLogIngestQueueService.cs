@@ -70,6 +70,8 @@ public sealed class ActivityLogIngestQueueService
             PartnerId = partnerId,
             PartnerName = partnerName,
             ExternalUserId = 900001,
+            ActorIdentifier = "900001",
+            ActorIdentifierType = ActorIdentifierTypes.UserId,
             UserName = "demo_pending_user",
             Action = "DEMO_PENDING_RETRY",
             Description = "Bản ghi demo cho trang queue ở trạng thái chờ retry.",
@@ -92,6 +94,8 @@ public sealed class ActivityLogIngestQueueService
             PartnerId = partnerId,
             PartnerName = partnerName,
             ExternalUserId = 900002,
+            ActorIdentifier = "900002",
+            ActorIdentifierType = ActorIdentifierTypes.UserId,
             UserName = "demo_failed_user",
             Action = "DEMO_FAILED_FINAL",
             Description = "Bản ghi demo cho trang queue ở trạng thái thất bại.",
@@ -120,6 +124,9 @@ public sealed class ActivityLogIngestQueueService
         var requestId = string.IsNullOrWhiteSpace(request.RequestId)
             ? Guid.NewGuid().ToString("N")
             : request.RequestId.Trim();
+        var actorIdentifier = ActorIdentityHelper.NormalizeIdentifier(request.UserId);
+        var actorIdentifierType = ActorIdentityHelper.NormalizeType(request.UserKeyType, actorIdentifier);
+        var hasLegacyExternalUserId = ActorIdentityHelper.TryGetLegacyExternalUserId(actorIdentifier, out var legacyExternalUserId);
 
         var accepted = await _queueRepository.EnqueueAsync(new ActivityLogIngestQueueItem
         {
@@ -127,7 +134,9 @@ public sealed class ActivityLogIngestQueueService
             RequestId = requestId,
             PartnerId = partner.Id,
             PartnerName = string.IsNullOrWhiteSpace(partner.Name) ? "N/A" : partner.Name.Trim(),
-            ExternalUserId = request.UserId,
+            ExternalUserId = hasLegacyExternalUserId ? legacyExternalUserId : null,
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
             UserName = string.IsNullOrWhiteSpace(request.UserName) ? "Anonymous" : request.UserName.Trim(),
             Action = request.Action.Trim(),
             Description = request.Description.Trim(),
@@ -164,8 +173,10 @@ public sealed class ActivityLogIngestQueueService
             {
                 PartnerId = item.PartnerId,
                 PartnerName = item.PartnerName,
-                UserId = item.PartnerId,
+                UserId = null,
                 ExternalUserId = item.ExternalUserId,
+                ActorIdentifier = item.DisplayActorIdentifier,
+                ActorIdentifierType = item.DisplayActorIdentifierType,
                 UserName = item.UserName,
                 Role = "Partner",
                 Action = ensuredAction.NormalizedCode!,

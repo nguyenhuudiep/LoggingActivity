@@ -10,6 +10,10 @@ public sealed class LogQuery
 
     public string? Source { get; init; }
 
+    public string? ActorIdentifier { get; init; }
+
+    public string? ActorIdentifierType { get; init; }
+
     public DateTime? FromUtc { get; init; }
 
     public DateTime? ToUtc { get; init; }

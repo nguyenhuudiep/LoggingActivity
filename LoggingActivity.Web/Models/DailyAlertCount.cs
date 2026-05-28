@@ -10,7 +10,11 @@ public sealed class DailyAlertCount
 
     public string PartnerName { get; init; } = "N/A";
 
-    public int UserId { get; init; }
+    public int? UserId { get; init; }
+
+    public string ActorIdentifier { get; init; } = string.Empty;
+
+    public string ActorIdentifierType { get; init; } = ActorIdentifierTypes.Unknown;
 
     public string UserName { get; init; } = "Anonymous";
 

@@ -17,9 +17,9 @@ public sealed class AlertHistoryService
         return _alertHistoryRepository.AddAsync(history, cancellationToken);
     }
 
-    public Task<bool> ExistsAsync(DateTime alertDateUtc, int userId, string action, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(DateTime alertDateUtc, string actorIdentifier, string action, CancellationToken cancellationToken = default)
     {
-        return _alertHistoryRepository.ExistsAsync(alertDateUtc, userId, action, cancellationToken);
+        return _alertHistoryRepository.ExistsAsync(alertDateUtc, actorIdentifier, action, cancellationToken);
     }
 
     public Task<PagedResult<AlertHistory>> GetPagedAsync(AlertHistoryQuery query, CancellationToken cancellationToken = default)

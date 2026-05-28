@@ -283,11 +283,84 @@
 		});
 	}
 
+	function initActorLogModal() {
+		var modalElement = document.getElementById("actorLogDetailsModal");
+		if (!modalElement || typeof window.bootstrap === "undefined") {
+			return;
+		}
+
+		var modalContent = modalElement.querySelector("[data-actor-log-modal-content]");
+		if (!modalContent) {
+			return;
+		}
+
+		var modal = new window.bootstrap.Modal(modalElement);
+		var loadingMarkup = modalContent.innerHTML;
+
+		function setLoadingState() {
+			modalContent.innerHTML = loadingMarkup;
+		}
+
+		function loadModalContent(url, shouldOpen) {
+			setLoadingState();
+
+			fetch(url, {
+				headers: {
+					"X-Requested-With": "XMLHttpRequest"
+				}
+			})
+				.then(function (response) {
+					if (!response.ok) {
+						throw new Error("Không thể tải dữ liệu chi tiết theo key.");
+					}
+
+					return response.text();
+				})
+				.then(function (html) {
+					modalContent.innerHTML = html;
+					if (shouldOpen) {
+						modal.show();
+					}
+				})
+				.catch(function () {
+					modalContent.innerHTML = [
+						'<div class="modal-header">',
+						'  <div>',
+						'    <div class="danger-modal__eyebrow">Chi tiết theo key</div>',
+						'    <h2 class="modal-title fs-5 fw-bold mb-0">Không tải được dữ liệu</h2>',
+						'  </div>',
+						'  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>',
+						'</div>',
+						'<div class="modal-body text-secondary">Không thể tải danh sách bản ghi cho key này. Hãy thử lại.</div>'
+					].join("");
+					if (shouldOpen) {
+						modal.show();
+					}
+				});
+		}
+
+		document.addEventListener("click", function (event) {
+			var trigger = event.target.closest("[data-actor-log-trigger], [data-actor-log-modal-link]");
+			if (!trigger) {
+				return;
+			}
+
+			var url = trigger.getAttribute("href");
+			if (!url) {
+				return;
+			}
+
+			event.preventDefault();
+			loadModalContent(url, trigger.hasAttribute("data-actor-log-trigger"));
+		});
+	}
+
 	document.addEventListener("DOMContentLoaded", function () {
 		initSidebarToggle();
 		closeMobileNavOnLinkClick();
 		initLogCharts();
 		initEnhancedSelects();
 		initAutoSubmitSelectForms();
+		initActorLogModal();
 	});
 })();

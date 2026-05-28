@@ -63,12 +63,14 @@ public sealed class AlertRuleService
                 StringComparer.OrdinalIgnoreCase)
             .Where(item => item.Count.CurrentCount >= item.Rule.DailyLimit)
             .OrderByDescending(item => item.Count.CurrentCount - item.Rule.DailyLimit)
-            .ThenBy(item => item.Count.UserId)
+            .ThenBy(item => item.Count.ActorIdentifier)
             .Select(item => new AlertWarning
             {
                 PartnerId = item.Count.PartnerId,
                 PartnerName = item.Count.PartnerName,
                 UserId = item.Count.UserId,
+                ActorIdentifier = item.Count.ActorIdentifier,
+                ActorIdentifierType = item.Count.ActorIdentifierType,
                 UserName = item.Count.UserName,
                 Action = item.Rule.Action,
                 DailyLimit = item.Rule.DailyLimit,
@@ -103,7 +105,7 @@ public sealed class AlertRuleService
                 continue;
             }
 
-            var alreadyRecorded = await _alertHistoryService.ExistsAsync(count.AlertDateUtc, count.UserId, count.Action, cancellationToken);
+            var alreadyRecorded = await _alertHistoryService.ExistsAsync(count.AlertDateUtc, count.ActorIdentifier, count.Action, cancellationToken);
             if (alreadyRecorded)
             {
                 continue;
@@ -114,20 +116,23 @@ public sealed class AlertRuleService
                 PartnerId = count.PartnerId,
                 PartnerName = count.PartnerName,
                 UserId = count.UserId,
+                ActorIdentifier = count.ActorIdentifier,
+                ActorIdentifierType = count.ActorIdentifierType,
                 UserName = count.UserName,
                 Action = rule.Action,
                 DailyLimit = rule.DailyLimit,
                 CurrentCount = count.CurrentCount,
                 AlertDateUtc = count.AlertDateUtc,
                 OccurredAtUtc = count.OccurredAtUtc,
-                Message = BuildAlertMessage(count.UserName, count.PartnerName, rule.Action, rule.DailyLimit, count.CurrentCount)
+                Message = BuildAlertMessage(count.ActorIdentifier, count.ActorIdentifierType, count.UserName, count.PartnerName, rule.Action, rule.DailyLimit, count.CurrentCount)
             }, cancellationToken);
         }
     }
 
     public async Task RecordTriggeredAlertAsync(ActivityLog logEntry, CancellationToken cancellationToken = default)
     {
-        if (!logEntry.ExternalUserId.HasValue || string.IsNullOrWhiteSpace(logEntry.Action))
+        var actorIdentifier = logEntry.DisplayActorIdentifier;
+        if (string.IsNullOrWhiteSpace(actorIdentifier) || string.IsNullOrWhiteSpace(logEntry.Action))
         {
             return;
         }
@@ -142,7 +147,8 @@ public sealed class AlertRuleService
         var alertDateUtc = localAlertDate.ToUniversalTime();
         var nextDateUtc = localAlertDate.AddDays(1).ToUniversalTime();
         var currentCount = await _activityLogRepository.GetUserActionCountAsync(
-            logEntry.ExternalUserId.Value,
+            actorIdentifier,
+            logEntry.DisplayActorIdentifierType,
             logEntry.Action.Trim(),
             alertDateUtc,
             nextDateUtc,
@@ -155,7 +161,7 @@ public sealed class AlertRuleService
 
         var alreadyRecorded = await _alertHistoryService.ExistsAsync(
             alertDateUtc,
-            logEntry.ExternalUserId.Value,
+            actorIdentifier,
             logEntry.Action.Trim(),
             cancellationToken);
 
@@ -171,14 +177,16 @@ public sealed class AlertRuleService
         {
             PartnerId = logEntry.PartnerId,
             PartnerName = normalizedPartnerName,
-            UserId = logEntry.ExternalUserId.Value,
+            UserId = logEntry.ExternalUserId,
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = logEntry.DisplayActorIdentifierType,
             UserName = normalizedUserName,
             Action = logEntry.Action.Trim(),
             DailyLimit = rule.DailyLimit,
             CurrentCount = currentCount,
             AlertDateUtc = localAlertDate,
             OccurredAtUtc = logEntry.CreatedAtUtc,
-            Message = BuildAlertMessage(normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount)
+            Message = BuildAlertMessage(actorIdentifier, logEntry.DisplayActorIdentifierType, normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount)
         }, cancellationToken);
     }
 
@@ -190,10 +198,10 @@ public sealed class AlertRuleService
         }
 
         var todayUtc = DateTime.Today;
-        foreach (var warning in warnings.Where(item => item.UserId.HasValue))
+        foreach (var warning in warnings.Where(item => !string.IsNullOrWhiteSpace(item.DisplayActorIdentifier)))
         {
-            var userId = warning.UserId!.Value;
-            var alreadyRecorded = await _alertHistoryService.ExistsAsync(todayUtc, userId, warning.Action, cancellationToken);
+            var actorIdentifier = warning.DisplayActorIdentifier;
+            var alreadyRecorded = await _alertHistoryService.ExistsAsync(todayUtc, actorIdentifier, warning.Action, cancellationToken);
             if (alreadyRecorded)
             {
                 continue;
@@ -203,21 +211,24 @@ public sealed class AlertRuleService
             {
                 PartnerId = warning.PartnerId,
                 PartnerName = warning.PartnerName,
-                UserId = userId,
+                UserId = warning.UserId,
+                ActorIdentifier = actorIdentifier,
+                ActorIdentifierType = warning.DisplayActorIdentifierType,
                 UserName = warning.UserName,
                 Action = warning.Action,
                 DailyLimit = warning.DailyLimit,
                 CurrentCount = warning.CurrentCount,
                 AlertDateUtc = todayUtc,
                 OccurredAtUtc = DateTime.UtcNow,
-                Message = BuildAlertMessage(warning.UserName, warning.PartnerName, warning.Action, warning.DailyLimit, warning.CurrentCount)
+                Message = BuildAlertMessage(actorIdentifier, warning.DisplayActorIdentifierType, warning.UserName, warning.PartnerName, warning.Action, warning.DailyLimit, warning.CurrentCount)
             }, cancellationToken);
         }
     }
 
-    private static string BuildAlertMessage(string userName, string partnerName, string action, int dailyLimit, long currentCount)
+    private static string BuildAlertMessage(string actorIdentifier, string actorIdentifierType, string userName, string partnerName, string action, int dailyLimit, long currentCount)
     {
-        return $"User '{userName}' của partner '{partnerName}' đã chạm hoặc vượt ngưỡng {dailyLimit}/ngày cho action '{action}' với {currentCount} log.";
+        var keyLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType);
+        return $"{keyLabel} '{actorIdentifier}' của partner '{partnerName}' đã chạm hoặc vượt ngưỡng {dailyLimit}/ngày cho action '{action}' với {currentCount} log. User hiển thị: '{userName}'.";
     }
 
     public async Task<(bool Success, string? Error)> UpsertAsync(string? existingAction, string action, int dailyLimit, bool isActive, CancellationToken cancellationToken = default)

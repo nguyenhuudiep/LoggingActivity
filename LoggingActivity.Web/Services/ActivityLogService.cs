@@ -30,7 +30,7 @@ public sealed class ActivityLogService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Không thể xử lý cảnh báo hậu kỳ cho log {Action} của user {UserId}.", logEntry.Action, logEntry.ExternalUserId);
+            _logger.LogError(ex, "Không thể xử lý cảnh báo hậu kỳ cho log {Action} của key {ActorIdentifier}.", logEntry.Action, logEntry.DisplayActorIdentifier);
         }
     }
 
@@ -68,6 +68,8 @@ public sealed class ActivityLogService
         return _activityLogRepository.AddAsync(new ActivityLog
         {
             UserId = userId,
+            ActorIdentifier = string.IsNullOrWhiteSpace(userId) ? string.Empty : userId.Trim(),
+            ActorIdentifierType = ActorIdentifierTypes.InternalUserId,
             UserName = userName,
             Role = role,
             Action = action,

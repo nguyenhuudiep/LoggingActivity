@@ -25,11 +25,23 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
         return _context.AlertHistories.InsertOneAsync(history, cancellationToken: cancellationToken);
     }
 
-    public Task<bool> ExistsAsync(DateTime alertDateUtc, int userId, string action, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(DateTime alertDateUtc, string actorIdentifier, string action, CancellationToken cancellationToken = default)
     {
-        var filter = Builders<AlertHistory>.Filter.Eq(item => item.AlertDateUtc, alertDateUtc)
-            & Builders<AlertHistory>.Filter.Eq(item => item.UserId, userId)
-            & Builders<AlertHistory>.Filter.Eq(item => item.Action, action);
+        var normalizedActorIdentifier = ActorIdentityHelper.NormalizeIdentifier(actorIdentifier);
+        var builder = Builders<AlertHistory>.Filter;
+        var actorFilters = new List<FilterDefinition<AlertHistory>>
+        {
+            builder.Eq(item => item.ActorIdentifier, normalizedActorIdentifier)
+        };
+
+        if (ActorIdentityHelper.TryGetLegacyExternalUserId(normalizedActorIdentifier, out var legacyUserId))
+        {
+            actorFilters.Add(builder.Eq(item => item.UserId, legacyUserId));
+        }
+
+        var filter = builder.Eq(item => item.AlertDateUtc, alertDateUtc)
+            & builder.Eq(item => item.Action, action)
+            & builder.Or(actorFilters);
 
         return _context.AlertHistories.Find(filter).AnyAsync(cancellationToken);
     }
@@ -47,11 +59,14 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
             {
                 filters.Add(builder.Or(
                     builder.Regex(item => item.UserName, regex),
+                    builder.Regex(item => item.ActorIdentifier, regex),
                     builder.Eq(item => item.UserId, userId)));
             }
             else
             {
-                filters.Add(builder.Regex(item => item.UserName, regex));
+                filters.Add(builder.Or(
+                    builder.Regex(item => item.UserName, regex),
+                    builder.Regex(item => item.ActorIdentifier, regex)));
             }
         }
 

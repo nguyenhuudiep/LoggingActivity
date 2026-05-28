@@ -44,7 +44,7 @@
             <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
             <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistorySearchTerm">User</label>
-                <input id="alertHistorySearchTerm" name="searchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="User ID hoặc username" />
+                <input id="alertHistorySearchTerm" name="searchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Key hoặc username" />
             </div>
             <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistoryPartnerId">Partner</label>
@@ -106,7 +106,7 @@
                     <th>Thời điểm</th>
                     <th>Ngày cảnh báo</th>
                     <th>Partner</th>
-                    <th>User ID</th>
+                    <th>Key</th>
                     <th>Username</th>
                     <th>Action</th>
                     <th>Ngưỡng</th>
@@ -122,7 +122,7 @@
                         <td>@alert.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@alert.AlertDateUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
                         <td>@alert.PartnerName</td>
-                        <td>@alert.UserId</td>
+                        <td>@alert.DisplayActorIdentifier</td>
                         <td>@alert.UserName</td>
                         <td><span class="badge bg-danger-subtle text-danger-emphasis">@alert.Action</span></td>
                         <td>@alert.DailyLimit</td>

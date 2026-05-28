@@ -155,7 +155,8 @@ curl -X POST "http://localhost:5137/api/partner/activity" \
 	-H "Content-Type: application/json" \
 	-H "X-Api-Key: YOUR_PARTNER_API_KEY" \
 	-d '{
-		"userId": 260001,
+		"userId": "260001",
+		"userKeyType": "user-id",
 		"userName": "nguyen.van.a",
 		"action": "Login",
 		"description": "Nội dung mô tả từ đối tác",
@@ -167,11 +168,25 @@ Payload mẫu:
 
 ```json
 {
-	"userId": 260001,
+	"userId": "260001",
+	"userKeyType": "user-id",
 	"userName": "nguyen.van.a",
 	"action": "Login",
 	"description": "Nội dung mô tả từ đối tác",
 	"endpoint": "/auth/login"
+}
+```
+
+Ví dụ nếu hệ thống nguồn dùng số điện thoại làm key chính:
+
+```json
+{
+	"userId": "0988123456",
+	"userKeyType": "phone",
+	"userName": "Khách hàng 0988123456",
+	"action": "Checkout",
+	"description": "Khách hàng xác nhận đơn hàng",
+	"endpoint": "/checkout/confirm"
 }
 ```
 
@@ -187,6 +202,9 @@ Response thành công:
 Lưu ý:
 
 - `requestId` là optional. Nếu đối tác không truyền, hệ thống tự sinh một mã mới và trả lại trong response.
+- `userId` hiện được hiểu là key định danh dạng `string`. Có thể là mã user, số điện thoại hoặc mã khách hàng từ hệ thống nguồn.
+- `userKeyType` là optional nhưng nên truyền rõ. Giá trị khuyến nghị: `user-id`, `phone`.
+- `userName` là optional. Nếu không truyền, hệ thống sẽ lưu là `Anonymous`.
 - Nếu đối tác gửi lại cùng `requestId` cho cùng một partner, API vẫn trả `202 Accepted` nhưng queue sẽ nhận diện đây là request đã tiếp nhận trước đó và không tạo thêm bản ghi mới.
 - Khi worker xử lý queue, `action` sẽ được chuẩn hóa về chữ in hoa. Nếu action chưa tồn tại, hệ thống tự tạo mới và bật active. Nếu action đã tồn tại nhưng đang bị tắt, request sẽ bị đưa sang trạng thái thất bại trong queue.
 - Hệ thống hiện chuẩn hóa mô tả log hiển thị về định dạng: `Partner {partnerName}, username {userName} thực hiện thao tác {action}.`
@@ -421,12 +439,31 @@ Response mẫu:
 	"topActions": [
 		{ "label": "Login", "value": 35 },
 		{ "label": "Search", "value": 22 }
-	]
-}
-```
+	```json
+	{
+		"items": [
+			{
+				"partnerId": "6a152cdb5e3857756e533609",
+				"partnerName": "ERP",
+				"actorIdentifier": "260001",
+				"actorIdentifierType": "user-id",
+				"externalUserId": 260001,
+				"userName": "nguyen.van.a",
+				"role": "Partner",
+				"action": "LOGIN",
+				"description": "Nội dung mô tả từ đối tác",
+				"endpoint": "/auth/login",
+				"source": "IntegratedApi",
+				"httpMethod": "POST",
+				"ipAddress": "10.10.1.25",
+				"createdAtUtc": "2026-05-26T09:00:00Z"
+			}
+		],
+		"totalCount": 1,
+		"page": 1,
+		"pageSize": 10,
+		"totalPages": 1
+	}
+	```
 
-## Ghi chú vận hành
-
-- Cảnh báo active trong ngày được tính theo `userId + action + ngày`.
-- Lịch sử cảnh báo được lưu riêng để tra cứu lại theo mốc thời gian.
-- Màn hình hướng dẫn tích hợp API cũng có sẵn trực tiếp trong dashboard qua nút `Chi tiết` ở box `API tích hợp`.
+	`actorIdentifier` và `actorIdentifierType` là cặp field chuẩn mới để filter, cảnh báo và drill-down theo key. `externalUserId` chỉ còn là field tương thích cho dữ liệu cũ hoặc key số.

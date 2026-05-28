@@ -189,7 +189,7 @@
                         </td>
                         <td>
                             <div>@item.PartnerName</div>
-                            <div class="text-secondary small">@item.ExternalUserId - @item.UserName</div>
+                            <div class="text-secondary small">@item.DisplayActorIdentifier - @item.UserName</div>
                         </td>
                         <td>
                             <div><span class="badge bg-primary-subtle text-primary-emphasis">@item.Action</span></div>
@@ -349,7 +349,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="small text-secondary mb-2">Action: @item.Action</div>
-                    <div class="small text-secondary mb-3">Partner: @item.PartnerName - User: @item.ExternalUserId / @item.UserName</div>
+                    <div class="small text-secondary mb-3">Partner: @item.PartnerName - Key: @item.DisplayActorIdentifier / @item.UserName</div>
                     <div class="p-3 rounded-4 bg-light border small" style="white-space: pre-wrap;">@item.LastError</div>
                 </div>
                 <div class="modal-footer">

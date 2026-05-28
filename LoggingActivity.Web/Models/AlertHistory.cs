@@ -14,7 +14,11 @@ public sealed class AlertHistory
 
     public string PartnerName { get; set; } = "N/A";
 
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
+
+    public string ActorIdentifier { get; set; } = string.Empty;
+
+    public string ActorIdentifierType { get; set; } = ActorIdentifierTypes.Unknown;
 
     public string UserName { get; set; } = "Anonymous";
 
@@ -29,4 +33,10 @@ public sealed class AlertHistory
     public DateTime OccurredAtUtc { get; set; }
 
     public string Message { get; set; } = string.Empty;
+
+    [BsonIgnore]
+    public string DisplayActorIdentifier => ActorIdentityHelper.ResolveIdentifier(this);
+
+    [BsonIgnore]
+    public string DisplayActorIdentifierType => ActorIdentityHelper.ResolveType(this);
 }

@@ -21,24 +21,51 @@ public sealed class ActivityLogRepository : IActivityLogRepository
 
     public async Task<PagedResult<ActivityLog>> GetPagedAsync(LogQuery query, CancellationToken cancellationToken = default)
     {
-        var filter = BuildFilter(query, null);
+        var filter = BuildFilter(query);
         return await GetPagedInternalAsync(filter, query, cancellationToken);
     }
 
     public async Task<PagedResult<ActivityLog>> GetPagedByUserAsync(string userId, LogQuery query, CancellationToken cancellationToken = default)
     {
-        var filter = BuildFilter(query, userId);
-        return await GetPagedInternalAsync(filter, query, cancellationToken);
+        var scopedQuery = new LogQuery
+        {
+            SearchTerm = query.SearchTerm,
+            PartnerId = userId,
+            Action = query.Action,
+            Source = query.Source,
+            ActorIdentifier = query.ActorIdentifier,
+            ActorIdentifierType = query.ActorIdentifierType,
+            FromUtc = query.FromUtc,
+            ToUtc = query.ToUtc,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+
+        return await GetPagedInternalAsync(BuildFilter(scopedQuery), scopedQuery, cancellationToken);
     }
 
     public async Task<LogStatistics> GetStatisticsAsync(LogQuery query, CancellationToken cancellationToken = default)
     {
-        return await GetStatisticsInternalAsync(BuildFilter(query, null), cancellationToken);
+        return await GetStatisticsInternalAsync(BuildFilter(query), cancellationToken);
     }
 
     public async Task<LogStatistics> GetStatisticsByUserAsync(string userId, LogQuery query, CancellationToken cancellationToken = default)
     {
-        return await GetStatisticsInternalAsync(BuildFilter(query, userId), cancellationToken);
+        var scopedQuery = new LogQuery
+        {
+            SearchTerm = query.SearchTerm,
+            PartnerId = userId,
+            Action = query.Action,
+            Source = query.Source,
+            ActorIdentifier = query.ActorIdentifier,
+            ActorIdentifierType = query.ActorIdentifierType,
+            FromUtc = query.FromUtc,
+            ToUtc = query.ToUtc,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+
+        return await GetStatisticsInternalAsync(BuildFilter(scopedQuery), cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
@@ -71,34 +98,43 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             {
                 PartnerId = log.PartnerId,
                 PartnerName = log.PartnerName,
+                UserId = log.UserId,
                 ExternalUserId = log.ExternalUserId,
+                ActorIdentifier = log.ActorIdentifier,
+                ActorIdentifierType = log.ActorIdentifierType,
+                Source = log.Source,
                 UserName = log.UserName,
                 Action = log.Action
             })
             .ToListAsync(cancellationToken);
 
         return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action) && log.ExternalUserId.HasValue)
+            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
             .Select(log => new
             {
                 PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
                 PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
-                ExternalUserId = log.ExternalUserId,
+                LegacyUserId = log.ExternalUserId,
+                ActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
+                ActorIdentifierType = ActorIdentityHelper.ResolveType(log),
                 UserName = string.IsNullOrWhiteSpace(log.UserName) ? "Anonymous" : log.UserName.Trim(),
                 Action = log.Action.Trim(),
-                NormalizedExternalUserId = log.ExternalUserId ?? 0,
+                NormalizedActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
                 NormalizedAction = log.Action.Trim().ToUpperInvariant()
             })
+            .Where(log => !string.IsNullOrWhiteSpace(log.NormalizedActorIdentifier))
             .GroupBy(log => new
             {
-                log.NormalizedExternalUserId,
+                log.NormalizedActorIdentifier,
                 log.NormalizedAction
             })
             .Select(group => new AlertWarning
             {
                 PartnerId = group.Select(item => item.PartnerId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
                 PartnerName = group.Select(item => item.PartnerName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "N/A",
-                UserId = group.First().ExternalUserId,
+                UserId = group.Select(item => item.LegacyUserId).FirstOrDefault(id => id.HasValue),
+                ActorIdentifier = group.Key.NormalizedActorIdentifier,
+                ActorIdentifierType = group.Select(item => item.ActorIdentifierType).FirstOrDefault(type => !string.IsNullOrWhiteSpace(type)) ?? ActorIdentifierTypes.Unknown,
                 UserName = group.First().UserName,
                 Action = group.First().Action,
                 CurrentCount = group.LongCount()
@@ -118,7 +154,11 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             {
                 PartnerId = log.PartnerId,
                 PartnerName = log.PartnerName,
+                UserId = log.UserId,
                 ExternalUserId = log.ExternalUserId,
+                ActorIdentifier = log.ActorIdentifier,
+                ActorIdentifierType = log.ActorIdentifierType,
+                Source = log.Source,
                 UserName = log.UserName,
                 Action = log.Action,
                 CreatedAtUtc = log.CreatedAtUtc
@@ -126,22 +166,25 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             .ToListAsync(cancellationToken);
 
         return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action) && log.ExternalUserId.HasValue)
+            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
             .Select(log => new
             {
                 AlertDateUtc = log.CreatedAtUtc.ToLocalTime().Date,
                 OccurredAtUtc = log.CreatedAtUtc,
                 PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
                 PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
-                UserId = log.ExternalUserId!.Value,
+                UserId = log.ExternalUserId,
+                ActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
+                ActorIdentifierType = ActorIdentityHelper.ResolveType(log),
                 UserName = string.IsNullOrWhiteSpace(log.UserName) ? "Anonymous" : log.UserName.Trim(),
                 Action = log.Action.Trim(),
                 NormalizedAction = log.Action.Trim().ToUpperInvariant()
             })
+            .Where(log => !string.IsNullOrWhiteSpace(log.ActorIdentifier))
             .GroupBy(log => new
             {
                 log.AlertDateUtc,
-                log.UserId,
+                log.ActorIdentifier,
                 log.NormalizedAction
             })
             .Select(group => new DailyAlertCount
@@ -150,7 +193,9 @@ public sealed class ActivityLogRepository : IActivityLogRepository
                 OccurredAtUtc = group.Max(item => item.OccurredAtUtc),
                 PartnerId = group.Select(item => item.PartnerId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
                 PartnerName = group.Select(item => item.PartnerName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "N/A",
-                UserId = group.Key.UserId,
+                UserId = group.Select(item => item.UserId).FirstOrDefault(id => id.HasValue),
+                ActorIdentifier = group.Key.ActorIdentifier,
+                ActorIdentifierType = group.Select(item => item.ActorIdentifierType).FirstOrDefault(type => !string.IsNullOrWhiteSpace(type)) ?? ActorIdentifierTypes.Unknown,
                 UserName = group.Select(item => item.UserName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Anonymous",
                 Action = group.First().Action,
                 CurrentCount = group.LongCount()
@@ -160,10 +205,22 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             .ToList();
     }
 
-    public Task<long> GetUserActionCountAsync(int userId, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    public Task<long> GetUserActionCountAsync(string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ActivityLog>.Filter.Eq(log => log.ExternalUserId, userId)
-            & Builders<ActivityLog>.Filter.Regex(log => log.Action, new BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(action)}$", "i"))
+        var builder = Builders<ActivityLog>.Filter;
+        var normalizedActorIdentifier = ActorIdentityHelper.NormalizeIdentifier(actorIdentifier);
+        var actorFilters = new List<FilterDefinition<ActivityLog>>
+        {
+            new BsonDocument("ActorIdentifier", normalizedActorIdentifier)
+        };
+
+        if (ActorIdentityHelper.TryGetLegacyExternalUserId(normalizedActorIdentifier, out var legacyUserId))
+        {
+            actorFilters.Add(new BsonDocument("ExternalUserId", legacyUserId));
+        }
+
+        var filter = builder.Or(actorFilters)
+            & builder.Regex(log => log.Action, new BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(action)}$", "i"))
             & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, fromUtc)
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc);
 
@@ -209,24 +266,45 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         };
     }
 
-    private static FilterDefinition<ActivityLog> BuildFilter(LogQuery query, string? userId)
+    private static FilterDefinition<ActivityLog> BuildFilter(LogQuery query)
     {
         var builder = Builders<ActivityLog>.Filter;
         var filters = new List<FilterDefinition<ActivityLog>>();
 
-        if (!string.IsNullOrWhiteSpace(userId))
+        if (!string.IsNullOrWhiteSpace(query.ActorIdentifier))
         {
-            filters.Add(builder.Eq(log => log.UserId, userId));
+            var normalizedActorIdentifier = ActorIdentityHelper.NormalizeIdentifier(query.ActorIdentifier);
+            var actorFilters = new List<FilterDefinition<ActivityLog>>
+            {
+                new BsonDocument("ActorIdentifier", normalizedActorIdentifier)
+            };
+
+            if (ActorIdentityHelper.TryGetLegacyExternalUserId(normalizedActorIdentifier, out var legacyUserId))
+            {
+                actorFilters.Add(new BsonDocument("ExternalUserId", legacyUserId));
+            }
+
+            filters.Add(builder.Or(actorFilters));
         }
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var term = query.SearchTerm.Trim();
-            filters.Add(builder.Or(
+            var searchFilters = new List<FilterDefinition<ActivityLog>>
+            {
+                new BsonDocument("ActorIdentifier", new BsonDocument("$regex", term).Add("$options", "i")),
                 builder.Regex(log => log.UserName, new BsonRegularExpression(term, "i")),
                 builder.Regex(log => log.PartnerName, new BsonRegularExpression(term, "i")),
                 builder.Regex(log => log.Description, new BsonRegularExpression(term, "i")),
-                builder.Regex(log => log.Endpoint, new BsonRegularExpression(term, "i"))));
+                builder.Regex(log => log.Endpoint, new BsonRegularExpression(term, "i"))
+            };
+
+            if (int.TryParse(term, out var legacyUserId))
+            {
+                searchFilters.Add(new BsonDocument("ExternalUserId", legacyUserId));
+            }
+
+            filters.Add(builder.Or(searchFilters));
         }
 
         if (!string.IsNullOrWhiteSpace(query.PartnerId))
@@ -289,7 +367,10 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         var statsLogs = await _context.ActivityLogs.Find(filter)
             .Project(log => new ActivityLog
             {
+                UserId = log.UserId,
                 ExternalUserId = log.ExternalUserId,
+                ActorIdentifier = log.ActorIdentifier,
+                ActorIdentifierType = log.ActorIdentifierType,
                 UserName = log.UserName,
                 PartnerName = log.PartnerName,
                 Source = log.Source,
@@ -333,8 +414,14 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             TotalLogs = totalLogs,
             TodayLogs = todayLogs,
             UniqueUsers = statsLogs
-                .Where(log => !string.Equals(log.UserName, "Anonymous", StringComparison.OrdinalIgnoreCase))
-                .Select(log => log.UserName)
+                .Select(log =>
+                {
+                    var actorIdentifier = ActorIdentityHelper.ResolveIdentifier(log);
+                    return string.IsNullOrWhiteSpace(actorIdentifier)
+                        ? log.UserName
+                        : actorIdentifier;
+                })
+                .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "Anonymous", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .LongCount(),
             IntegratedLogs = integratedLogs,

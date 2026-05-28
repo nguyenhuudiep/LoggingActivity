@@ -27,7 +27,7 @@
         <div class="mini-stat h-100">
             <div class="mini-stat__label">Định dạng dữ liệu</div>
             <div class="mini-stat__value">JSON</div>
-            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong>, <strong>userName</strong>, <strong>action</strong>, <strong>description</strong> và nên có thêm <strong>requestId</strong> để chống trùng.</div>
+            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong> dạng chuỗi, nên có thêm <strong>userKeyType</strong>, và có thể truyền <strong>userName</strong>, <strong>action</strong>, <strong>description</strong>, <strong>requestId</strong> để chống trùng.</div>
         </div>
     </div>
     <div class="col-lg-4 col-md-12">
@@ -58,7 +58,8 @@
   -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
   -d '{
     "requestId": "erp-click-20260527-103015-000123",
-    "userId": 260001,
+        "userId": "260001",
+        "userKeyType": "user-id",
     "userName": "nguyen.van.a",
     "action": "Login",
     "description": "Nội dung mô tả từ đối tác",
@@ -66,11 +67,21 @@
   }'</code></pre>
                 <pre class="api-block api-block--light mb-0"><code>{
   "requestId": "erp-click-20260527-103015-000123",
-  "userId": 260001,
+    "userId": "260001",
+    "userKeyType": "user-id",
   "userName": "nguyen.van.a",
   "action": "Login",
   "description": "Nội dung mô tả từ đối tác",
   "endpoint": "/auth/login"
+}</code></pre>
+                                <pre class="api-block api-block--light mt-3 mb-0"><code>{
+    "requestId": "crm-checkout-20260528-093500-000021",
+    "userId": "0988123456",
+    "userKeyType": "phone",
+    "userName": "Khách hàng 0988123456",
+    "action": "Checkout",
+    "description": "Khách hàng xác nhận đơn hàng",
+    "endpoint": "/checkout/confirm"
 }</code></pre>
                 <div class="alert alert-info mt-3 mb-3" role="alert">
                     <strong>Quy tắc đặt requestId:</strong> mỗi lần click hoặc mỗi event log phải có một mã mới. Chỉ dùng lại cùng một requestId khi client retry lại đúng cùng event do timeout hoặc lỗi mạng.
@@ -85,6 +96,9 @@
   "requestId": "erp-click-20260527-103015-000123"
 }</code></pre>
                 <p class="text-secondary mt-3 mb-0">Nếu cùng partner gửi lại một <strong>requestId</strong> đã tiếp nhận trước đó, API vẫn trả về <strong>202 Accepted</strong> nhưng thông báo rằng request này đã được nhận trước, giúp đối tác retry an toàn mà không ghi trùng log.</p>
+                <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    <strong>Chuẩn định danh mới:</strong> <strong>userId</strong> luôn là key dạng chuỗi. Có thể là mã user, số điện thoại hoặc mã khách hàng. Nên truyền thêm <strong>userKeyType</strong> như <code>user-id</code> hoặc <code>phone</code> để hệ thống hiển thị và cảnh báo đúng ngữ nghĩa.
+                </div>
             </div>
         </div>
     </div>
@@ -103,7 +117,7 @@
                         <strong>Client gọi POST /api/partner/activity.</strong> Hệ thống kiểm tra header <strong>X-Api-Key</strong> để xác thực partner trước khi nhận dữ liệu log.
                     </li>
                     <li>
-                        <strong>API đưa request vào hàng đợi ingest.</strong> Dữ liệu như <strong>requestId</strong>, <strong>userId</strong>, <strong>userName</strong>, <strong>action</strong>, <strong>description</strong>, <strong>endpoint</strong>, IP và thời điểm nhận sẽ được lưu vào queue với trạng thái ban đầu là <strong>Pending</strong>.
+                        <strong>API đưa request vào hàng đợi ingest.</strong> Dữ liệu như <strong>requestId</strong>, <strong>userId</strong> dạng chuỗi, <strong>userKeyType</strong>, <strong>userName</strong>, <strong>action</strong>, <strong>description</strong>, <strong>endpoint</strong>, IP và thời điểm nhận sẽ được lưu vào queue với trạng thái ban đầu là <strong>Pending</strong>.
                     </li>
                     <li>
                         <strong>API trả ngay 202 Accepted cho client.</strong> Kết quả này chỉ có nghĩa là hệ thống đã tiếp nhận request để xử lý bất đồng bộ, chưa có nghĩa log đã được ghi xong vào bảng log chính.
@@ -139,15 +153,17 @@
                 </div>
                 <div class="integration-guide__chips mb-3">
                     <span class="request-chip request-chip--get">GET</span>
-                    <span class="request-chip">/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=nguyen.van.a</span>
+                                        <span class="request-chip">/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=0988123456</span>
                 </div>
-                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=nguyen.van.a" \
+                                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/activity?page=1&amp;pageSize=10&amp;from=2026-05-26&amp;to=2026-05-26&amp;action=LOGIN&amp;searchTerm=0988123456" \
   -H "X-Api-Key: YOUR_PARTNER_API_KEY"</code></pre>
                 <pre class="api-block api-block--light mb-0"><code>{
   "items": [
     {
       "partnerId": "6a152cdb5e3857756e533609",
       "partnerName": "ERP",
+            "actorIdentifier": "260001",
+            "actorIdentifierType": "user-id",
       "externalUserId": 260001,
       "userName": "nguyen.van.a",
       "role": "Partner",
@@ -165,6 +181,7 @@
   "pageSize": 10,
   "totalPages": 1
 }</code></pre>
+                                <p class="text-secondary mt-3 mb-0"><strong>searchTerm</strong> hiện có thể tìm theo key định danh mới như mã user, số điện thoại, username, mô tả hoặc endpoint.</p>
             </div>
         </div>
     </div>

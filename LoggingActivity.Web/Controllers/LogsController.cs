@@ -67,4 +67,42 @@ public sealed class LogsController : AppController
             UnconfiguredActionWarnings = unconfiguredActionWarnings
         });
     }
+
+    [HttpGet]
+    public async Task<IActionResult> ActorDetails([FromQuery] ActorLogDetailsFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var actorIdentifier = ActorIdentityHelper.NormalizeIdentifier(filter.ActorIdentifier);
+        if (string.IsNullOrWhiteSpace(actorIdentifier))
+        {
+            return BadRequest("Thiếu key cần tra cứu.");
+        }
+
+        var actorIdentifierType = ActorIdentityHelper.NormalizeType(filter.ActorIdentifierType, actorIdentifier);
+        var query = new LogQuery
+        {
+            PartnerId = filter.PartnerId,
+            Action = filter.Action,
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
+            FromUtc = filter.From?.Date,
+            ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
+            Page = filter.Page,
+            PageSize = filter.PageSize
+        };
+
+        return PartialView("_ActorLogDetailsModalContent", new ActorLogDetailsViewModel
+        {
+            Filter = filter,
+            Logs = await _activityLogService.GetPagedAsync(query, cancellationToken),
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
+            ActorLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType)
+        });
+    }
 }

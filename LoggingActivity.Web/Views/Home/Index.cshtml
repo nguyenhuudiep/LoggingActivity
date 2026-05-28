@@ -40,15 +40,15 @@
             @foreach (var warning in Model.ActiveWarnings)
             {
                 <div class="dashboard-warning__item">
-                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.UserId - @warning.UserName - @warning.Action</span>
+                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.DisplayActorIdentifier - @warning.UserName - @warning.Action</span>
                     <span>
                         @if (warning.IsAtLimit)
                         {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
+                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
                         }
                         else
                         {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng @warning.DailyLimit thêm @warning.ExceededBy log.
+                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng @warning.DailyLimit thêm @warning.ExceededBy log.
                         }
                     </span>
                 </div>
