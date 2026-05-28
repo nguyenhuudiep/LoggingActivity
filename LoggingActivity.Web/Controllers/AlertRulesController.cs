@@ -155,8 +155,7 @@ public sealed class AlertRulesController : AppController
             Filter = filter,
             Input = input ?? new AlertRuleInputViewModel(),
             Rules = await _alertRuleService.GetPagedAsync(query, cancellationToken),
-            AvailableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken),
-            ActiveWarnings = await _alertRuleService.GetActiveWarningsAsync(cancellationToken)
+            AvailableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken)
         };
     }
 }

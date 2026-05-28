@@ -2,6 +2,7 @@ using LoggingActivity.Web.Data;
 using LoggingActivity.Web.Models;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Text.RegularExpressions;
 
 namespace LoggingActivity.Web.Repositories;
 
@@ -23,7 +24,9 @@ public sealed class AlertRuleRepository : IAlertRuleRepository
 
     public Task<AlertRule?> GetByActionAsync(string action, CancellationToken cancellationToken = default)
     {
-        return _context.AlertRules.Find(rule => rule.Action == action).FirstOrDefaultAsync(cancellationToken)!;
+        var normalizedAction = action.Trim();
+        var filter = Builders<AlertRule>.Filter.Regex(rule => rule.Action, new BsonRegularExpression($"^{Regex.Escape(normalizedAction)}$", "i"));
+        return _context.AlertRules.Find(filter).FirstOrDefaultAsync(cancellationToken)!;
     }
 
     public async Task<IReadOnlyList<AlertRule>> GetActiveAsync(CancellationToken cancellationToken = default)
@@ -65,7 +68,7 @@ public sealed class AlertRuleRepository : IAlertRuleRepository
             rule.CreatedAtUtc = DateTime.UtcNow;
 
             return _context.AlertRules.ReplaceOneAsync(
-                existing => existing.Action == rule.Action,
+                Builders<AlertRule>.Filter.Regex(existing => existing.Action, new BsonRegularExpression($"^{Regex.Escape(rule.Action)}$", "i")),
                 rule,
                 new ReplaceOptions { IsUpsert = true },
                 cancellationToken);
@@ -80,7 +83,9 @@ public sealed class AlertRuleRepository : IAlertRuleRepository
 
     public Task DeleteAsync(string action, CancellationToken cancellationToken = default)
     {
-        return _context.AlertRules.DeleteOneAsync(rule => rule.Action == action, cancellationToken);
+        var normalizedAction = action.Trim();
+        var filter = Builders<AlertRule>.Filter.Regex(rule => rule.Action, new BsonRegularExpression($"^{Regex.Escape(normalizedAction)}$", "i"));
+        return _context.AlertRules.DeleteOneAsync(filter, cancellationToken);
     }
 
     private static FilterDefinition<AlertRule> BuildFilter(AlertRuleQuery query)
@@ -96,7 +101,7 @@ public sealed class AlertRuleRepository : IAlertRuleRepository
 
         if (!string.IsNullOrWhiteSpace(query.ActionCode))
         {
-            filters.Add(builder.Eq(rule => rule.Action, query.ActionCode.Trim()));
+            filters.Add(builder.Regex(rule => rule.Action, new BsonRegularExpression($"^{Regex.Escape(query.ActionCode.Trim())}$", "i")));
         }
 
         if (query.IsActive.HasValue)

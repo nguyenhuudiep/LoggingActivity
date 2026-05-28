@@ -45,9 +45,10 @@ public sealed class AlertRuleService
             return Array.Empty<AlertWarning>();
         }
 
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
-        var userActionCounts = await _activityLogRepository.GetUserActionCountsAsync(today, tomorrow, cancellationToken);
+        var localToday = DateTime.Today;
+        var fromUtc = localToday.ToUniversalTime();
+        var toUtc = localToday.AddDays(1).ToUniversalTime();
+        var userActionCounts = await _activityLogRepository.GetUserActionCountsAsync(fromUtc, toUtc, cancellationToken);
 
         var warnings = userActionCounts
             .Join(
@@ -75,8 +76,53 @@ public sealed class AlertRuleService
             })
             .ToList();
 
-            await BackfillAlertHistoryAsync(warnings, cancellationToken);
-            return warnings;
+        await BackfillAlertHistoryAsync(warnings, cancellationToken);
+        return warnings;
+    }
+
+    public async Task EnsureAlertHistoryBackfillAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    {
+        var activeRules = await _alertRuleRepository.GetActiveAsync(cancellationToken);
+        if (activeRules.Count == 0)
+        {
+            return;
+        }
+
+        var counts = await _activityLogRepository.GetDailyUserActionCountsAsync(fromUtc, toUtc, cancellationToken);
+        if (counts.Count == 0)
+        {
+            return;
+        }
+
+        var rulesByAction = activeRules.ToDictionary(rule => rule.Action.Trim(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var count in counts)
+        {
+            if (!rulesByAction.TryGetValue(count.Action, out var rule) || count.CurrentCount < rule.DailyLimit)
+            {
+                continue;
+            }
+
+            var alreadyRecorded = await _alertHistoryService.ExistsAsync(count.AlertDateUtc, count.UserId, count.Action, cancellationToken);
+            if (alreadyRecorded)
+            {
+                continue;
+            }
+
+            await _alertHistoryService.AddAsync(new AlertHistory
+            {
+                PartnerId = count.PartnerId,
+                PartnerName = count.PartnerName,
+                UserId = count.UserId,
+                UserName = count.UserName,
+                Action = rule.Action,
+                DailyLimit = rule.DailyLimit,
+                CurrentCount = count.CurrentCount,
+                AlertDateUtc = count.AlertDateUtc,
+                OccurredAtUtc = count.OccurredAtUtc,
+                Message = BuildAlertMessage(count.UserName, count.PartnerName, rule.Action, rule.DailyLimit, count.CurrentCount)
+            }, cancellationToken);
+        }
     }
 
     public async Task RecordTriggeredAlertAsync(ActivityLog logEntry, CancellationToken cancellationToken = default)
@@ -92,8 +138,9 @@ public sealed class AlertRuleService
             return;
         }
 
-        var alertDateUtc = logEntry.CreatedAtUtc.Date;
-        var nextDateUtc = alertDateUtc.AddDays(1);
+        var localAlertDate = logEntry.CreatedAtUtc.ToLocalTime().Date;
+        var alertDateUtc = localAlertDate.ToUniversalTime();
+        var nextDateUtc = localAlertDate.AddDays(1).ToUniversalTime();
         var currentCount = await _activityLogRepository.GetUserActionCountAsync(
             logEntry.ExternalUserId.Value,
             logEntry.Action.Trim(),
@@ -129,7 +176,7 @@ public sealed class AlertRuleService
             Action = logEntry.Action.Trim(),
             DailyLimit = rule.DailyLimit,
             CurrentCount = currentCount,
-            AlertDateUtc = alertDateUtc,
+            AlertDateUtc = localAlertDate,
             OccurredAtUtc = logEntry.CreatedAtUtc,
             Message = BuildAlertMessage(normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount)
         }, cancellationToken);
@@ -142,7 +189,7 @@ public sealed class AlertRuleService
             return;
         }
 
-        var todayUtc = DateTime.UtcNow.Date;
+        var todayUtc = DateTime.Today;
         foreach (var warning in warnings.Where(item => item.UserId.HasValue))
         {
             var userId = warning.UserId!.Value;
@@ -175,7 +222,7 @@ public sealed class AlertRuleService
 
     public async Task<(bool Success, string? Error)> UpsertAsync(string? existingAction, string action, int dailyLimit, bool isActive, CancellationToken cancellationToken = default)
     {
-        var normalizedAction = action.Trim();
+        var normalizedAction = action.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(normalizedAction))
         {
             return (false, "Action cảnh báo không được để trống.");

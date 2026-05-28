@@ -2,6 +2,17 @@
 
 @{
     ViewData["Title"] = "Cấu hình cảnh báo";
+    var currentPage = Model.Rules.Page;
+    var totalPages = Model.Rules.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Rules.Page - 1) * Model.Rules.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
 
     string BuildDangerModalId(string prefix, string? value)
     {
@@ -42,34 +53,6 @@
         <p class="page-subtitle">Thiết lập ngưỡng số log tối đa theo ngày cho từng action đã được định nghĩa trong hệ thống.</p>
     </div>
 </section>
-
-@if (Model.ActiveWarnings.Any())
-{
-    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
-        <div class="dashboard-warning__header">
-            <strong>Cảnh báo đang hoạt động</strong>
-            <span class="text-secondary">Các userId có action đã chạm hoặc vượt ngưỡng log trong ngày hiện tại.</span>
-        </div>
-        <div class="dashboard-warning__list">
-            @foreach (var warning in Model.ActiveWarnings)
-            {
-                <div class="dashboard-warning__item">
-                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.UserId - @warning.UserName - @warning.Action</span>
-                    <span>
-                        @if (warning.IsAtLimit)
-                        {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
-                        }
-                        else
-                        {
-                            @:UserId @warning.UserId, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng @warning.DailyLimit thêm @warning.ExceededBy log.
-                        }
-                    </span>
-                </div>
-            }
-        </div>
-    </div>
-}
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
@@ -117,7 +100,8 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
+        <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line" data-auto-submit-selects>
+            <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
             <div class="col-lg-4 col-md-12">
                 <label class="form-label" for="alertRuleSearchTerm">Từ khóa</label>
                 <input id="alertRuleSearchTerm" name="searchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Action cảnh báo" />
@@ -140,14 +124,6 @@
                     <option value="false" selected="@(Model.Filter.IsActive == false)">Paused</option>
                 </select>
             </div>
-            <div class="col-lg-2 col-md-4">
-                <label class="form-label" for="alertRulePageSize">Kích thước</label>
-                <select id="alertRulePageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
-                    <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
-                    <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
-                    <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
-                </select>
-            </div>
             <div class="col-lg-2 col-md-12">
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
@@ -168,6 +144,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
+                    <th class="table-stt-col">STT</th>
                     <th>Action</th>
                     <th>Ngưỡng/ngày</th>
                     <th>Trạng thái</th>
@@ -181,6 +158,7 @@
                     var modalId = BuildDangerModalId("deleteAlertRuleModal", rule.Action);
                     var formId = BuildDangerModalId("deleteAlertRuleForm", rule.Action);
                     <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
                         <td class="fw-semibold">@rule.Action</td>
                         <td>@rule.DailyLimit</td>
                         <td>
@@ -234,7 +212,7 @@
                 @if (!Model.Rules.Items.Any())
                 {
                     <tr>
-                        <td colspan="5" class="text-center text-secondary py-4">Chưa có cấu hình cảnh báo nào.</td>
+                        <td colspan="6" class="text-center text-secondary py-4">Chưa có cấu hình cảnh báo nào.</td>
                     </tr>
                 }
             </tbody>
@@ -245,22 +223,69 @@
     {
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
             <div class="text-secondary small">Trang @Model.Rules.Page / @Model.Rules.TotalPages - Tổng @Model.Rules.TotalCount cấu hình</div>
-            <nav>
-                <ul class="pagination mb-0">
-                    <li class="page-item @(Model.Rules.Page <= 1 ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Rules.Page - 1)">Trước</a>
-                    </li>
-                    @for (var pageNumber = 1; pageNumber <= Model.Rules.TotalPages; pageNumber++)
-                    {
-                        <li class="page-item @(pageNumber == Model.Rules.Page ? "active" : null)">
-                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+            <div class="pagination-toolbar">
+                <form method="get" class="page-size-form" data-auto-submit-selects>
+                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                    <input type="hidden" name="actionCode" value="@Model.Filter.ActionCode" />
+                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <label class="page-size-form__label" for="alertRulesFooterPageSize">Hiển thị</label>
+                    <select id="alertRulesFooterPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                        <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                        <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                        <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                    </select>
+                    <span class="page-size-form__suffix">bản ghi</span>
+                </form>
+
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
-                    }
-                    <li class="page-item @(Model.Rules.Page >= Model.Rules.TotalPages ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Rules.Page + 1)">Sau</a>
-                    </li>
-                </ul>
-            </nav>
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(1)">1</a>
+                            </li>
+
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                        {
+                            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                                <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                            </li>
+                        }
+
+                        @if (endPage < totalPages)
+                        {
+                            @if (endPage < totalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(totalPages)">@totalPages</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
     }
 </div>

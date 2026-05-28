@@ -2,6 +2,17 @@
 
 @{
     ViewData["Title"] = "Cấu hình partner";
+    var currentPage = Model.Partners.Page;
+    var totalPages = Model.Partners.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Partners.Page - 1) * Model.Partners.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
 
     string BuildPageUrl(int page)
     {
@@ -35,6 +46,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
+                    <th class="table-stt-col">STT</th>
                     <th>Tên partner</th>
                     <th>Trạng thái</th>
                     <th>API key</th>
@@ -45,6 +57,7 @@
                 @foreach (var partner in Model.Partners.Items)
                 {
                     <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
                         <td class="fw-semibold">@partner.Name</td>
                         <td>
                             @if (partner.IsActive)
@@ -72,7 +85,7 @@
                 @if (!Model.Partners.Items.Any())
                 {
                     <tr>
-                        <td colspan="4" class="text-center text-secondary py-4">Chưa có partner nào được cấu hình.</td>
+                        <td colspan="5" class="text-center text-secondary py-4">Chưa có partner nào được cấu hình.</td>
                     </tr>
                 }
             </tbody>
@@ -82,22 +95,66 @@
     {
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
             <div class="text-secondary small">Trang @Model.Partners.Page / @Model.Partners.TotalPages - Tổng @Model.Partners.TotalCount bản ghi</div>
-            <nav>
-                <ul class="pagination mb-0">
-                    <li class="page-item @(Model.Partners.Page <= 1 ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Partners.Page - 1)">Trước</a>
-                    </li>
-                    @for (var pageNumber = 1; pageNumber <= Model.Partners.TotalPages; pageNumber++)
-                    {
-                        <li class="page-item @(pageNumber == Model.Partners.Page ? "active" : null)">
-                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+            <div class="pagination-toolbar">
+                <form method="get" class="page-size-form" data-auto-submit-selects>
+                    <input type="hidden" name="page" value="1" />
+
+                    <label class="page-size-form__label" for="partnersFooterPageSize">Hiển thị</label>
+                    <select id="partnersFooterPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                        <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                        <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                        <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                    </select>
+                    <span class="page-size-form__suffix">bản ghi</span>
+                </form>
+
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
-                    }
-                    <li class="page-item @(Model.Partners.Page >= Model.Partners.TotalPages ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Partners.Page + 1)">Sau</a>
-                    </li>
-                </ul>
-            </nav>
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(1)">1</a>
+                            </li>
+
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                        {
+                            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                                <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                            </li>
+                        }
+
+                        @if (endPage < totalPages)
+                        {
+                            @if (endPage < totalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(totalPages)">@totalPages</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
     }
 </div>

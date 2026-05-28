@@ -2,6 +2,17 @@
 
 @{
     ViewData["Title"] = "Hàng đợi ingest";
+    var currentPage = Model.Items.Page;
+    var totalPages = Model.Items.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Items.Page - 1) * Model.Items.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
 
     string BuildPageUrl(int page)
     {
@@ -83,7 +94,8 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form ingest-queue-filter-form" data-auto-submit-selects>
+        <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line ingest-queue-filter-form" data-auto-submit-selects>
+            <input asp-for="Filter.PageSize" type="hidden" />
             <div class="col-12 col-xl-2 col-lg-6 col-md-6">
                 <label asp-for="Filter.PartnerId" class="form-label">Partner</label>
                 <select asp-for="Filter.PartnerId" class="form-select" data-enhanced-select data-placeholder="Tất cả partner">
@@ -111,14 +123,6 @@
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <label asp-for="Filter.To" class="form-label">Đến ngày</label>
                 <input asp-for="Filter.To" class="form-control" type="date" />
-            </div>
-            <div class="col-6 col-xl-2 col-lg-3 col-md-6">
-                <label asp-for="Filter.PageSize" class="form-label">Kích thước</label>
-                <select asp-for="Filter.PageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="20">
-                    <option value="10">10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                </select>
             </div>
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <div class="filter-actions">
@@ -155,6 +159,7 @@
         <table class="table table-hover align-middle mb-0 ingest-queue-table">
             <thead class="table-light">
                 <tr>
+                    <th class="table-stt-col">STT</th>
                     <th>Thời gian nhận</th>
                     <th>Request ID</th>
                     <th>Partner / User</th>
@@ -173,6 +178,7 @@
                     var retryFormId = $"retryFailedForm-{item.Id}";
                     var errorModalId = BuildErrorModalId(item.Id);
                     <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
                         <td>
                             <div>@item.ReceivedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                             <div class="text-secondary small">@item.Endpoint</div>
@@ -250,7 +256,7 @@
                 @if (!Model.Items.Items.Any())
                 {
                     <tr>
-                        <td colspan="9" class="text-center text-secondary py-4">Không có request queue phù hợp bộ lọc.</td>
+                        <td colspan="10" class="text-center text-secondary py-4">Không có request queue phù hợp bộ lọc.</td>
                     </tr>
                 }
             </tbody>
@@ -260,22 +266,70 @@
     {
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
             <div class="text-secondary small">Trang @Model.Items.Page / @Model.Items.TotalPages - Tổng @Model.Items.TotalCount request</div>
-            <nav>
-                <ul class="pagination mb-0">
-                    <li class="page-item @(Model.Items.Page <= 1 ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Items.Page - 1)">Trước</a>
-                    </li>
-                    @for (var pageNumber = 1; pageNumber <= Model.Items.TotalPages; pageNumber++)
-                    {
-                        <li class="page-item @(pageNumber == Model.Items.Page ? "active" : null)">
-                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+            <div class="pagination-toolbar">
+                <form method="get" class="page-size-form" data-auto-submit-selects>
+                    <input type="hidden" name="partnerId" value="@Model.Filter.PartnerId" />
+                    <input type="hidden" name="status" value="@Model.Filter.Status" />
+                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <label class="page-size-form__label" for="queueFooterPageSize">Hiển thị</label>
+                    <select id="queueFooterPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="20">
+                        <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                        <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                        <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                    </select>
+                    <span class="page-size-form__suffix">bản ghi</span>
+                </form>
+
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
-                    }
-                    <li class="page-item @(Model.Items.Page >= Model.Items.TotalPages ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Items.Page + 1)">Sau</a>
-                    </li>
-                </ul>
-            </nav>
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(1)">1</a>
+                            </li>
+
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                        {
+                            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                                <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                            </li>
+                        }
+
+                        @if (endPage < totalPages)
+                        {
+                            @if (endPage < totalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(totalPages)">@totalPages</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
     }
 </div>

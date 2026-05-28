@@ -107,10 +107,63 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<DailyAlertCount>> GetDailyUserActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, fromUtc)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc)
+            & Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
+
+        var logs = await _context.ActivityLogs.Find(filter)
+            .Project(log => new ActivityLog
+            {
+                PartnerId = log.PartnerId,
+                PartnerName = log.PartnerName,
+                ExternalUserId = log.ExternalUserId,
+                UserName = log.UserName,
+                Action = log.Action,
+                CreatedAtUtc = log.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return logs
+            .Where(log => !string.IsNullOrWhiteSpace(log.Action) && log.ExternalUserId.HasValue)
+            .Select(log => new
+            {
+                AlertDateUtc = log.CreatedAtUtc.ToLocalTime().Date,
+                OccurredAtUtc = log.CreatedAtUtc,
+                PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
+                PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
+                UserId = log.ExternalUserId!.Value,
+                UserName = string.IsNullOrWhiteSpace(log.UserName) ? "Anonymous" : log.UserName.Trim(),
+                Action = log.Action.Trim(),
+                NormalizedAction = log.Action.Trim().ToUpperInvariant()
+            })
+            .GroupBy(log => new
+            {
+                log.AlertDateUtc,
+                log.UserId,
+                log.NormalizedAction
+            })
+            .Select(group => new DailyAlertCount
+            {
+                AlertDateUtc = group.Key.AlertDateUtc,
+                OccurredAtUtc = group.Max(item => item.OccurredAtUtc),
+                PartnerId = group.Select(item => item.PartnerId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
+                PartnerName = group.Select(item => item.PartnerName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "N/A",
+                UserId = group.Key.UserId,
+                UserName = group.Select(item => item.UserName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Anonymous",
+                Action = group.First().Action,
+                CurrentCount = group.LongCount()
+            })
+            .OrderByDescending(item => item.AlertDateUtc)
+            .ThenByDescending(item => item.CurrentCount)
+            .ToList();
+    }
+
     public Task<long> GetUserActionCountAsync(int userId, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
     {
         var filter = Builders<ActivityLog>.Filter.Eq(log => log.ExternalUserId, userId)
-            & Builders<ActivityLog>.Filter.Eq(log => log.Action, action)
+            & Builders<ActivityLog>.Filter.Regex(log => log.Action, new BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(action)}$", "i"))
             & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, fromUtc)
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc);
 

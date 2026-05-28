@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace LoggingActivity.Web.Models;
 
+[BsonIgnoreExtraElements]
 public sealed class ActivityLog
 {
     [BsonId]

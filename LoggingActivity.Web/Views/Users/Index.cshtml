@@ -2,6 +2,17 @@
 
 @{
     ViewData["Title"] = "Quản lý tài khoản";
+    var currentPage = Model.Users.Page;
+    var totalPages = Model.Users.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Users.Page - 1) * Model.Users.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
 
     const int visiblePermissionBadgeCount = 2;
 
@@ -57,7 +68,8 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
+        <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line" data-auto-submit-selects>
+            <input asp-for="Filter.PageSize" type="hidden" />
             <div class="col-lg-4 col-md-6">
                 <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
                 <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Tên đăng nhập, hiển thị, email" />
@@ -78,14 +90,6 @@
                     <option value="">Tất cả</option>
                     <option value="true">Active</option>
                     <option value="false">Inactive</option>
-                </select>
-            </div>
-            <div class="col-lg-2 col-md-6">
-                <label asp-for="Filter.PageSize" class="form-label">Kích thước</label>
-                <select asp-for="Filter.PageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
-                    <option>10</option>
-                    <option>20</option>
-                    <option>50</option>
                 </select>
             </div>
             <div class="col-lg-2 col-md-12">
@@ -120,6 +124,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
+                    <th class="table-stt-col">STT</th>
                     <th>Tên đăng nhập</th>
                     <th>Tên hiển thị</th>
                     <th>Email</th>
@@ -140,6 +145,7 @@
                     var deleteModalId = BuildDangerModalId("deleteUserModal", user.Id);
                     var deleteFormId = BuildDangerModalId("deleteUserForm", user.Id);
                     <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
                         <td class="fw-semibold">@user.UserName</td>
                         <td>@user.DisplayName</td>
                         <td>@user.Email</td>
@@ -187,7 +193,7 @@
                 @if (!Model.Users.Items.Any())
                 {
                     <tr>
-                        <td colspan="7" class="text-center text-secondary py-4">Không có tài khoản phù hợp bộ lọc.</td>
+                        <td colspan="8" class="text-center text-secondary py-4">Không có tài khoản phù hợp bộ lọc.</td>
                     </tr>
                 }
             </tbody>
@@ -198,22 +204,69 @@
     {
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
             <div class="text-secondary small">Trang @Model.Users.Page / @Model.Users.TotalPages - Tổng @Model.Users.TotalCount tài khoản</div>
-            <nav>
-                <ul class="pagination mb-0">
-                    <li class="page-item @(Model.Users.Page <= 1 ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Users.Page - 1)">Trước</a>
-                    </li>
-                    @for (var pageNumber = 1; pageNumber <= Model.Users.TotalPages; pageNumber++)
-                    {
-                        <li class="page-item @(pageNumber == Model.Users.Page ? "active" : null)">
-                            <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+            <div class="pagination-toolbar">
+                <form method="get" class="page-size-form" data-auto-submit-selects>
+                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                    <input type="hidden" name="role" value="@Model.Filter.Role" />
+                    <input type="hidden" name="isActive" value="@Model.Filter.IsActive" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <label class="page-size-form__label" for="usersFooterPageSize">Hiển thị</label>
+                    <select id="usersFooterPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                        <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                        <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                        <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                    </select>
+                    <span class="page-size-form__suffix">bản ghi</span>
+                </form>
+
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
-                    }
-                    <li class="page-item @(Model.Users.Page >= Model.Users.TotalPages ? "disabled" : null)">
-                        <a class="page-link" href="@BuildPageUrl(Model.Users.Page + 1)">Sau</a>
-                    </li>
-                </ul>
-            </nav>
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(1)">1</a>
+                            </li>
+
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                        {
+                            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                                <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                            </li>
+                        }
+
+                        @if (endPage < totalPages)
+                        {
+                            @if (endPage < totalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(totalPages)">@totalPages</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
     }
 </div>

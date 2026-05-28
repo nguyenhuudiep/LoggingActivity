@@ -10,10 +10,20 @@ namespace LoggingActivity.Web.Controllers;
 public sealed class AlertHistoryController : AppController
 {
     private readonly AlertHistoryService _alertHistoryService;
+    private readonly AlertRuleService _alertRuleService;
+    private readonly PartnerService _partnerService;
+    private readonly LogActionDefinitionService _logActionDefinitionService;
 
-    public AlertHistoryController(AlertHistoryService alertHistoryService)
+    public AlertHistoryController(
+        AlertHistoryService alertHistoryService,
+        AlertRuleService alertRuleService,
+        PartnerService partnerService,
+        LogActionDefinitionService logActionDefinitionService)
     {
         _alertHistoryService = alertHistoryService;
+        _alertRuleService = alertRuleService;
+        _partnerService = partnerService;
+        _logActionDefinitionService = logActionDefinitionService;
     }
 
     [HttpGet]
@@ -30,16 +40,27 @@ public sealed class AlertHistoryController : AppController
 
         var query = new AlertHistoryQuery
         {
+            SearchTerm = filter.SearchTerm,
+            PartnerId = filter.PartnerId,
+            Action = filter.Action,
+            Status = filter.Status,
             FromUtc = filter.From?.Date,
             ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
             Page = filter.Page,
             PageSize = filter.PageSize
         };
 
+        if (query.FromUtc.HasValue && query.ToUtc.HasValue)
+        {
+            await _alertRuleService.EnsureAlertHistoryBackfillAsync(query.FromUtc.Value, query.ToUtc.Value.AddTicks(1), cancellationToken);
+        }
+
         return View(new AlertHistoryListViewModel
         {
             Filter = filter,
-            Alerts = await _alertHistoryService.GetPagedAsync(query, cancellationToken)
+            Alerts = await _alertHistoryService.GetPagedAsync(query, cancellationToken),
+            AvailablePartners = await _partnerService.GetAllAsync(cancellationToken),
+            AvailableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken)
         });
     }
 }

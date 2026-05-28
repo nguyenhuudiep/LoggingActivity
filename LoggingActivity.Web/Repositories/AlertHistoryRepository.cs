@@ -1,6 +1,8 @@
 using LoggingActivity.Web.Data;
 using LoggingActivity.Web.Models;
+using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Text.RegularExpressions;
 
 namespace LoggingActivity.Web.Repositories;
 
@@ -36,6 +38,44 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
     {
         var builder = Builders<AlertHistory>.Filter;
         var filters = new List<FilterDefinition<AlertHistory>>();
+
+        if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+        {
+            var term = query.SearchTerm.Trim();
+            var regex = new BsonRegularExpression(term, "i");
+            if (int.TryParse(term, out var userId))
+            {
+                filters.Add(builder.Or(
+                    builder.Regex(item => item.UserName, regex),
+                    builder.Eq(item => item.UserId, userId)));
+            }
+            else
+            {
+                filters.Add(builder.Regex(item => item.UserName, regex));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.PartnerId))
+        {
+            filters.Add(builder.Eq(item => item.PartnerId, query.PartnerId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            filters.Add(builder.Regex(item => item.Action, new BsonRegularExpression($"^{Regex.Escape(query.Action.Trim())}$", "i")));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            if (string.Equals(query.Status, "at-limit", StringComparison.OrdinalIgnoreCase))
+            {
+                filters.Add(new BsonDocument("$expr", new BsonDocument("$eq", new BsonArray { "$CurrentCount", "$DailyLimit" })));
+            }
+            else if (string.Equals(query.Status, "exceeded", StringComparison.OrdinalIgnoreCase))
+            {
+                filters.Add(new BsonDocument("$expr", new BsonDocument("$gt", new BsonArray { "$CurrentCount", "$DailyLimit" })));
+            }
+        }
 
         if (query.FromUtc.HasValue)
         {

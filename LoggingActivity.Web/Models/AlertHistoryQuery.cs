@@ -2,6 +2,14 @@ namespace LoggingActivity.Web.Models;
 
 public sealed class AlertHistoryQuery
 {
+    public string? SearchTerm { get; init; }
+
+    public string? PartnerId { get; init; }
+
+    public string? Action { get; init; }
+
+    public string? Status { get; init; }
+
     public DateTime? FromUtc { get; init; }
 
     public DateTime? ToUtc { get; init; }
