@@ -20,8 +20,8 @@
         {
             partnerId = Model.Filter.PartnerId,
             status = Model.Filter.Status,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            from = Model.Filter.From?.ToString("dd/MM/yyyy"),
+            to = Model.Filter.To?.ToString("dd/MM/yyyy"),
             page,
             pageSize = Model.Filter.PageSize
         })!;
@@ -118,11 +118,11 @@
             </div>
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <label asp-for="Filter.From" class="form-label">Từ ngày</label>
-                <input asp-for="Filter.From" class="form-control" type="date" />
+                <input asp-for="Filter.From" class="form-control" type="text" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <label asp-for="Filter.To" class="form-label">Đến ngày</label>
-                <input asp-for="Filter.To" class="form-control" type="date" />
+                <input asp-for="Filter.To" class="form-control" type="text" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <div class="filter-actions">
@@ -270,8 +270,8 @@
                 <form method="get" class="page-size-form" data-auto-submit-selects>
                     <input type="hidden" name="partnerId" value="@Model.Filter.PartnerId" />
                     <input type="hidden" name="status" value="@Model.Filter.Status" />
-                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" />
+                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" />
                     <input type="hidden" name="page" value="1" />
 
                     <label class="page-size-form__label" for="queueFooterPageSize">Hiển thị</label>

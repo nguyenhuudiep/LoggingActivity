@@ -38,8 +38,8 @@
             actorIdentifierType = Model.Filter.ActorIdentifierType,
             partnerId = Model.Filter.PartnerId,
             action = Model.Filter.Action,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            from = Model.Filter.From?.ToString("dd/MM/yyyy"),
+            to = Model.Filter.To?.ToString("dd/MM/yyyy"),
             page,
             pageSize = Model.Filter.PageSize
         })!;

@@ -3,6 +3,7 @@ using LoggingActivity.Web.Options;
 using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,6 +79,14 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+var supportedCulture = new CultureInfo("vi-VN");
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(supportedCulture),
+    SupportedCultures = new[] { supportedCulture },
+    SupportedUICultures = new[] { supportedCulture }
+});
 
 if (!app.Environment.IsDevelopment())
 {

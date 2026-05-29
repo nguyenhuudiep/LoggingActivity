@@ -76,8 +76,8 @@ public sealed class IngestQueueController : AppController
         {
             partnerId = filter.PartnerId,
             status = filter.Status,
-            from = filter.From?.ToString("yyyy-MM-dd"),
-            to = filter.To?.ToString("yyyy-MM-dd"),
+            from = filter.From?.ToString("dd/MM/yyyy"),
+            to = filter.To?.ToString("dd/MM/yyyy"),
             page = filter.Page,
             pageSize = filter.PageSize
         });
@@ -102,8 +102,8 @@ public sealed class IngestQueueController : AppController
         {
             partnerId = filter.PartnerId,
             status = filter.Status,
-            from = filter.From?.ToString("yyyy-MM-dd"),
-            to = filter.To?.ToString("yyyy-MM-dd"),
+            from = filter.From?.ToString("dd/MM/yyyy"),
+            to = filter.To?.ToString("dd/MM/yyyy"),
             page = filter.Page,
             pageSize = filter.PageSize
         });
@@ -128,8 +128,8 @@ public sealed class IngestQueueController : AppController
         {
             partnerId = filter.PartnerId,
             status = filter.Status,
-            from = filter.From?.ToString("yyyy-MM-dd"),
-            to = filter.To?.ToString("yyyy-MM-dd"),
+            from = filter.From?.ToString("dd/MM/yyyy"),
+            to = filter.To?.ToString("dd/MM/yyyy"),
             page = filter.Page,
             pageSize = filter.PageSize
         });
@@ -168,8 +168,8 @@ public sealed class IngestQueueController : AppController
         {
             partnerId = filter.PartnerId,
             status = filter.Status,
-            from = filter.From?.ToString("yyyy-MM-dd"),
-            to = filter.To?.ToString("yyyy-MM-dd"),
+            from = filter.From?.ToString("dd/MM/yyyy"),
+            to = filter.To?.ToString("dd/MM/yyyy"),
             page = filter.Page,
             pageSize = filter.PageSize
         });

@@ -44,8 +44,8 @@
             actorIdentifierType = log.DisplayActorIdentifierType,
             partnerId = Model.Filter.PartnerId,
             action = Model.Filter.Action,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            from = Model.Filter.From?.ToString("dd/MM/yyyy"),
+            to = Model.Filter.To?.ToString("dd/MM/yyyy"),
             page = 1,
             pageSize = 10
         });
@@ -58,8 +58,8 @@
             searchTerm = Model.Filter.SearchTerm,
             partnerId = Model.Filter.PartnerId,
             action = Model.Filter.Action,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            from = Model.Filter.From?.ToString("dd/MM/yyyy"),
+            to = Model.Filter.To?.ToString("dd/MM/yyyy"),
             pageSize = Model.Filter.PageSize,
             page
         })!;
@@ -151,11 +151,11 @@
             </div>
             <div class="col-lg-2 col-md-6">
                 <label asp-for="Filter.From" class="form-label">Từ ngày</label>
-                <input asp-for="Filter.From" class="form-control" type="date" />
+                <input asp-for="Filter.From" class="form-control" type="text" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-lg-2 col-md-6">
                 <label asp-for="Filter.To" class="form-label">Đến ngày</label>
-                <input asp-for="Filter.To" class="form-control" type="date" />
+                <input asp-for="Filter.To" class="form-control" type="text" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-lg-2 col-md-12">
                 <div class="filter-actions">
@@ -244,8 +244,8 @@
                     <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
                     <input type="hidden" name="partnerId" value="@Model.Filter.PartnerId" />
                     <input type="hidden" name="action" value="@Model.Filter.Action" />
-                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" />
+                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" />
                     <input type="hidden" name="page" value="1" />
 
                     <label class="page-size-form__label" for="logsPageSize">Hiển thị</label>

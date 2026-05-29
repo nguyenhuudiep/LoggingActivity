@@ -22,8 +22,8 @@
             partnerId = Model.Filter.PartnerId,
             action = Model.Filter.Action,
             status = Model.Filter.Status,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            from = Model.Filter.From?.ToString("dd/MM/yyyy"),
+            to = Model.Filter.To?.ToString("dd/MM/yyyy"),
             page,
             pageSize = Model.Filter.PageSize
         })!;
@@ -76,11 +76,11 @@
             </div>
             <div class="col-lg-2 col-md-6">
                 <label class="form-label" for="alertHistoryFrom">Từ ngày</label>
-                <input id="alertHistoryFrom" name="from" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" class="form-control" />
+                <input id="alertHistoryFrom" name="from" type="text" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" class="form-control" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-lg-2 col-md-6">
                 <label class="form-label" for="alertHistoryTo">Đến ngày</label>
-                <input id="alertHistoryTo" name="to" type="date" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" class="form-control" />
+                <input id="alertHistoryTo" name="to" type="text" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" class="form-control" placeholder="dd/MM/yyyy" inputmode="numeric" autocomplete="off" />
             </div>
             <div class="col-lg-12 col-md-8">
                 <div class="filter-actions">
@@ -149,8 +149,8 @@
                     <input type="hidden" name="partnerId" value="@Model.Filter.PartnerId" />
                     <input type="hidden" name="action" value="@Model.Filter.Action" />
                     <input type="hidden" name="status" value="@Model.Filter.Status" />
-                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("dd/MM/yyyy")" />
+                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("dd/MM/yyyy")" />
                     <input type="hidden" name="page" value="1" />
 
                     <label class="page-size-form__label" for="alertHistoryFooterPageSize">Hiển thị</label>
