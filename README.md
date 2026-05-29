@@ -14,7 +14,7 @@ Hệ thống ASP.NET Core MVC kết hợp MongoDB để tiếp nhận activity l
 
 ## Cấu hình
 
-Với môi trường `Development`, repo hiện đã có sẵn cấu hình để sau khi pull code về có thể chạy ngay mà không cần thêm user-secrets.
+File `LoggingActivity.Web/appsettings.Development.json` chỉ giữ placeholder an toàn. Không lưu connection string hoặc mật khẩu thật trong source control.
 
 Chạy ứng dụng local:
 
@@ -29,6 +29,8 @@ Nếu cần override cấu hình theo từng máy, copy file mẫu `LoggingActiv
 - `LoggingActivity.Web/appsettings.Development.local.json`
 
 Hai file này đã được ignore sẵn, nên mỗi máy có thể tự cấu hình riêng mà không ảnh hưởng repo.
+
+Nếu muốn chạy giống cấu hình Development trước đây, đặt giá trị thật vào `LoggingActivity.Web/appsettings.Local.json` hoặc `LoggingActivity.Web/appsettings.Development.local.json`, không sửa trực tiếp file đang được commit.
 
 Ngoài file local, project vẫn hỗ trợ cấu hình qua user-secrets hoặc environment variables. Các key đang được hỗ trợ:
 
