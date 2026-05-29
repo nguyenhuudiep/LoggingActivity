@@ -9,3 +9,5 @@ obj/
 *.pdb
 LoggingActivity.Web/bin/
 LoggingActivity.Web/obj/
+LoggingActivity.Web/appsettings.Local.json
+LoggingActivity.Web/appsettings.*.local.json

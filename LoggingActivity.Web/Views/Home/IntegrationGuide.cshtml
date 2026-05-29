@@ -27,7 +27,7 @@
         <div class="mini-stat h-100">
             <div class="mini-stat__label">Định dạng dữ liệu</div>
             <div class="mini-stat__value">JSON</div>
-            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong> dạng chuỗi, nên có thêm <strong>userKeyType</strong>, và có thể truyền <strong>userName</strong>, <strong>action</strong>, <strong>description</strong>, <strong>requestId</strong> để chống trùng.</div>
+            <div class="mini-stat__text">Các request ghi log gửi payload JSON với <strong>userId</strong> dạng chuỗi (mã user, số điện thoại, ...). <strong>userKeyType</strong> là optional, nếu không truyền hệ thống sẽ tự động nhận diện loại key.</div>
         </div>
     </div>
     <div class="col-lg-4 col-md-12">
@@ -54,35 +54,32 @@
                     <span class="request-chip">/api/partner/activity</span>
                 </div>
                 <pre class="api-block mb-3"><code>curl -X POST "@baseUrl/api/partner/activity" \
-  -H "Content-Type: application/json" \
-  -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
-  -d '{
-    "requestId": "erp-click-20260527-103015-000123",
-        "userId": "260001",
-        "userKeyType": "user-id",
-    "userName": "nguyen.van.a",
-    "action": "Login",
-    "description": "Nội dung mô tả từ đối tác",
-    "endpoint": "/auth/login"
-  }'</code></pre>
-                <pre class="api-block api-block--light mb-0"><code>{
-  "requestId": "erp-click-20260527-103015-000123",
-    "userId": "260001",
-    "userKeyType": "user-id",
-  "userName": "nguyen.van.a",
-  "action": "Login",
-  "description": "Nội dung mô tả từ đối tác",
-  "endpoint": "/auth/login"
-}</code></pre>
-                                <pre class="api-block api-block--light mt-3 mb-0"><code>{
-    "requestId": "crm-checkout-20260528-093500-000021",
-    "userId": "0988123456",
-    "userKeyType": "phone",
-    "userName": "Khách hàng 0988123456",
-    "action": "Checkout",
-    "description": "Khách hàng xác nhận đơn hàng",
-    "endpoint": "/checkout/confirm"
-}</code></pre>
+            -H "Content-Type: application/json" \
+            -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
+            -d '{
+                "requestId": "erp-click-20260527-103015-000123",
+                "userId": "260001",
+                "userName": "nguyen.van.a",
+                "action": "Login",
+                "description": "Nội dung mô tả từ đối tác",
+                "endpoint": "/auth/login"
+            }'</code></pre>
+                                        <pre class="api-block api-block--light mb-0"><code>{
+            "requestId": "erp-click-20260527-103015-000123",
+            "userId": "260001",
+            "userName": "nguyen.van.a",
+            "action": "Login",
+            "description": "Nội dung mô tả từ đối tác",
+            "endpoint": "/auth/login"
+        }</code></pre>
+                                        <pre class="api-block api-block--light mt-3 mb-0"><code>{
+            "requestId": "crm-checkout-20260528-093500-000021",
+            "userId": "0988123456",
+            "userName": "Khách hàng 0988123456",
+            "action": "Checkout",
+            "description": "Khách hàng xác nhận đơn hàng",
+            "endpoint": "/checkout/confirm"
+        }</code></pre>
                 <div class="alert alert-info mt-3 mb-3" role="alert">
                     <strong>Quy tắc đặt requestId:</strong> mỗi lần click hoặc mỗi event log phải có một mã mới. Chỉ dùng lại cùng một requestId khi client retry lại đúng cùng event do timeout hoặc lỗi mạng.
                 </div>
@@ -97,7 +94,7 @@
 }</code></pre>
                 <p class="text-secondary mt-3 mb-0">Nếu cùng partner gửi lại một <strong>requestId</strong> đã tiếp nhận trước đó, API vẫn trả về <strong>202 Accepted</strong> nhưng thông báo rằng request này đã được nhận trước, giúp đối tác retry an toàn mà không ghi trùng log.</p>
                 <div class="alert alert-warning mt-3 mb-0" role="alert">
-                    <strong>Chuẩn định danh mới:</strong> <strong>userId</strong> luôn là key dạng chuỗi. Có thể là mã user, số điện thoại hoặc mã khách hàng. Nên truyền thêm <strong>userKeyType</strong> như <code>user-id</code> hoặc <code>phone</code> để hệ thống hiển thị và cảnh báo đúng ngữ nghĩa.
+                    <strong>Chuẩn định danh mới:</strong> <strong>userId</strong> luôn là key dạng chuỗi. Có thể là mã user, số điện thoại hoặc mã khách hàng. <strong>userKeyType</strong> là optional, nếu không truyền hệ thống sẽ tự động nhận diện loại key để hiển thị và cảnh báo đúng ngữ nghĩa.
                 </div>
             </div>
         </div>

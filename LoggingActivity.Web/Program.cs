@@ -6,9 +6,24 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
+
 builder.Services
     .AddOptions<MongoDbSettings>()
     .Bind(builder.Configuration.GetSection(MongoDbSettings.SectionName))
+    .PostConfigure(settings =>
+    {
+        settings.ConnectionString = ResolveSetting(
+            settings.ConnectionString,
+            builder.Configuration.GetConnectionString("MongoDb"),
+            builder.Configuration["MONGODB_URI"]);
+
+        settings.DatabaseName = ResolveSetting(
+            settings.DatabaseName,
+            builder.Configuration["MONGODB_DATABASE"]);
+    })
     .Validate(settings => !string.IsNullOrWhiteSpace(settings.ConnectionString)
         && !settings.ConnectionString.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
         "MongoDb:ConnectionString must be configured via user-secrets or environment variables.")
@@ -82,3 +97,23 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+static string ResolveSetting(params string?[] candidates)
+{
+    foreach (var candidate in candidates)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            continue;
+        }
+
+        if (candidate.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        return candidate.Trim();
+    }
+
+    return string.Empty;
+}

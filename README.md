@@ -16,13 +16,49 @@ Hệ thống ASP.NET Core MVC kết hợp MongoDB để tiếp nhận activity l
 
 File `LoggingActivity.Web/appsettings.json` chỉ giữ placeholder an toàn cho MongoDB connection string. Không lưu connection string thật trong source control.
 
+Cách dễ nhất khi pull code sang máy khác là copy file mẫu `LoggingActivity.Web/appsettings.Local.example.json` thành file local riêng không commit vào git:
+
+```json
+{
+	"MongoDb": {
+		"ConnectionString": "mongodb://localhost:27017/logactivity",
+		"DatabaseName": "logactivity"
+	},
+	"SeedAdmin": {
+		"UserName": "admin",
+		"Email": "admin@example.com",
+		"Password": "Admin@123456"
+	}
+}
+```
+
+Ví dụ trên đã có sẵn trong file `LoggingActivity.Web/appsettings.Local.example.json`, bạn chỉ cần copy sang một trong hai tên file local bên dưới rồi thay lại giá trị thật.
+
+Lưu file đó tại một trong hai tên sau:
+
+- `LoggingActivity.Web/appsettings.Local.json`
+- `LoggingActivity.Web/appsettings.Development.local.json`
+
+Hai file này đã được ignore sẵn, nên mỗi máy có thể tự cấu hình riêng mà không ảnh hưởng repo.
+
 Thiết lập các giá trị sau bằng user-secrets hoặc environment variables:
 
 - `MongoDb:ConnectionString`: chuỗi kết nối MongoDB.
 - `MongoDb:DatabaseName`: tên database nếu chuỗi kết nối chưa chứa sẵn database.
 - `SeedAdmin:*`: tài khoản admin được tạo tự động khi khởi động lần đầu.
 
-Project đã bật `User Secrets`, nên với môi trường local có thể cấu hình bằng lệnh:
+Ngoài file local ở trên, project cũng hỗ trợ các cách cấu hình quen thuộc sau:
+
+- `MongoDb:ConnectionString`
+- `ConnectionStrings:MongoDb`
+- env var `MONGODB_URI`
+
+Database name có thể lấy từ:
+
+- `MongoDb:DatabaseName`
+- env var `MONGODB_DATABASE`
+
+Project đã bật `User Secrets`, nên với môi trường local cũng có thể cấu hình bằng lệnh:
 
 ```powershell
 dotnet user-secrets set "MongoDb:ConnectionString" "<your-mongodb-connection-string>" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
@@ -168,25 +204,23 @@ Payload mẫu:
 
 ```json
 {
-	"userId": "260001",
-	"userKeyType": "user-id",
-	"userName": "nguyen.van.a",
-	"action": "Login",
-	"description": "Nội dung mô tả từ đối tác",
-	"endpoint": "/auth/login"
+  "userId": "260001",
+  "userName": "nguyen.van.a",
+  "action": "Login",
+  "description": "Nội dung mô tả từ đối tác",
+  "endpoint": "/auth/login"
 }
 ```
 
-Ví dụ nếu hệ thống nguồn dùng số điện thoại làm key chính:
+Ví dụ nếu hệ thống nguồn dùng số điện thoại làm key chính (không cần truyền userKeyType, hệ thống sẽ tự nhận diện):
 
 ```json
 {
-	"userId": "0988123456",
-	"userKeyType": "phone",
-	"userName": "Khách hàng 0988123456",
-	"action": "Checkout",
-	"description": "Khách hàng xác nhận đơn hàng",
-	"endpoint": "/checkout/confirm"
+  "userId": "0988123456",
+  "userName": "Khách hàng 0988123456",
+  "action": "Checkout",
+  "description": "Khách hàng xác nhận đơn hàng",
+  "endpoint": "/checkout/confirm"
 }
 ```
 
@@ -202,8 +236,8 @@ Response thành công:
 Lưu ý:
 
 - `requestId` là optional. Nếu đối tác không truyền, hệ thống tự sinh một mã mới và trả lại trong response.
-- `userId` hiện được hiểu là key định danh dạng `string`. Có thể là mã user, số điện thoại hoặc mã khách hàng từ hệ thống nguồn.
-- `userKeyType` là optional nhưng nên truyền rõ. Giá trị khuyến nghị: `user-id`, `phone`.
+- `userId` hiện được hiểu là key định danh dạng `string`. Có thể là mã user, số điện thoại hoặc mã khách hàng từ hệ thống nguồn. Nếu không truyền `userKeyType`, hệ thống sẽ tự động nhận diện loại key (số điện thoại, mã user, ...).
+- `userKeyType` là optional. Nếu không truyền, hệ thống sẽ tự động nhận diện dựa vào giá trị `userId`. Nếu truyền, hệ thống sẽ ưu tiên giá trị đối tác cung cấp.
 - `userName` là optional. Nếu không truyền, hệ thống sẽ lưu là `Anonymous`.
 - Nếu đối tác gửi lại cùng `requestId` cho cùng một partner, API vẫn trả `202 Accepted` nhưng queue sẽ nhận diện đây là request đã tiếp nhận trước đó và không tạo thêm bản ghi mới.
 - Khi worker xử lý queue, `action` sẽ được chuẩn hóa về chữ in hoa. Nếu action chưa tồn tại, hệ thống tự tạo mới và bật active. Nếu action đã tồn tại nhưng đang bị tắt, request sẽ bị đưa sang trạng thái thất bại trong queue.
