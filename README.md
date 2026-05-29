@@ -14,51 +14,32 @@ Hệ thống ASP.NET Core MVC kết hợp MongoDB để tiếp nhận activity l
 
 ## Cấu hình
 
-File `LoggingActivity.Web/appsettings.json` chỉ giữ placeholder an toàn cho MongoDB connection string. Không lưu connection string thật trong source control.
+Với môi trường `Development`, repo hiện đã có sẵn cấu hình để sau khi pull code về có thể chạy ngay mà không cần thêm user-secrets.
 
-Cách dễ nhất khi pull code sang máy khác là copy file mẫu `LoggingActivity.Web/appsettings.Local.example.json` thành file local riêng không commit vào git:
+Chạy ứng dụng local:
 
-```json
-{
-	"MongoDb": {
-		"ConnectionString": "mongodb://localhost:27017/logactivity",
-		"DatabaseName": "logactivity"
-	},
-	"SeedAdmin": {
-		"UserName": "admin",
-		"Email": "admin@example.com",
-		"Password": "Admin@123456"
-	}
-}
+```powershell
+dotnet restore
+dotnet run --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
 ```
 
-Ví dụ trên đã có sẵn trong file `LoggingActivity.Web/appsettings.Local.example.json`, bạn chỉ cần copy sang một trong hai tên file local bên dưới rồi thay lại giá trị thật.
-
-Lưu file đó tại một trong hai tên sau:
+Nếu cần override cấu hình theo từng máy, copy file mẫu `LoggingActivity.Web/appsettings.Local.example.json` thành một trong hai file sau rồi thay giá trị thật:
 
 - `LoggingActivity.Web/appsettings.Local.json`
 - `LoggingActivity.Web/appsettings.Development.local.json`
 
 Hai file này đã được ignore sẵn, nên mỗi máy có thể tự cấu hình riêng mà không ảnh hưởng repo.
 
-Thiết lập các giá trị sau bằng user-secrets hoặc environment variables:
-
-- `MongoDb:ConnectionString`: chuỗi kết nối MongoDB.
-- `MongoDb:DatabaseName`: tên database nếu chuỗi kết nối chưa chứa sẵn database.
-- `SeedAdmin:*`: tài khoản admin được tạo tự động khi khởi động lần đầu.
-
-Ngoài file local ở trên, project cũng hỗ trợ các cách cấu hình quen thuộc sau:
+Ngoài file local, project vẫn hỗ trợ cấu hình qua user-secrets hoặc environment variables. Các key đang được hỗ trợ:
 
 - `MongoDb:ConnectionString`
 - `ConnectionStrings:MongoDb`
-- env var `MONGODB_URI`
-
-Database name có thể lấy từ:
-
+- `MONGODB_URI`
 - `MongoDb:DatabaseName`
-- env var `MONGODB_DATABASE`
+- `MONGODB_DATABASE`
+- `SeedAdmin:*`
 
-Project đã bật `User Secrets`, nên với môi trường local cũng có thể cấu hình bằng lệnh:
+Nếu muốn dùng user-secrets, có thể cấu hình bằng lệnh:
 
 ```powershell
 dotnet user-secrets set "MongoDb:ConnectionString" "<your-mongodb-connection-string>" --project .\LoggingActivity.Web\LoggingActivity.Web.csproj
