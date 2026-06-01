@@ -8,10 +8,12 @@ namespace LoggingActivity.Web.Services;
 public sealed class AuthService
 {
     private readonly UserService _userService;
+    private readonly PermissionGroupService _permissionGroupService;
 
-    public AuthService(UserService userService)
+    public AuthService(UserService userService, PermissionGroupService permissionGroupService)
     {
         _userService = userService;
+        _permissionGroupService = permissionGroupService;
     }
 
     public async Task<AppUser?> ValidateCredentialsAsync(string userName, string password, CancellationToken cancellationToken = default)
@@ -37,7 +39,10 @@ public sealed class AuthService
 
         if (string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
         {
-            claims.AddRange(user.FunctionPermissions
+            var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds);
+            var effectivePermissions = user.FunctionPermissions.Concat(groupPermissions);
+
+            claims.AddRange(effectivePermissions
                 .Where(permission => !string.IsNullOrWhiteSpace(permission))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));

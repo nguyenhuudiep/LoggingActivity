@@ -14,6 +14,8 @@ public sealed class MongoDbSettings
 
     public string ActivityLogsCollectionName { get; set; } = "activity_logs";
 
+    public string PermissionGroupsCollectionName { get; set; } = "permission_groups";
+
     public string ActivityLogIngestQueueCollectionName { get; set; } = "activity_log_ingest_queue";
 
     public string AlertRulesCollectionName { get; set; } = "alert_rules";

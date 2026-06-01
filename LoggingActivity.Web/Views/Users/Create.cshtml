@@ -54,7 +54,34 @@
                             <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Quyền chức năng cho nhóm Admin</label>
+                            <label class="form-label">Nhóm quyền cho Admin</label>
+                            @if (Model.AvailablePermissionGroups.Count == 0)
+                            {
+                                <div class="empty-state py-4">
+                                    <div class="empty-state__title">Chưa có nhóm quyền active</div>
+                                    <div class="empty-state__text">Tạo nhóm quyền trước, hoặc chọn quyền chức năng bổ sung bên dưới cho tài khoản Admin.</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="permission-grid">
+                                    @foreach (var group in Model.AvailablePermissionGroups)
+                                    {
+                                        <label class="permission-card">
+                                            <input class="form-check-input permission-card__input" type="checkbox" name="SelectedPermissionGroupIds" value="@group.Id" checked="@(Model.SelectedPermissionGroupIds.Contains(group.Id ?? string.Empty))" />
+                                            <span class="permission-card__content">
+                                                <span class="permission-card__title">@group.Name</span>
+                                                <span class="permission-card__text">@(string.IsNullOrWhiteSpace(group.Description) ? $"{group.FunctionPermissions.Count} quyền chức năng" : group.Description)</span>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            <div class="form-text">Chỉ áp dụng khi tài khoản thuộc nhóm Admin. Các nhóm inactive sẽ không cấp quyền khi đăng nhập.</div>
+                            <span asp-validation-for="SelectedPermissionGroupIds" class="text-danger d-block mt-2"></span>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Quyền chức năng bổ sung</label>
                             <div class="permission-grid">
                                 @foreach (var permission in AdminFunctionPermissions.All)
                                 {
@@ -67,7 +94,7 @@
                                     </label>
                                 }
                             </div>
-                            <div class="form-text">Chỉ áp dụng khi tài khoản thuộc nhóm Admin. Với Auditor, hệ thống bỏ qua phần quyền chức năng này.</div>
+                            <div class="form-text">Dùng để cấp thêm quyền ngoài nhóm quyền đã chọn. Với Auditor, hệ thống bỏ qua toàn bộ phần phân quyền Admin.</div>
                             <span asp-validation-for="SelectedPermissions" class="text-danger d-block mt-2"></span>
                         </div>
                         <div class="col-12">

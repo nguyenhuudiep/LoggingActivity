@@ -48,6 +48,7 @@ builder.Services
 
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IPermissionGroupRepository, PermissionGroupRepository>();
 builder.Services.AddScoped<IPartnerRepository, PartnerRepository>();
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IActivityLogIngestQueueRepository, ActivityLogIngestQueueRepository>();
@@ -55,6 +56,7 @@ builder.Services.AddScoped<IAlertRuleRepository, AlertRuleRepository>();
 builder.Services.AddScoped<IAlertHistoryRepository, AlertHistoryRepository>();
 builder.Services.AddScoped<ILogActionDefinitionRepository, LogActionDefinitionRepository>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<PermissionGroupService>();
 builder.Services.AddScoped<PartnerService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ActivityLogService>();
@@ -92,9 +94,8 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
-
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();

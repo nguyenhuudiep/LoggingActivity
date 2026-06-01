@@ -4,23 +4,15 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace LoggingActivity.Web.Models;
 
 [BsonIgnoreExtraElements]
-public sealed class AppUser
+public sealed class PermissionGroup
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
-    public string UserName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
-    public string DisplayName { get; set; } = string.Empty;
-
-    public string Email { get; set; } = string.Empty;
-
-    public string PasswordHash { get; set; } = string.Empty;
-
-    public string Role { get; set; } = SystemRoles.Auditor;
-
-    public List<string> PermissionGroupIds { get; set; } = new();
+    public string Description { get; set; } = string.Empty;
 
     public List<string> FunctionPermissions { get; set; } = new();
 

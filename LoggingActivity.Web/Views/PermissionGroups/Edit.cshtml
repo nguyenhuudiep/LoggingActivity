@@ -1,0 +1,72 @@
+@model PermissionGroupEditViewModel
+
+@{
+    ViewData["Title"] = "Cập nhật nhóm quyền";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <section class="page-hero">
+            <div class="page-hero__content">
+                <span class="page-eyebrow">Permission groups</span>
+                <h1 class="page-title">Cập nhật nhóm quyền</h1>
+                <p class="page-subtitle">Điều chỉnh bộ quyền chức năng và trạng thái hoạt động của từng nhóm quyền.</p>
+            </div>
+            <div class="page-toolbar">
+                <a class="btn btn-outline-dark" asp-action="Index">Quay lại</a>
+            </div>
+        </section>
+
+        <div class="card border-0 shadow-sm form-shell">
+            <div class="card-body p-4">
+                <form asp-action="Edit" method="post">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="Id" type="hidden" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="Name" class="form-label"></label>
+                            <input asp-for="Name" class="form-control" />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Description" class="form-label"></label>
+                            <input asp-for="Description" class="form-control" />
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Quyền chức năng</label>
+                            <div class="permission-grid">
+                                @foreach (var permission in AdminFunctionPermissions.All)
+                                {
+                                    <label class="permission-card">
+                                        <input class="form-check-input permission-card__input" type="checkbox" name="SelectedPermissions" value="@permission.Code" checked="@(Model.SelectedPermissions.Contains(permission.Code))" />
+                                        <span class="permission-card__content">
+                                            <span class="permission-card__title">@permission.ShortDisplayName</span>
+                                            <span class="permission-card__text">@permission.Description</span>
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                            <span asp-validation-for="SelectedPermissions" class="text-danger d-block mt-2"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input asp-for="IsActive" class="form-check-input" />
+                                <label asp-for="IsActive" class="form-check-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-shell__footer">
+                        <a class="btn btn-outline-secondary" asp-action="Index">Hủy</a>
+                        <button type="submit" class="btn btn-dark">Lưu thay đổi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

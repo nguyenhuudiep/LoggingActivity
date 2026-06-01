@@ -7,13 +7,14 @@
     var isLoginPage = string.Equals(currentController, "Auth", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "Login", StringComparison.OrdinalIgnoreCase);
     var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
+    var canManagePermissionGroups = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
     var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
     var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
     var canManageAlertRules = User.HasAdminFunctionPermission(AdminFunctionPermissions.AlertRuleManagement);
-    var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules;
+    var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules || canManagePermissionGroups;
 
     string SidebarLinkClass(string controller, string? action = null)
     {
@@ -99,6 +100,13 @@
                             <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index">
                                 <span class="sidebar-link__icon">A</span>
                                 <span class="sidebar-link__text">Action log</span>
+                            </a>
+                            }
+                            @if (canManagePermissionGroups)
+                            {
+                            <a class="@SidebarLinkClass("PermissionGroups")" asp-controller="PermissionGroups" asp-action="Index">
+                                <span class="sidebar-link__icon">G</span>
+                                <span class="sidebar-link__text">Nhóm quyền</span>
                             </a>
                             }
                             @if (canManagePartners)

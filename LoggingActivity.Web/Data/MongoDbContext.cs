@@ -24,6 +24,7 @@ public sealed class MongoDbContext
 
         _database = client.GetDatabase(databaseName);
         Users = _database.GetCollection<AppUser>(settings.UsersCollectionName);
+        PermissionGroups = _database.GetCollection<PermissionGroup>(settings.PermissionGroupsCollectionName);
         Partners = _database.GetCollection<Partner>(settings.PartnersCollectionName);
         ActivityLogs = _database.GetCollection<ActivityLog>(settings.ActivityLogsCollectionName);
         ActivityLogIngestQueue = _database.GetCollection<ActivityLogIngestQueueItem>(settings.ActivityLogIngestQueueCollectionName);
@@ -33,6 +34,8 @@ public sealed class MongoDbContext
     }
 
     public IMongoCollection<AppUser> Users { get; }
+
+    public IMongoCollection<PermissionGroup> PermissionGroups { get; }
 
     public IMongoCollection<Partner> Partners { get; }
 

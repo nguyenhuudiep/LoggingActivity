@@ -7,11 +7,13 @@ namespace LoggingActivity.Web.Services;
 public sealed class UserService
 {
     private readonly IUserRepository _userRepository;
+    private readonly PermissionGroupService _permissionGroupService;
     private readonly PasswordHasher<AppUser> _passwordHasher = new();
 
-    public UserService(IUserRepository userRepository)
+    public UserService(IUserRepository userRepository, PermissionGroupService permissionGroupService)
     {
         _userRepository = userRepository;
+        _permissionGroupService = permissionGroupService;
     }
 
     public Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -47,6 +49,7 @@ public sealed class UserService
             return (false, "Tên đăng nhập đã tồn tại.");
         }
 
+        user.PermissionGroupIds = await NormalizePermissionGroupIdsAsync(user.Role, user.PermissionGroupIds, cancellationToken);
         user.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
         user.CreatedAtUtc = DateTime.UtcNow;
@@ -67,6 +70,7 @@ public sealed class UserService
         existingUser.DisplayName = user.DisplayName;
         existingUser.Email = user.Email;
         existingUser.Role = user.Role;
+        existingUser.PermissionGroupIds = await NormalizePermissionGroupIdsAsync(user.Role, user.PermissionGroupIds, cancellationToken);
         existingUser.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
         existingUser.IsActive = user.IsActive;
 
@@ -129,5 +133,15 @@ public sealed class UserService
             .Where(permission => requestedPermissions.Contains(permission.Code))
             .Select(permission => permission.Code)
             .ToList();
+    }
+
+    private async Task<List<string>> NormalizePermissionGroupIdsAsync(string role, IEnumerable<string>? permissionGroupIds, CancellationToken cancellationToken)
+    {
+        if (!string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            return new List<string>();
+        }
+
+        return await _permissionGroupService.NormalizePermissionGroupIdsAsync(permissionGroupIds, cancellationToken);
     }
 }

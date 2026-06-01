@@ -10,10 +10,12 @@ namespace LoggingActivity.Web.Controllers;
 public sealed class UsersController : AppController
 {
     private readonly UserService _userService;
+    private readonly PermissionGroupService _permissionGroupService;
 
-    public UsersController(UserService userService)
+    public UsersController(UserService userService, PermissionGroupService permissionGroupService)
     {
         _userService = userService;
+        _permissionGroupService = permissionGroupService;
     }
 
     [HttpGet]
@@ -46,7 +48,7 @@ public sealed class UsersController : AppController
     }
 
     [HttpGet]
-    public IActionResult Create()
+    public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
         if (accessDenied is not null)
@@ -54,7 +56,12 @@ public sealed class UsersController : AppController
             return accessDenied;
         }
 
-        return View(new UserEditViewModel { IsCreateMode = true, IsActive = true });
+        return View(new UserEditViewModel
+        {
+            IsCreateMode = true,
+            IsActive = true,
+            AvailablePermissionGroups = await _permissionGroupService.GetActiveAsync(cancellationToken)
+        });
     }
 
     [HttpPost]
@@ -68,6 +75,7 @@ public sealed class UsersController : AppController
         }
 
         model.IsCreateMode = true;
+        await PopulatePermissionGroupsAsync(model, cancellationToken);
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -79,6 +87,7 @@ public sealed class UsersController : AppController
             DisplayName = model.DisplayName.Trim(),
             Email = model.Email.Trim(),
             Role = model.Role,
+            PermissionGroupIds = model.SelectedPermissionGroupIds,
             FunctionPermissions = model.SelectedPermissions,
             IsActive = model.IsActive
         }, model.Password!, cancellationToken);
@@ -115,10 +124,10 @@ public sealed class UsersController : AppController
             DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role,
+            SelectedPermissionGroupIds = user.PermissionGroupIds.ToList(),
+            AvailablePermissionGroups = await _permissionGroupService.GetActiveAsync(cancellationToken),
             SelectedPermissions = string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
-                ? (user.FunctionPermissions.Count == 0
-                    ? AdminFunctionPermissions.All.Select(permission => permission.Code).ToList()
-                    : user.FunctionPermissions.ToList())
+                ? user.FunctionPermissions.ToList()
                 : new List<string>(),
             IsActive = user.IsActive
         });
@@ -136,6 +145,7 @@ public sealed class UsersController : AppController
 
         if (!ModelState.IsValid)
         {
+            await PopulatePermissionGroupsAsync(model, cancellationToken);
             return View(model);
         }
 
@@ -145,6 +155,7 @@ public sealed class UsersController : AppController
             DisplayName = model.DisplayName.Trim(),
             Email = model.Email.Trim(),
             Role = model.Role,
+            PermissionGroupIds = model.SelectedPermissionGroupIds,
             FunctionPermissions = model.SelectedPermissions,
             IsActive = model.IsActive
         }, model.Password, cancellationToken);
@@ -152,6 +163,7 @@ public sealed class UsersController : AppController
         if (!result.Success)
         {
             ModelState.AddModelError(string.Empty, result.Error!);
+            await PopulatePermissionGroupsAsync(model, cancellationToken);
             return View(model);
         }
 
@@ -185,5 +197,10 @@ public sealed class UsersController : AppController
             page = filter.Page,
             pageSize = filter.PageSize
         });
+    }
+
+    private async Task PopulatePermissionGroupsAsync(UserEditViewModel model, CancellationToken cancellationToken)
+    {
+        model.AvailablePermissionGroups = await _permissionGroupService.GetActiveAsync(cancellationToken);
     }
 }

@@ -22,6 +22,10 @@ public sealed class UserEditViewModel : IValidatableObject
     [Required(ErrorMessage = "Vui lòng chọn quyền.")]
     public string Role { get; set; } = SystemRoles.Auditor;
 
+    public List<string> SelectedPermissionGroupIds { get; set; } = new();
+
+    public IReadOnlyList<PermissionGroup> AvailablePermissionGroups { get; set; } = Array.Empty<PermissionGroup>();
+
     public List<string> SelectedPermissions { get; set; } = new();
 
     [Display(Name = "Đang hoạt động")]
@@ -50,9 +54,10 @@ public sealed class UserEditViewModel : IValidatableObject
         }
 
         if (string.Equals(Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
+            && (SelectedPermissionGroupIds is null || SelectedPermissionGroupIds.Count == 0)
             && (SelectedPermissions is null || SelectedPermissions.Count == 0))
         {
-            yield return new ValidationResult("Vui lòng chọn ít nhất một quyền chức năng cho tài khoản Admin.", new[] { nameof(SelectedPermissions) });
+            yield return new ValidationResult("Vui lòng chọn ít nhất một nhóm quyền hoặc quyền chức năng cho tài khoản Admin.", new[] { nameof(SelectedPermissions) });
         }
     }
 }
