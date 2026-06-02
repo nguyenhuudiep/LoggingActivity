@@ -16,24 +16,34 @@
 
     const int visiblePermissionBadgeCount = 2;
 
-    List<string> BuildPermissionLabels(AppUser user)
+    List<string> BuildPermissionGroupLabels(AppUser user)
     {
-        if (!string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        if (user.PermissionGroupIds is null || user.PermissionGroupIds.Count == 0)
         {
-            return new List<string> { "Theo vai trò Auditor" };
+            return new List<string> { "Không gán nhóm quyền" };
         }
 
-        if (user.FunctionPermissions is null || user.FunctionPermissions.Count == 0)
-        {
-            return new List<string> { "Toàn quyền mặc định" };
-        }
-
-        var labels = AdminFunctionPermissions.All
-            .Where(permission => user.FunctionPermissions.Contains(permission.Code, StringComparer.OrdinalIgnoreCase))
-            .Select(permission => permission.DisplayName)
+        var labels = user.PermissionGroupIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => Model.PermissionGroupNamesById.TryGetValue(id, out var name) ? name : "Nhóm quyền không còn tồn tại")
             .ToList();
 
-        return labels.Count == 0 ? new List<string> { "Toàn quyền mặc định" } : labels;
+        return labels.Count == 0 ? new List<string> { "Không gán nhóm quyền" } : labels;
+    }
+
+    string? BuildSummaryDetail(IReadOnlyList<string> labels, IReadOnlyList<string> visibleLabels, int hiddenCount)
+    {
+        if (labels.Count == 0)
+        {
+            return null;
+        }
+
+        if (hiddenCount <= 0 && labels.SequenceEqual(visibleLabels))
+        {
+            return null;
+        }
+
+        return string.Join(", ", labels);
     }
 
     string BuildPageUrl(int page)
@@ -121,7 +131,7 @@
         </div>
     </div>
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover mb-0 user-access-table">
             <thead class="table-light">
                 <tr>
                     <th class="table-stt-col">STT</th>
@@ -129,7 +139,7 @@
                     <th>Tên hiển thị</th>
                     <th>Email</th>
                     <th>Quyền</th>
-                    <th>Quyền chức năng</th>
+                    <th>Nhóm quyền</th>
                     <th>Trạng thái</th>
                     <th class="text-end">Thao tác</th>
                 </tr>
@@ -137,11 +147,11 @@
             <tbody>
                 @foreach (var user in Model.Users.Items)
                 {
-                    var permissionLabels = BuildPermissionLabels(user);
-                    var visiblePermissionLabels = permissionLabels.Take(visiblePermissionBadgeCount).ToList();
-                    var hiddenPermissionCount = Math.Max(0, permissionLabels.Count - visiblePermissionLabels.Count);
-                    var permissionDetail = string.Join(", ", permissionLabels);
-                    var permissionTooltip = string.Join("; ", permissionLabels);
+                    var permissionGroupLabels = BuildPermissionGroupLabels(user);
+                    var visiblePermissionGroupLabels = permissionGroupLabels.Take(visiblePermissionBadgeCount).ToList();
+                    var hiddenPermissionGroupCount = Math.Max(0, permissionGroupLabels.Count - visiblePermissionGroupLabels.Count);
+                    var permissionGroupTooltip = string.Join("; ", permissionGroupLabels);
+                    var permissionGroupDetail = BuildSummaryDetail(permissionGroupLabels, visiblePermissionGroupLabels, hiddenPermissionGroupCount);
                     var deleteModalId = BuildDangerModalId("deleteUserModal", user.Id);
                     var deleteFormId = BuildDangerModalId("deleteUserForm", user.Id);
                     <tr>
@@ -150,18 +160,21 @@
                         <td>@user.DisplayName</td>
                         <td>@user.Email</td>
                         <td><span class="badge bg-secondary-subtle text-secondary-emphasis">@user.Role</span></td>
-                        <td>
-                            <div class="permission-summary" title="@permissionTooltip">
-                                @foreach (var label in visiblePermissionLabels)
+                        <td class="user-access-table__group-col">
+                            <div class="permission-summary permission-summary--stacked" title="@permissionGroupTooltip">
+                                @foreach (var label in visiblePermissionGroupLabels)
                                 {
                                     <span class="permission-summary__badge">@label</span>
                                 }
-                                @if (hiddenPermissionCount > 0)
+                                @if (hiddenPermissionGroupCount > 0)
                                 {
-                                    <span class="permission-summary__badge permission-summary__badge--more">+@hiddenPermissionCount</span>
+                                    <span class="permission-summary__badge permission-summary__badge--more">+@hiddenPermissionGroupCount</span>
                                 }
                             </div>
-                            <div class="permission-summary__detail">@permissionDetail</div>
+                            @if (!string.IsNullOrWhiteSpace(permissionGroupDetail))
+                            {
+                                <div class="permission-summary__detail">@permissionGroupDetail</div>
+                            }
                         </td>
                         <td>
                             @if (user.IsActive)

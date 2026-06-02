@@ -19,7 +19,7 @@
 
         <div class="card border-0 shadow-sm form-shell">
             <div class="card-body p-4">
-                <form asp-action="Edit" method="post">
+                <form asp-action="Edit" method="post" data-user-permission-sync>
                     @Html.AntiForgeryToken()
                     <input asp-for="Id" type="hidden" />
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
@@ -48,11 +48,6 @@
                             <input asp-for="Password" class="form-control" />
                             <span asp-validation-for="Password" class="text-danger"></span>
                         </div>
-                        <div class="col-md-6">
-                            <label asp-for="ConfirmPassword" class="form-label"></label>
-                            <input asp-for="ConfirmPassword" class="form-control" />
-                            <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
-                        </div>
                         <div class="col-12">
                             <label class="form-label">Nhóm quyền cho Admin</label>
                             @if (Model.AvailablePermissionGroups.Count == 0)
@@ -68,7 +63,7 @@
                                     @foreach (var group in Model.AvailablePermissionGroups)
                                     {
                                         <label class="permission-card">
-                                            <input class="form-check-input permission-card__input" type="checkbox" name="SelectedPermissionGroupIds" value="@group.Id" checked="@(Model.SelectedPermissionGroupIds.Contains(group.Id ?? string.Empty))" />
+                                            <input class="form-check-input permission-card__input" type="checkbox" name="SelectedPermissionGroupIds" value="@group.Id" data-permissions="@string.Join(",", group.FunctionPermissions)" checked="@(Model.SelectedPermissionGroupIds.Contains(group.Id ?? string.Empty))" />
                                             <span class="permission-card__content">
                                                 <span class="permission-card__title">@group.Name</span>
                                                 <span class="permission-card__text">@(string.IsNullOrWhiteSpace(group.Description) ? $"{group.FunctionPermissions.Count} quyền chức năng" : group.Description)</span>

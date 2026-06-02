@@ -38,12 +38,19 @@ public sealed class UsersController : AppController
 
         var users = await _userService.GetPagedAsync(query, cancellationToken);
         var statistics = await _userService.GetStatisticsAsync(query, cancellationToken);
+        var permissionGroupIds = users.Items
+            .SelectMany(user => user.PermissionGroupIds)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var permissionGroups = await _permissionGroupService.GetByIdsAsync(permissionGroupIds, cancellationToken);
 
         return View(new UserManagementViewModel
         {
             Filter = filter,
             Users = users,
-            Statistics = statistics
+            Statistics = statistics,
+            PermissionGroupNamesById = permissionGroups.ToDictionary(group => group.Id!, group => group.Name, StringComparer.Ordinal)
         });
     }
 
@@ -127,7 +134,10 @@ public sealed class UsersController : AppController
             SelectedPermissionGroupIds = user.PermissionGroupIds.ToList(),
             AvailablePermissionGroups = await _permissionGroupService.GetActiveAsync(cancellationToken),
             SelectedPermissions = string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
-                ? user.FunctionPermissions.ToList()
+                ? user.FunctionPermissions
+                    .Concat(await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds, cancellationToken))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
                 : new List<string>(),
             IsActive = user.IsActive
         });

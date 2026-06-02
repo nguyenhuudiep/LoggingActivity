@@ -78,6 +78,19 @@ public sealed class UserRepository : IUserRepository
         return _context.Users.CountDocumentsAsync(user => user.Role == role, cancellationToken: cancellationToken);
     }
 
+    public Task<long> CountByPermissionGroupIdAsync(string permissionGroupId, CancellationToken cancellationToken = default)
+    {
+        return _context.Users.CountDocumentsAsync(
+            Builders<AppUser>.Filter.AnyEq(user => user.PermissionGroupIds, permissionGroupId),
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AppUser>> GetByPermissionGroupIdAsync(string permissionGroupId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users.Find(Builders<AppUser>.Filter.AnyEq(user => user.PermissionGroupIds, permissionGroupId))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task CreateAsync(AppUser user, CancellationToken cancellationToken = default)
     {
         return _context.Users.InsertOneAsync(user, cancellationToken: cancellationToken);

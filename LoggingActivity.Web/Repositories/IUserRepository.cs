@@ -16,6 +16,10 @@ public interface IUserRepository
 
     Task<long> CountByRoleAsync(string role, CancellationToken cancellationToken = default);
 
+    Task<long> CountByPermissionGroupIdAsync(string permissionGroupId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppUser>> GetByPermissionGroupIdAsync(string permissionGroupId, CancellationToken cancellationToken = default);
+
     Task CreateAsync(AppUser user, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(AppUser user, CancellationToken cancellationToken = default);

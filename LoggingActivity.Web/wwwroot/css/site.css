@@ -1154,18 +1154,28 @@ pre {
 
 .table-actions {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.table-actions form {
+  display: inline-flex;
 }
 
 .table-actions .btn,
 .table-actions form .btn {
-  min-width: 5.5rem;
+  min-width: 4.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+}
+
+.user-access-table td.text-end {
+  white-space: nowrap;
 }
 
 .key-pill {
@@ -1381,6 +1391,13 @@ pre {
   cursor: help;
 }
 
+.permission-summary--stacked {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  max-width: 100%;
+}
+
 .permission-summary__badge {
   display: inline-flex;
   align-items: center;
@@ -1400,11 +1417,33 @@ pre {
 }
 
 .permission-summary__detail {
-  margin-top: 0.55rem;
   max-width: 320px;
   color: var(--app-text-muted);
   font-size: 0.8rem;
   line-height: 1.55;
+}
+
+.user-access-table {
+  table-layout: fixed;
+}
+
+.user-access-table > :not(caption) > * > * {
+  vertical-align: top;
+}
+
+.user-access-table__group-col,
+.user-access-table__permission-col {
+  vertical-align: top;
+}
+
+.user-access-table__group-col {
+  width: 13rem;
+  min-width: 13rem;
+}
+
+.user-access-table__permission-col {
+  width: 14rem;
+  min-width: 14rem;
 }
 
 .table {
@@ -1792,7 +1831,6 @@ pre {
   .page-toolbar,
   .form-shell__footer,
   .filter-actions,
-  .table-actions,
   .state-actions {
     flex-direction: column;
     align-items: stretch;
@@ -1804,9 +1842,6 @@ pre {
   .dashboard-warning__header .btn,
   .form-shell__footer .btn,
   .filter-actions .btn,
-  .table-actions .btn,
-  .table-actions form,
-  .table-actions form .btn,
   .state-actions .btn {
     width: 100%;
   }
@@ -1835,5 +1870,15 @@ pre {
 
   .table > :not(caption) > * > * {
     white-space: normal;
+  }
+
+  .user-access-table {
+    table-layout: auto;
+  }
+
+  .user-access-table__group-col,
+  .user-access-table__permission-col {
+    width: auto;
+    min-width: 11rem;
   }
 }

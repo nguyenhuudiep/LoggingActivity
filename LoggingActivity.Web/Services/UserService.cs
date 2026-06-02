@@ -50,7 +50,13 @@ public sealed class UserService
         }
 
         user.PermissionGroupIds = await NormalizePermissionGroupIdsAsync(user.Role, user.PermissionGroupIds, cancellationToken);
-        user.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
+        var requestedPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
+        var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds, cancellationToken);
+        user.CustomFunctionPermissions = requestedPermissions
+            .Except(groupPermissions, StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        user.FunctionPermissions = requestedPermissions;
         user.PasswordHash = _passwordHasher.HashPassword(user, password);
         user.CreatedAtUtc = DateTime.UtcNow;
         user.UpdatedAtUtc = DateTime.UtcNow;
@@ -71,7 +77,13 @@ public sealed class UserService
         existingUser.Email = user.Email;
         existingUser.Role = user.Role;
         existingUser.PermissionGroupIds = await NormalizePermissionGroupIdsAsync(user.Role, user.PermissionGroupIds, cancellationToken);
-        existingUser.FunctionPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
+        var requestedPermissions = NormalizeFunctionPermissions(user.Role, user.FunctionPermissions);
+        var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(existingUser.PermissionGroupIds, cancellationToken);
+        existingUser.CustomFunctionPermissions = requestedPermissions
+            .Except(groupPermissions, StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        existingUser.FunctionPermissions = requestedPermissions;
         existingUser.IsActive = user.IsActive;
 
         if (!string.IsNullOrWhiteSpace(newPassword))

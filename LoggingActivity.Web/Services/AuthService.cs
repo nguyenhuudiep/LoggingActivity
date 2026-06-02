@@ -40,7 +40,10 @@ public sealed class AuthService
         if (string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
         {
             var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds);
-            var effectivePermissions = user.FunctionPermissions.Concat(groupPermissions);
+            var customPermissions = user.CustomFunctionPermissions.Count > 0
+                ? user.CustomFunctionPermissions
+                : user.FunctionPermissions;
+            var effectivePermissions = customPermissions.Concat(groupPermissions);
 
             claims.AddRange(effectivePermissions
                 .Where(permission => !string.IsNullOrWhiteSpace(permission))

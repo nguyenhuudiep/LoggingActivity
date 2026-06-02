@@ -24,6 +24,8 @@ public sealed class AppUser
 
     public List<string> FunctionPermissions { get; set; } = new();
 
+    public List<string> CustomFunctionPermissions { get; set; } = new();
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -241,6 +241,75 @@
 		});
 
 		if (typeof window.jQuery === "undefined") {
+
+	function initUserPermissionSyncForms() {
+		var forms = document.querySelectorAll("form[data-user-permission-sync]");
+		if (!forms.length) {
+			return;
+		}
+
+		forms.forEach(function (form) {
+			var groupCheckboxes = Array.from(form.querySelectorAll('input[name="SelectedPermissionGroupIds"]'));
+			var permissionCheckboxes = Array.from(form.querySelectorAll('input[name="SelectedPermissions"]'));
+			if (!groupCheckboxes.length || !permissionCheckboxes.length) {
+				return;
+			}
+
+			var permissionMap = new Map();
+			permissionCheckboxes.forEach(function (checkbox) {
+				permissionMap.set(checkbox.value, checkbox);
+			});
+
+			var manuallyTouchedPermissions = new Set();
+
+			function getRequiredPermissionCodes() {
+				var required = new Set();
+
+				groupCheckboxes.forEach(function (checkbox) {
+					if (!checkbox.checked) {
+						return;
+					}
+
+					var codes = (checkbox.getAttribute("data-permissions") || "")
+						.split(",")
+						.map(function (code) { return code.trim(); })
+						.filter(Boolean);
+
+					codes.forEach(function (code) {
+						required.add(code);
+					});
+				});
+
+				return required;
+			}
+
+			function syncPermissions() {
+				var requiredPermissionCodes = getRequiredPermissionCodes();
+
+				permissionMap.forEach(function (checkbox, code) {
+					if (manuallyTouchedPermissions.has(code)) {
+						return;
+					}
+
+					checkbox.checked = requiredPermissionCodes.has(code);
+				});
+			}
+
+			groupCheckboxes.forEach(function (checkbox) {
+				checkbox.addEventListener("change", function () {
+					syncPermissions();
+				});
+			});
+
+			permissionCheckboxes.forEach(function (checkbox) {
+				checkbox.addEventListener("change", function () {
+					manuallyTouchedPermissions.add(checkbox.value);
+				});
+			});
+
+			syncPermissions();
+		});
+	}
 			return;
 		}
 
@@ -361,6 +430,7 @@
 		initLogCharts();
 		initEnhancedSelects();
 		initAutoSubmitSelectForms();
+		initUserPermissionSyncForms();
 		initActorLogModal();
 	});
 })();

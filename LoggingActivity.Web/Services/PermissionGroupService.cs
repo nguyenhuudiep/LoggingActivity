@@ -6,10 +6,12 @@ namespace LoggingActivity.Web.Services;
 public sealed class PermissionGroupService
 {
     private readonly IPermissionGroupRepository _permissionGroupRepository;
+    private readonly IUserRepository _userRepository;
 
-    public PermissionGroupService(IPermissionGroupRepository permissionGroupRepository)
+    public PermissionGroupService(IPermissionGroupRepository permissionGroupRepository, IUserRepository userRepository)
     {
         _permissionGroupRepository = permissionGroupRepository;
+        _userRepository = userRepository;
     }
 
     public Task<PagedResult<PermissionGroup>> GetPagedAsync(PermissionGroupQuery query, CancellationToken cancellationToken = default)
@@ -30,6 +32,11 @@ public sealed class PermissionGroupService
     public Task<IReadOnlyList<PermissionGroup>> GetActiveAsync(CancellationToken cancellationToken = default)
     {
         return _permissionGroupRepository.GetActiveAsync(cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PermissionGroup>> GetByIdsAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
+    {
+        return _permissionGroupRepository.GetByIdsAsync(ids, cancellationToken);
     }
 
     public async Task<List<string>> NormalizePermissionGroupIdsAsync(IEnumerable<string>? ids, CancellationToken cancellationToken = default)
@@ -94,6 +101,8 @@ public sealed class PermissionGroupService
             return (false, "Không tìm thấy nhóm quyền.");
         }
 
+        var previousFunctionPermissions = existingGroup.FunctionPermissions.ToList();
+
         var duplicateGroup = await _permissionGroupRepository.GetByNameAsync(group.Name, cancellationToken);
         if (duplicateGroup is not null && !string.Equals(duplicateGroup.Id, group.Id, StringComparison.Ordinal))
         {
@@ -106,6 +115,7 @@ public sealed class PermissionGroupService
         existingGroup.IsActive = group.IsActive;
 
         await _permissionGroupRepository.UpdateAsync(existingGroup, cancellationToken);
+        await SyncAssignedUsersAsync(existingGroup.Id!, previousFunctionPermissions, cancellationToken);
         return (true, null);
     }
 
@@ -115,6 +125,12 @@ public sealed class PermissionGroupService
         if (existingGroup is null)
         {
             return (false, "Không tìm thấy nhóm quyền.");
+        }
+
+        var assignedUserCount = await _userRepository.CountByPermissionGroupIdAsync(id, cancellationToken);
+        if (assignedUserCount > 0)
+        {
+            return (false, $"Không thể xóa nhóm quyền đang được gán cho {assignedUserCount} tài khoản.");
         }
 
         await _permissionGroupRepository.DeleteAsync(id, cancellationToken);
@@ -133,5 +149,40 @@ public sealed class PermissionGroupService
             .Where(permission => requestedPermissions.Contains(permission.Code))
             .Select(permission => permission.Code)
             .ToList();
+    }
+
+    private async Task SyncAssignedUsersAsync(string permissionGroupId, IReadOnlyCollection<string> previousFunctionPermissions, CancellationToken cancellationToken)
+    {
+        var assignedUsers = await _userRepository.GetByPermissionGroupIdAsync(permissionGroupId, cancellationToken);
+        if (assignedUsers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var user in assignedUsers)
+        {
+            if (!string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var currentGroupPermissions = await ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds, cancellationToken);
+            var customPermissions = user.CustomFunctionPermissions.Count > 0
+                ? user.CustomFunctionPermissions
+                : user.FunctionPermissions
+                    .Except(previousFunctionPermissions, StringComparer.OrdinalIgnoreCase)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+            user.CustomFunctionPermissions = customPermissions
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            user.FunctionPermissions = customPermissions
+                .Concat(currentGroupPermissions)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            await _userRepository.UpdateAsync(user, cancellationToken);
+        }
     }
 }

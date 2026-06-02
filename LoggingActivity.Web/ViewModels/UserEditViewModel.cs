@@ -48,7 +48,7 @@ public sealed class UserEditViewModel : IValidatableObject
             yield return new ValidationResult("Mật khẩu là bắt buộc khi tạo tài khoản.", new[] { nameof(Password) });
         }
 
-        if (!string.Equals(Password, ConfirmPassword, StringComparison.Ordinal))
+        if (IsCreateMode && !string.Equals(Password, ConfirmPassword, StringComparison.Ordinal))
         {
             yield return new ValidationResult("Mật khẩu xác nhận không khớp.", new[] { nameof(ConfirmPassword) });
         }
