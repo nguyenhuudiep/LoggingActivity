@@ -126,6 +126,10 @@
             <div class="col-lg-2 col-md-4">
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
+                    <a class="btn btn-outline-secondary"
+                       asp-action="Export"
+                       asp-route-searchTerm="@Model.Filter.SearchTerm"
+                       asp-route-isActive="@Model.Filter.IsActive">Export CSV</a>
                 </div>
             </div>
         </form>

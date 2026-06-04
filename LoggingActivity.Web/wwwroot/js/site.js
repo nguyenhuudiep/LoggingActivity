@@ -241,6 +241,22 @@
 		});
 
 		if (typeof window.jQuery === "undefined") {
+			return;
+		}
+
+		window.jQuery("form[data-auto-submit-selects] select[data-enhanced-select]").each(function () {
+			var select = window.jQuery(this);
+			var form = this.form;
+
+			if (!form) {
+				return;
+			}
+
+			select.on("select2:select select2:clear", function () {
+				submitForm(form);
+			});
+		});
+	}
 
 	function initUserPermissionSyncForms() {
 		var forms = document.querySelectorAll("form[data-user-permission-sync]");
@@ -308,22 +324,6 @@
 			});
 
 			syncPermissions();
-		});
-	}
-			return;
-		}
-
-		window.jQuery("form[data-auto-submit-selects] select[data-enhanced-select]").each(function () {
-			var select = window.jQuery(this);
-			var form = this.form;
-
-			if (!form) {
-				return;
-			}
-
-			select.on("select2:select select2:clear", function () {
-				submitForm(form);
-			});
 		});
 	}
 
@@ -424,13 +424,23 @@
 		});
 	}
 
+	function runInitializer(name, initFn) {
+		try {
+			initFn();
+		} catch (error) {
+			if (typeof console !== "undefined" && typeof console.error === "function") {
+				console.error("[site.js] initializer failed:", name, error);
+			}
+		}
+	}
+
 	document.addEventListener("DOMContentLoaded", function () {
-		initSidebarToggle();
-		closeMobileNavOnLinkClick();
-		initLogCharts();
-		initEnhancedSelects();
-		initAutoSubmitSelectForms();
-		initUserPermissionSyncForms();
-		initActorLogModal();
+		runInitializer("initSidebarToggle", initSidebarToggle);
+		runInitializer("closeMobileNavOnLinkClick", closeMobileNavOnLinkClick);
+		runInitializer("initLogCharts", initLogCharts);
+		runInitializer("initEnhancedSelects", initEnhancedSelects);
+		runInitializer("initAutoSubmitSelectForms", initAutoSubmitSelectForms);
+		runInitializer("initUserPermissionSyncForms", initUserPermissionSyncForms);
+		runInitializer("initActorLogModal", initActorLogModal);
 	});
 })();

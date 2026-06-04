@@ -30,6 +30,41 @@ public sealed class AlertRulesController : AppController
         return View(await BuildViewModelAsync(filter, null, editAction, cancellationToken));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] AlertRuleFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertRuleManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var rules = await ReadAllPagesAsync(
+            (page, pageSize, token) => _alertRuleService.GetPagedAsync(new AlertRuleQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                ActionCode = filter.ActionCode,
+                IsActive = filter.IsActive,
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = rules.Select(rule => (IReadOnlyList<string?>)
+        [
+            rule.Action,
+            rule.DailyLimit.ToString(),
+            rule.IsActive ? "Active" : "Paused",
+            rule.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            rule.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        ]).ToList();
+
+        return BuildCsvFile(
+            "alert-rules",
+            ["Action", "DailyLimit", "Status", "CreatedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([Bind(Prefix = "Input")] AlertRuleInputViewModel model, AlertRuleFilterViewModel filter, CancellationToken cancellationToken)

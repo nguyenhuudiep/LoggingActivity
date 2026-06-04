@@ -55,6 +55,61 @@ public sealed class UsersController : AppController
     }
 
     [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] UserFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var users = await ReadAllPagesAsync(
+            (page, pageSize, token) => _userService.GetPagedAsync(new UserQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                Role = filter.Role,
+                IsActive = filter.IsActive,
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var permissionGroupIds = users
+            .SelectMany(user => user.PermissionGroupIds)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var permissionGroups = await _permissionGroupService.GetByIdsAsync(permissionGroupIds, cancellationToken);
+        var permissionGroupNamesById = permissionGroups.ToDictionary(group => group.Id!, group => group.Name, StringComparer.Ordinal);
+
+        var rows = users.Select(user =>
+        {
+            var groupNames = user.PermissionGroupIds
+                .Select(id => permissionGroupNamesById.TryGetValue(id, out var name) ? name : id)
+                .ToList();
+
+            return (IReadOnlyList<string?>)
+            [
+                user.UserName,
+                user.DisplayName,
+                user.Email,
+                user.Role,
+                string.Join(" | ", groupNames),
+                string.Join(" | ", user.FunctionPermissions),
+                user.IsActive ? "Active" : "Inactive",
+                user.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+                user.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+            ];
+        }).ToList();
+
+        return BuildCsvFile(
+            "users",
+            ["UserName", "DisplayName", "Email", "Role", "PermissionGroups", "FunctionPermissions", "Status", "CreatedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);

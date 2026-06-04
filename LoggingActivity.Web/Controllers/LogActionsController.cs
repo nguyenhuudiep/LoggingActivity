@@ -30,6 +30,41 @@ public sealed class LogActionsController : AppController
         return View(await BuildViewModelAsync(filter, null, editCode, cancellationToken));
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] LogActionFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogActionManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var actions = await ReadAllPagesAsync(
+            (page, pageSize, token) => _logActionDefinitionService.GetPagedAsync(new LogActionQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                IsActive = filter.IsActive,
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = actions.Select(action => (IReadOnlyList<string?>)
+        [
+            action.Code,
+            action.DisplayName,
+            action.Description,
+            action.IsActive ? "Active" : "Paused",
+            action.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            action.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        ]).ToList();
+
+        return BuildCsvFile(
+            "log-actions",
+            ["Code", "DisplayName", "Description", "Status", "CreatedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([Bind(Prefix = "Input")] LogActionDefinitionInputViewModel model, [FromQuery] LogActionFilterViewModel filter, CancellationToken cancellationToken)

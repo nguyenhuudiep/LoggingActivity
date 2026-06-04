@@ -39,6 +39,38 @@ public sealed class PartnersController : AppController
     }
 
     [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] PartnerFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var partners = await ReadAllPagesAsync(
+            (page, pageSize, token) => _partnerService.GetPagedAsync(new PartnerQuery
+            {
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = partners.Select(partner => (IReadOnlyList<string?>)
+        [
+            partner.Name,
+            partner.ApiKey,
+            partner.IsActive ? "Active" : "Inactive",
+            partner.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            partner.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        ]).ToList();
+
+        return BuildCsvFile(
+            "partners",
+            ["Name", "ApiKey", "Status", "CreatedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
+    [HttpGet]
     public IActionResult Create()
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);

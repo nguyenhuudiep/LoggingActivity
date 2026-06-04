@@ -54,6 +54,56 @@ public sealed class IngestQueueController : AppController
         });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        filter.Status = string.IsNullOrWhiteSpace(filter.Status) || string.Equals(filter.Status, "All", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : filter.Status.Trim();
+        filter.From ??= DateTime.Today.AddDays(-3);
+        filter.To ??= DateTime.Today;
+
+        var items = await ReadAllPagesAsync(
+            (page, pageSize, token) => _queueService.GetPagedAsync(new ActivityLogIngestQueueQuery
+            {
+                PartnerId = filter.PartnerId,
+                Status = filter.Status,
+                FromUtc = filter.From?.Date,
+                ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = items.Select(item => (IReadOnlyList<string?>)
+        [
+            item.RequestId,
+            item.PartnerName,
+            item.DisplayActorIdentifier,
+            item.DisplayActorIdentifierType,
+            item.UserName,
+            item.Action,
+            item.Status,
+            item.AttemptCount.ToString(),
+            item.LastError,
+            item.ReceivedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            item.AvailableAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            item.ProcessedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss"),
+            item.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        ]).ToList();
+
+        return BuildCsvFile(
+            "ingest-queue",
+            ["RequestId", "PartnerName", "ActorIdentifier", "ActorIdentifierType", "UserName", "Action", "Status", "AttemptCount", "LastError", "ReceivedAtUtc", "AvailableAtUtc", "ProcessedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SeedDemo([FromForm] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)

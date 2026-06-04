@@ -69,6 +69,53 @@ public sealed class LogsController : AppController
     }
 
     [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] LogFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        filter.From ??= DateTime.Today;
+        filter.To ??= DateTime.Today;
+
+        var logs = await ReadAllPagesAsync(
+            (page, pageSize, token) => _activityLogService.GetPagedAsync(new LogQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                PartnerId = filter.PartnerId,
+                Action = filter.Action,
+                FromUtc = filter.From,
+                ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = logs.Select(log => (IReadOnlyList<string?>)
+        [
+            log.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            log.PartnerName,
+            log.DisplayActorIdentifier,
+            log.DisplayActorIdentifierType,
+            log.UserName,
+            log.Role,
+            log.Action,
+            log.Description,
+            log.Endpoint,
+            log.Source,
+            log.HttpMethod,
+            log.IpAddress
+        ]).ToList();
+
+        return BuildCsvFile(
+            "activity-logs",
+            ["CreatedAtUtc", "PartnerName", "ActorIdentifier", "ActorIdentifierType", "UserName", "Role", "Action", "Description", "Endpoint", "Source", "HttpMethod", "IpAddress"],
+            rows);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> ActorDetails([FromQuery] ActorLogDetailsFilterViewModel filter, CancellationToken cancellationToken)
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);

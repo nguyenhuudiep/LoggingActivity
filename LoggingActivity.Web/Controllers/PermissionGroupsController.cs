@@ -42,6 +42,41 @@ public sealed class PermissionGroupsController : AppController
     }
 
     [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] PermissionGroupFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var groups = await ReadAllPagesAsync(
+            (page, pageSize, token) => _permissionGroupService.GetPagedAsync(new PermissionGroupQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                IsActive = filter.IsActive,
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = groups.Select(group => (IReadOnlyList<string?>)
+        [
+            group.Name,
+            group.Description,
+            string.Join(" | ", group.FunctionPermissions),
+            group.IsActive ? "Active" : "Inactive",
+            group.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            group.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        ]).ToList();
+
+        return BuildCsvFile(
+            "permission-groups",
+            ["Name", "Description", "FunctionPermissions", "Status", "CreatedAtUtc", "UpdatedAtUtc"],
+            rows);
+    }
+
+    [HttpGet]
     public IActionResult Create()
     {
         var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);

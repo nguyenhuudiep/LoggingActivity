@@ -126,7 +126,13 @@
             </div>
             <div class="col-6 col-xl-2 col-lg-3 col-md-6">
                 <div class="filter-actions">
-                    <button type="submit" class="btn btn-dark w-100">Lọc</button>
+                    <button type="submit" class="btn btn-dark">Lọc</button>
+                    <a class="btn btn-outline-secondary"
+                       asp-action="Export"
+                       asp-route-partnerId="@Model.Filter.PartnerId"
+                       asp-route-status="@Model.Filter.Status"
+                       asp-route-from='@Model.Filter.From?.ToString("yyyy-MM-dd")'
+                       asp-route-to='@Model.Filter.To?.ToString("yyyy-MM-dd")'>Export CSV</a>
                 </div>
             </div>
         </form>

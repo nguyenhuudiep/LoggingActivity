@@ -63,4 +63,56 @@ public sealed class AlertHistoryController : AppController
             AvailableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken)
         });
     }
+
+    [HttpGet]
+    public async Task<IActionResult> Export([FromQuery] AlertHistoryFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        filter.From ??= DateTime.Today.AddDays(-6);
+        filter.To ??= DateTime.Today;
+
+        var fromUtc = filter.From?.Date;
+        var toUtc = filter.To?.Date.AddDays(1).AddTicks(-1);
+        if (fromUtc.HasValue && toUtc.HasValue)
+        {
+            await _alertRuleService.EnsureAlertHistoryBackfillAsync(fromUtc.Value, toUtc.Value.AddTicks(1), cancellationToken);
+        }
+
+        var alerts = await ReadAllPagesAsync(
+            (page, pageSize, token) => _alertHistoryService.GetPagedAsync(new AlertHistoryQuery
+            {
+                SearchTerm = filter.SearchTerm,
+                PartnerId = filter.PartnerId,
+                Action = filter.Action,
+                Status = filter.Status,
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Page = page,
+                PageSize = pageSize
+            }, token),
+            cancellationToken);
+
+        var rows = alerts.Select(alert => (IReadOnlyList<string?>)
+        [
+            alert.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            alert.AlertDateUtc.ToString("yyyy-MM-dd"),
+            alert.PartnerName,
+            alert.DisplayActorIdentifier,
+            alert.UserName,
+            alert.Action,
+            alert.DailyLimit.ToString(),
+            alert.CurrentCount.ToString(),
+            alert.Message
+        ]).ToList();
+
+        return BuildCsvFile(
+            "alert-history",
+            ["OccurredAtUtc", "AlertDateUtc", "PartnerName", "ActorIdentifier", "UserName", "Action", "DailyLimit", "CurrentCount", "Message"],
+            rows);
+    }
 }
