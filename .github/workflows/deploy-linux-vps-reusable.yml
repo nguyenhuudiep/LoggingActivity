@@ -31,6 +31,8 @@ on:
         required: false
       APP_ASPNETCORE_URLS:
         required: false
+      APP_ENABLE_HTTPS_REDIRECTION:
+        required: false
       APP_MONGODB_CONNECTION_STRING:
         required: false
       APP_MONGODB_DATABASE_NAME:
@@ -161,6 +163,7 @@ jobs:
             HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}"
             APP_ASPNETCORE_ENVIRONMENT="${{ secrets.APP_ASPNETCORE_ENVIRONMENT || 'Production' }}"
             APP_ASPNETCORE_URLS="${{ secrets.APP_ASPNETCORE_URLS || 'http://0.0.0.0:5005' }}"
+            APP_ENABLE_HTTPS_REDIRECTION="${{ secrets.APP_ENABLE_HTTPS_REDIRECTION || 'false' }}"
             APP_MONGODB_CONNECTION_STRING="${{ secrets.APP_MONGODB_CONNECTION_STRING }}"
             APP_MONGODB_DATABASE_NAME="${{ secrets.APP_MONGODB_DATABASE_NAME }}"
             APP_SEEDADMIN_USERNAME="${{ secrets.APP_SEEDADMIN_USERNAME }}"
@@ -195,6 +198,7 @@ jobs:
             printf '%s\n' \
               "ASPNETCORE_ENVIRONMENT=${APP_ASPNETCORE_ENVIRONMENT}" \
               "ASPNETCORE_URLS=${APP_ASPNETCORE_URLS}" \
+              "APP_ENABLE_HTTPS_REDIRECTION=${APP_ENABLE_HTTPS_REDIRECTION}" \
               "MongoDb__ConnectionString=${APP_MONGODB_CONNECTION_STRING}" \
               "MongoDb__DatabaseName=${APP_MONGODB_DATABASE_NAME}" \
               "SeedAdmin__UserName=${APP_SEEDADMIN_USERNAME}" \
@@ -223,6 +227,7 @@ jobs:
               # Prefer runtime values from secrets; optional fallback file may override.
               export ASPNETCORE_ENVIRONMENT="$APP_ASPNETCORE_ENVIRONMENT"
               export ASPNETCORE_URLS="$APP_ASPNETCORE_URLS"
+              export APP_ENABLE_HTTPS_REDIRECTION="$APP_ENABLE_HTTPS_REDIRECTION"
               export MongoDb__ConnectionString="$APP_MONGODB_CONNECTION_STRING"
               export MongoDb__DatabaseName="$APP_MONGODB_DATABASE_NAME"
               export SeedAdmin__UserName="$APP_SEEDADMIN_USERNAME"

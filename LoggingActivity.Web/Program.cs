@@ -8,6 +8,11 @@ using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var enableHttpsRedirection = !string.Equals(
+    builder.Configuration["APP_ENABLE_HTTPS_REDIRECTION"],
+    "false",
+    StringComparison.OrdinalIgnoreCase);
+
 builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
@@ -117,7 +122,10 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
-    app.UseHttpsRedirection();
+    if (enableHttpsRedirection)
+    {
+        app.UseHttpsRedirection();
+    }
 }
 app.UseStaticFiles();
 

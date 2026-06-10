@@ -98,6 +98,7 @@ Thiết lập trong GitHub repo:
 	- `PROD_VPS_HEALTHCHECK_URL` (tuỳ chọn)
 	- `PROD_APP_ASPNETCORE_ENVIRONMENT` (tuỳ chọn, mặc định `Production`)
 	- `PROD_APP_ASPNETCORE_URLS` (tuỳ chọn, mặc định `http://0.0.0.0:5005`)
+	- `PROD_APP_ENABLE_HTTPS_REDIRECTION` (tuỳ chọn, mặc định `false`; đặt `true` khi đã cấu hình SSL đầy đủ)
 	- `PROD_APP_MONGODB_CONNECTION_STRING` (bắt buộc)
 	- `PROD_APP_MONGODB_DATABASE_NAME` (tuỳ chọn)
 	- `PROD_APP_SEEDADMIN_USERNAME` (tuỳ chọn)
