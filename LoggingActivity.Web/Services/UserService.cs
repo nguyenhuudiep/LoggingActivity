@@ -136,6 +136,12 @@ public sealed class UserService
             return Task.FromResult(false);
         }
 
+        if (string.Equals(user.PasswordHash, password, StringComparison.Ordinal))
+        {
+            // Backward compatibility for legacy accounts that still store plaintext passwords.
+            return Task.FromResult(true);
+        }
+
         try
         {
             var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
