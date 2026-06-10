@@ -8,6 +8,14 @@ using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var deployedBaseDirectory = AppContext.BaseDirectory;
+var deployedWebRoot = Path.Combine(deployedBaseDirectory, "wwwroot");
+if (!builder.Environment.IsDevelopment() && Directory.Exists(deployedWebRoot))
+{
+    builder.WebHost.UseContentRoot(deployedBaseDirectory);
+    builder.WebHost.UseWebRoot(deployedWebRoot);
+}
+
 var enableHttpsRedirection = !string.Equals(
     builder.Configuration["APP_ENABLE_HTTPS_REDIRECTION"],
     "false",
