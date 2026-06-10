@@ -229,9 +229,6 @@ jobs:
               fi
 
               [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
-              [ -n "${SeedAdmin__UserName:-}" ] || (echo "Missing runtime value: SeedAdmin__UserName" && exit 1)
-              [ -n "${SeedAdmin__Email:-}" ] || (echo "Missing runtime value: SeedAdmin__Email" && exit 1)
-              [ -n "${SeedAdmin__Password:-}" ] || (echo "Missing runtime value: SeedAdmin__Password" && exit 1)
 
               pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
 
