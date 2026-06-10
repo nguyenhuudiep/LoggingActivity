@@ -185,8 +185,7 @@ jobs:
             restart_by_process() {
               ENV_FILE="$APP_ROOT/shared/app.env"
               mkdir -p "$APP_ROOT/shared/logs"
-              pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
-
+              # Prefer runtime values from secrets; optional fallback file may override.
               export ASPNETCORE_ENVIRONMENT="$APP_ASPNETCORE_ENVIRONMENT"
               export ASPNETCORE_URLS="$APP_ASPNETCORE_URLS"
               export MongoDb__ConnectionString="$APP_MONGODB_CONNECTION_STRING"
@@ -195,7 +194,6 @@ jobs:
               export SeedAdmin__Email="$APP_SEEDADMIN_EMAIL"
               export SeedAdmin__Password="$APP_SEEDADMIN_PASSWORD"
 
-              # Optional fallback file for local overrides, if present.
               if [ -f "$ENV_FILE" ]; then
                 set -a
                 # shellcheck disable=SC1090
@@ -203,15 +201,21 @@ jobs:
                 set +a
               fi
 
-              [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
-              [ -n "${SeedAdmin__UserName:-}" ] || (echo "Missing runtime value: SeedAdmin__UserName" && exit 1)
-              [ -n "${SeedAdmin__Email:-}" ] || (echo "Missing runtime value: SeedAdmin__Email" && exit 1)
-              [ -n "${SeedAdmin__Password:-}" ] || (echo "Missing runtime value: SeedAdmin__Password" && exit 1)
+              if [ -z "${MongoDb__ConnectionString:-}" ] || [ -z "${SeedAdmin__UserName:-}" ] || [ -z "${SeedAdmin__Email:-}" ] || [ -z "${SeedAdmin__Password:-}" ]; then
+                echo "Skipping process restart: runtime env is incomplete."
+                echo "Deployment files are uploaded and current release pointer is updated."
+                echo "To auto-run app, provide VPS_SERVICE_NAME or runtime env via secrets/file."
+                return 2
+              fi
+
+              pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
 
               nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
               sleep 2
               pgrep -f 'dotnet .*LoggingActivity.Web.dll' > /dev/null
             }
+
+            RESTARTED=0
 
             if [ -n "$SERVICE_NAME" ]; then
               sudo systemctl daemon-reload
@@ -224,12 +228,17 @@ jobs:
               fi
               sudo systemctl restart "$SERVICE_UNIT"
               sudo systemctl is-active --quiet "$SERVICE_UNIT"
+              RESTARTED=1
             else
-              restart_by_process
+              if restart_by_process; then
+                RESTARTED=1
+              else
+                RESTARTED=0
+              fi
             fi
 
             HEALTH_OK=1
-            if [ -n "$HEALTHCHECK_URL" ]; then
+            if [ "$RESTARTED" -eq 1 ] && [ -n "$HEALTHCHECK_URL" ]; then
               HEALTH_OK=0
               for _ in $(seq 1 20); do
                 if curl -fsS --max-time 5 "$HEALTHCHECK_URL" >/dev/null; then
@@ -248,7 +257,7 @@ jobs:
                   sudo systemctl restart "$SERVICE_UNIT"
                   sudo systemctl is-active --quiet "$SERVICE_UNIT"
                 else
-                  restart_by_process
+                  restart_by_process || true
                 fi
               fi
 

@@ -88,6 +88,7 @@ Thiết lập trong GitHub repo:
 2. Nếu bạn lưu secret theo Environment thì tạo đúng trong environment tương ứng (`production` hoặc `staging`), không đặt nhầm môi trường.
 3. Nếu bạn lưu secret ở repository-level thì áp dụng cho tất cả môi trường.
 4. Tạo secrets cho production:
+	- Tối thiểu để deploy: `PROD_VPS_HOST`, `PROD_VPS_USER`, `PROD_VPS_SSH_KEY`
 	- `PROD_VPS_HOST`
 	- `PROD_VPS_USER`
 	- `PROD_VPS_SSH_KEY`
@@ -122,6 +123,7 @@ Lưu ý server:
 - Production deploy cố định tại thư mục `/var/www/logging`.
 - Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
 - Process mode ưu tiên đọc biến runtime từ GitHub Secrets `PROD_APP_*`, không cần cấu hình thêm file trên server.
+- Nếu chỉ cung cấp 3 secret tối thiểu (host/user/private key) và không có runtime config, workflow vẫn deploy file + đổi release pointer thành công, nhưng sẽ bỏ qua bước restart app.
 - Nếu dùng systemd, `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
 
