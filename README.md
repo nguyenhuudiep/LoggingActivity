@@ -85,7 +85,9 @@ Workflow có thêm các thiết lập an toàn:
 Thiết lập trong GitHub repo:
 
 1. Vào `Settings -> Secrets and variables -> Actions`.
-2. Tạo secrets cho production:
+2. Nếu bạn lưu secret theo Environment thì tạo đúng trong environment tương ứng (`production` hoặc `staging`), không đặt nhầm môi trường.
+3. Nếu bạn lưu secret ở repository-level thì áp dụng cho tất cả môi trường.
+4. Tạo secrets cho production:
 	- `PROD_VPS_HOST`
 	- `PROD_VPS_PORT`
 	- `PROD_VPS_USER`
@@ -93,7 +95,7 @@ Thiết lập trong GitHub repo:
 	- `PROD_VPS_SSH_PASSPHRASE` (nếu key không có passphrase thì để trống)
 	- `PROD_VPS_SERVICE_NAME` (ví dụ `logging-activity`)
 	- `PROD_VPS_HEALTHCHECK_URL` (ví dụ `https://your-domain.com/`)
-3. Tạo secrets cho staging nếu cần deploy staging:
+5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
 	- `STAGING_VPS_PORT`
 	- `STAGING_VPS_USER`
@@ -114,6 +116,12 @@ Lưu ý server:
 - Service systemd nên chạy từ symlink `current` để tận dụng zero-downtime release switching.
 - `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
+
+Lỗi thường gặp `ssh: unable to authenticate, attempted methods [none]`:
+
+- Secret SSH key rỗng/sai tên hoặc đặt sai scope (repo vs environment).
+- `PROD_VPS_USER` không đúng user đã được thêm public key trong `~/.ssh/authorized_keys`.
+- Private key không khớp public key trên server.
 
 ## Ghi chú
 

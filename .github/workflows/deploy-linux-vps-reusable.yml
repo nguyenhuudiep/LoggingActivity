@@ -87,13 +87,23 @@ jobs:
           name: loggingactivity-publish-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.environment_name }}
           path: ./publish
 
+      - name: Validate required deploy secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${{ secrets.VPS_HOST }}" ] || (echo "Missing secret: VPS_HOST" && exit 1)
+          [ -n "${{ secrets.VPS_PORT }}" ] || (echo "Missing secret: VPS_PORT" && exit 1)
+          [ -n "${{ secrets.VPS_USER }}" ] || (echo "Missing secret: VPS_USER" && exit 1)
+          [ -n "${{ secrets.VPS_SSH_KEY }}" ] || (echo "Missing secret: VPS_SSH_KEY" && exit 1)
+          [ -n "${{ secrets.VPS_SERVICE_NAME }}" ] || (echo "Missing secret: VPS_SERVICE_NAME" && exit 1)
+          [ -n "${{ secrets.VPS_HEALTHCHECK_URL }}" ] || (echo "Missing secret: VPS_HEALTHCHECK_URL" && exit 1)
+
       - name: Upload release package to incoming folder
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           port: ${{ secrets.VPS_PORT }}
           source: publish/*
           target: ${{ secrets.VPS_APP_ROOT }}/incoming/${{ github.run_id }}-${{ github.run_attempt }}
@@ -105,7 +115,6 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -euo pipefail
