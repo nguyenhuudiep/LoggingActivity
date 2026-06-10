@@ -35,15 +35,29 @@ builder.Services
 builder.Services
     .AddOptions<SeedAdminOptions>()
     .Bind(builder.Configuration.GetSection(SeedAdminOptions.SectionName))
-    .Validate(settings => !string.IsNullOrWhiteSpace(settings.UserName)
-        && !settings.UserName.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
-        "SeedAdmin:UserName must be configured via user-secrets or environment variables.")
-    .Validate(settings => !string.IsNullOrWhiteSpace(settings.Email)
-        && !settings.Email.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
-        "SeedAdmin:Email must be configured via user-secrets or environment variables.")
-    .Validate(settings => !string.IsNullOrWhiteSpace(settings.Password)
-        && !settings.Password.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase),
-        "SeedAdmin:Password must be configured via user-secrets or environment variables.")
+    .PostConfigure(settings =>
+    {
+        settings.UserName = ResolveSetting(settings.UserName);
+        settings.Email = ResolveSetting(settings.Email);
+        settings.Password = ResolveSetting(settings.Password);
+
+        if (!settings.Enabled)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.UserName)
+            || string.IsNullOrWhiteSpace(settings.Email)
+            || string.IsNullOrWhiteSpace(settings.Password))
+        {
+            settings.Enabled = false;
+        }
+    })
+    .Validate(settings => !settings.Enabled
+        || (!string.IsNullOrWhiteSpace(settings.UserName)
+            && !string.IsNullOrWhiteSpace(settings.Email)
+            && !string.IsNullOrWhiteSpace(settings.Password)),
+        "SeedAdmin requires UserName, Email, and Password when enabled.")
     .ValidateOnStart();
 
 builder.Services.AddSingleton<MongoDbContext>();

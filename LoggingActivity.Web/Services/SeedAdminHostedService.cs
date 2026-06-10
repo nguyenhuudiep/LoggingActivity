@@ -8,15 +8,26 @@ public sealed class SeedAdminHostedService : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly SeedAdminOptions _options;
+    private readonly ILogger<SeedAdminHostedService> _logger;
 
-    public SeedAdminHostedService(IServiceProvider serviceProvider, IOptions<SeedAdminOptions> options)
+    public SeedAdminHostedService(
+        IServiceProvider serviceProvider,
+        IOptions<SeedAdminOptions> options,
+        ILogger<SeedAdminHostedService> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!_options.Enabled)
+        {
+            _logger.LogInformation("Seed admin is disabled; skipping admin bootstrap.");
+            return;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var userService = scope.ServiceProvider.GetRequiredService<UserService>();
 

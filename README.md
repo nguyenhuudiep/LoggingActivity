@@ -100,9 +100,9 @@ Thiết lập trong GitHub repo:
 	- `PROD_APP_ASPNETCORE_URLS` (tuỳ chọn, mặc định `http://127.0.0.1:5005`)
 	- `PROD_APP_MONGODB_CONNECTION_STRING` (bắt buộc)
 	- `PROD_APP_MONGODB_DATABASE_NAME` (tuỳ chọn)
-	- `PROD_APP_SEEDADMIN_USERNAME` (bắt buộc)
-	- `PROD_APP_SEEDADMIN_EMAIL` (bắt buộc)
-	- `PROD_APP_SEEDADMIN_PASSWORD` (bắt buộc)
+	- `PROD_APP_SEEDADMIN_USERNAME` (tuỳ chọn)
+	- `PROD_APP_SEEDADMIN_EMAIL` (tuỳ chọn)
+	- `PROD_APP_SEEDADMIN_PASSWORD` (tuỳ chọn)
 5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
 	- `STAGING_VPS_PORT`
@@ -123,7 +123,8 @@ Lưu ý server:
 - Production deploy cố định tại thư mục `/var/www/logging`.
 - Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
 - Process mode ưu tiên đọc biến runtime từ GitHub Secrets `PROD_APP_*`, không cần cấu hình thêm file trên server.
-- Workflow sẽ fail sớm với thông báo rõ ràng nếu thiếu 4 biến runtime bắt buộc: Mongo connection string + 3 biến SeedAdmin.
+- Workflow sẽ fail sớm nếu thiếu `PROD_APP_MONGODB_CONNECTION_STRING`.
+- SeedAdmin sẽ tự động tắt khi thiếu `PROD_APP_SEEDADMIN_*`, app vẫn khởi động bình thường.
 - Nếu có `PROD_VPS_SERVICE_NAME` mà unit chưa tồn tại, workflow sẽ tự tạo systemd unit chuẩn và enable service.
 - Nếu dùng systemd, `ExecStart` sẽ chạy wrapper script `shared/run-current.sh` để nạp env và chạy `current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.

@@ -4,6 +4,8 @@ public sealed class SeedAdminOptions
 {
     public const string SectionName = "SeedAdmin";
 
+    public bool Enabled { get; set; } = true;
+
     public string UserName { get; set; } = "<set-via-user-secrets-or-env>";
 
     public string DisplayName { get; set; } = "System Administrator";
