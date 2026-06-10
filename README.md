@@ -150,6 +150,11 @@ curl -I http://127.0.0.1:5005
 curl -I http://your-domain.com
 ```
 
+Ghi chú tự động hóa:
+
+- Mỗi lần deploy thành công, workflow sẽ tự copy `tools/nginx.logging.conf` vào `/etc/nginx/sites-available/logging`, chạy `nginx -t`, rồi `systemctl reload nginx`.
+- Server cần quyền `sudo` cho user deploy để thực thi các lệnh Nginx ở trên.
+
 Sau mỗi deploy workflow sẽ in 80 dòng cuối của log app (`/var/www/logging/shared/logs/app.log`) để kiểm tra nhanh tình trạng runtime.
 
 Tuỳ chọn: vẫn có thể override bằng file `/var/www/logging/shared/app.env`:
