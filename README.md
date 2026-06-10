@@ -135,12 +135,13 @@ Thiết lập Nginx reverse proxy:
 1. Copy file mẫu [tools/nginx.logging.conf](tools/nginx.logging.conf) lên server:
 	- `/etc/nginx/sites-available/logging`
 2. Đổi `server_name` trong file theo domain thật.
-3. Đảm bảo đã có SSL certificate cho domain (file hiện dùng đường dẫn Let's Encrypt):
+3. Mẫu hiện tại chạy HTTP-only để deploy luôn hoạt động ngay cả khi chưa có SSL certificate.
+4. Nếu muốn bật HTTPS sau khi site đã chạy ổn, cấp cert trước:
 
 ```bash
 sudo certbot --nginx -d logging.tima.vn -d www.logging.tima.vn
 ```
-4. Bật site và tắt site mặc định:
+5. Bật site và tắt site mặc định:
 
 ```bash
 sudo ln -sf /etc/nginx/sites-available/logging /etc/nginx/sites-enabled/logging
