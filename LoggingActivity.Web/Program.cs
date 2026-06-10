@@ -2,6 +2,7 @@ using LoggingActivity.Web.Data;
 using LoggingActivity.Web.Options;
 using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Globalization;
 
@@ -93,8 +94,16 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 var supportedCulture = new CultureInfo("vi-VN");
 app.UseRequestLocalization(new RequestLocalizationOptions
