@@ -26,9 +26,28 @@ public sealed class UserRepository : IUserRepository
             ? string.Empty
             : userName.Trim();
         var exactRegex = new BsonRegularExpression($"^{Regex.Escape(normalizedUserName)}$", "i");
-        return _context.Users
-            .Find(Builders<AppUser>.Filter.Regex(user => user.UserName, exactRegex))
-            .FirstOrDefaultAsync(cancellationToken)!;
+
+        return GetByUserNameCoreAsync(exactRegex, cancellationToken);
+    }
+
+    private async Task<AppUser?> GetByUserNameCoreAsync(BsonRegularExpression exactRegex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _context.Users
+                .Find(Builders<AppUser>.Filter.Regex(user => user.UserName, exactRegex))
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        catch
+        {
+            // Fallback for legacy documents that cannot be deserialized into AppUser.
+            var rawUsers = _context.Users.Database.GetCollection<BsonDocument>(_context.Users.CollectionNamespace.CollectionName);
+            var rawUser = await rawUsers
+                .Find(Builders<BsonDocument>.Filter.Regex("UserName", exactRegex))
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return rawUser is null ? null : MapAppUser(rawUser);
+        }
     }
 
     public async Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -141,5 +160,127 @@ public sealed class UserRepository : IUserRepository
         }
 
         return filters.Count == 0 ? builder.Empty : builder.And(filters);
+    }
+
+    private static AppUser MapAppUser(BsonDocument document)
+    {
+        return new AppUser
+        {
+            Id = ReadId(document),
+            UserName = ReadString(document, "UserName"),
+            DisplayName = ReadString(document, "DisplayName"),
+            Email = ReadString(document, "Email"),
+            PasswordHash = ReadString(document, "PasswordHash"),
+            Role = ReadString(document, "Role", SystemRoles.Auditor),
+            PermissionGroupIds = ReadStringList(document, "PermissionGroupIds"),
+            FunctionPermissions = ReadStringList(document, "FunctionPermissions"),
+            CustomFunctionPermissions = ReadStringList(document, "CustomFunctionPermissions"),
+            IsActive = ReadBool(document, "IsActive", true),
+            CreatedAtUtc = ReadDateTime(document, "CreatedAtUtc"),
+            UpdatedAtUtc = ReadDateTime(document, "UpdatedAtUtc")
+        };
+    }
+
+    private static string? ReadId(BsonDocument document)
+    {
+        if (!document.TryGetValue("_id", out var value) || value.IsBsonNull)
+        {
+            return null;
+        }
+
+        if (value.BsonType == BsonType.ObjectId)
+        {
+            return value.AsObjectId.ToString();
+        }
+
+        return value.ToString();
+    }
+
+    private static string ReadString(BsonDocument document, string name, string defaultValue = "")
+    {
+        if (!document.TryGetValue(name, out var value) || value.IsBsonNull)
+        {
+            return defaultValue;
+        }
+
+        if (value.BsonType == BsonType.String)
+        {
+            var raw = value.AsString;
+            return string.IsNullOrWhiteSpace(raw) ? defaultValue : raw.Trim();
+        }
+
+        var text = value.ToString();
+        return string.IsNullOrWhiteSpace(text) ? defaultValue : text.Trim();
+    }
+
+    private static List<string> ReadStringList(BsonDocument document, string name)
+    {
+        if (!document.TryGetValue(name, out var value) || value.IsBsonNull)
+        {
+            return new List<string>();
+        }
+
+        if (value.BsonType == BsonType.Array)
+        {
+            return value.AsBsonArray
+                .Select(item => item?.ToString())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .Select(item => item!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        var singleValue = value.ToString();
+        if (string.IsNullOrWhiteSpace(singleValue))
+        {
+            return new List<string>();
+        }
+
+        return new List<string> { singleValue.Trim() };
+    }
+
+    private static bool ReadBool(BsonDocument document, string name, bool defaultValue)
+    {
+        if (!document.TryGetValue(name, out var value) || value.IsBsonNull)
+        {
+            return defaultValue;
+        }
+
+        if (value.BsonType == BsonType.Boolean)
+        {
+            return value.AsBoolean;
+        }
+
+        if (value.BsonType is BsonType.Int32 or BsonType.Int64)
+        {
+            return value.ToInt64() != 0;
+        }
+
+        if (bool.TryParse(value.ToString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return defaultValue;
+    }
+
+    private static DateTime ReadDateTime(BsonDocument document, string name)
+    {
+        if (!document.TryGetValue(name, out var value) || value.IsBsonNull)
+        {
+            return DateTime.UtcNow;
+        }
+
+        if (value.BsonType == BsonType.DateTime)
+        {
+            return value.ToUniversalTime();
+        }
+
+        if (DateTime.TryParse(value.ToString(), out var parsed))
+        {
+            return parsed.Kind == DateTimeKind.Utc ? parsed : parsed.ToUniversalTime();
+        }
+
+        return DateTime.UtcNow;
     }
 }
