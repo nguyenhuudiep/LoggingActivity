@@ -1,6 +1,7 @@
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Repositories;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace LoggingActivity.Web.Services;
 
@@ -8,12 +9,17 @@ public sealed class UserService
 {
     private readonly IUserRepository _userRepository;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly ILogger<UserService> _logger;
     private readonly PasswordHasher<AppUser> _passwordHasher = new();
 
-    public UserService(IUserRepository userRepository, PermissionGroupService permissionGroupService)
+    public UserService(
+        IUserRepository userRepository,
+        PermissionGroupService permissionGroupService,
+        ILogger<UserService> logger)
     {
         _userRepository = userRepository;
         _permissionGroupService = permissionGroupService;
+        _logger = logger;
     }
 
     public Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -124,8 +130,22 @@ public sealed class UserService
 
     public Task<bool> VerifyPasswordAsync(AppUser user, string password)
     {
-        var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
-        return Task.FromResult(result != PasswordVerificationResult.Failed);
+        if (string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            _logger.LogWarning("User {UserName} has empty password hash.", user.UserName);
+            return Task.FromResult(false);
+        }
+
+        try
+        {
+            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+            return Task.FromResult(result != PasswordVerificationResult.Failed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to verify password hash for user {UserName}", user.UserName);
+            return Task.FromResult(false);
+        }
     }
 
     private static List<string> NormalizeFunctionPermissions(string role, IEnumerable<string>? permissions)

@@ -2,6 +2,7 @@ using LoggingActivity.Web.Data;
 using LoggingActivity.Web.Models;
 using MongoDB.Driver;
 using MongoDB.Bson;
+using System.Text.RegularExpressions;
 
 namespace LoggingActivity.Web.Repositories;
 
@@ -21,7 +22,13 @@ public sealed class UserRepository : IUserRepository
 
     public Task<AppUser?> GetByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
-        return _context.Users.Find(user => user.UserName == userName).FirstOrDefaultAsync(cancellationToken)!;
+        var normalizedUserName = string.IsNullOrWhiteSpace(userName)
+            ? string.Empty
+            : userName.Trim();
+        var exactRegex = new BsonRegularExpression($"^{Regex.Escape(normalizedUserName)}$", "i");
+        return _context.Users
+            .Find(Builders<AppUser>.Filter.Regex(user => user.UserName, exactRegex))
+            .FirstOrDefaultAsync(cancellationToken)!;
     }
 
     public async Task<IReadOnlyList<AppUser>> GetAllAsync(CancellationToken cancellationToken = default)
