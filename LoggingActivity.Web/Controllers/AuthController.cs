@@ -9,10 +9,12 @@ namespace LoggingActivity.Web.Controllers;
 public sealed class AuthController : Controller
 {
     private readonly AuthService _authService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AuthService authService)
+    public AuthController(AuthService authService, ILogger<AuthController> logger)
     {
         _authService = authService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -35,14 +37,23 @@ public sealed class AuthController : Controller
             return View(model);
         }
 
-        var user = await _authService.ValidateCredentialsAsync(model.UserName, model.Password, cancellationToken);
-        if (user is null)
+        try
         {
-            ModelState.AddModelError(string.Empty, "Tên đăng nhập hoặc mật khẩu không đúng.");
+            var user = await _authService.ValidateCredentialsAsync(model.UserName, model.Password, cancellationToken);
+            if (user is null)
+            {
+                ModelState.AddModelError(string.Empty, "Tên đăng nhập hoặc mật khẩu không đúng.");
+                return View(model);
+            }
+
+            await _authService.SignInAsync(HttpContext, user, model.RememberMe);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Login failed for user {UserName}", model.UserName);
+            ModelState.AddModelError(string.Empty, "Hệ thống đang bận, vui lòng thử lại sau.");
             return View(model);
         }
-
-        await _authService.SignInAsync(HttpContext, user, model.RememberMe);
 
         if (!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
         {

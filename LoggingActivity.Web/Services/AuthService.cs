@@ -29,20 +29,27 @@ public sealed class AuthService
 
     public async Task SignInAsync(HttpContext httpContext, AppUser user, bool isPersistent)
     {
+        var safeUserName = string.IsNullOrWhiteSpace(user.UserName) ? "unknown-user" : user.UserName.Trim();
+        var safeDisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? safeUserName : user.DisplayName.Trim();
+        var safeRole = string.IsNullOrWhiteSpace(user.Role) ? SystemRoles.Auditor : user.Role.Trim();
+        var safePermissionGroupIds = user.PermissionGroupIds ?? new List<string>();
+        var safeCustomPermissions = user.CustomFunctionPermissions ?? new List<string>();
+        var safeFunctionPermissions = user.FunctionPermissions ?? new List<string>();
+
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
-            new(ClaimTypes.Name, user.UserName),
-            new(ClaimTypes.GivenName, user.DisplayName),
-            new(ClaimTypes.Role, user.Role)
+            new(ClaimTypes.NameIdentifier, string.IsNullOrWhiteSpace(user.Id) ? safeUserName : user.Id),
+            new(ClaimTypes.Name, safeUserName),
+            new(ClaimTypes.GivenName, safeDisplayName),
+            new(ClaimTypes.Role, safeRole)
         };
 
-        if (string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(safeRole, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
         {
-            var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds);
-            var customPermissions = user.CustomFunctionPermissions.Count > 0
-                ? user.CustomFunctionPermissions
-                : user.FunctionPermissions;
+            var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(safePermissionGroupIds);
+            var customPermissions = safeCustomPermissions.Count > 0
+                ? safeCustomPermissions
+                : safeFunctionPermissions;
             var effectivePermissions = customPermissions.Concat(groupPermissions);
 
             claims.AddRange(effectivePermissions
