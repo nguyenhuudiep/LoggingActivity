@@ -185,27 +185,27 @@ jobs:
 
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-            cat > "$APP_ROOT/shared/runtime.env" <<EOF
-ASPNETCORE_ENVIRONMENT=${APP_ASPNETCORE_ENVIRONMENT}
-ASPNETCORE_URLS=${APP_ASPNETCORE_URLS}
-MongoDb__ConnectionString=${APP_MONGODB_CONNECTION_STRING}
-MongoDb__DatabaseName=${APP_MONGODB_DATABASE_NAME}
-SeedAdmin__UserName=${APP_SEEDADMIN_USERNAME}
-SeedAdmin__Email=${APP_SEEDADMIN_EMAIL}
-SeedAdmin__Password=${APP_SEEDADMIN_PASSWORD}
-EOF
+            printf '%s\n' \
+              "ASPNETCORE_ENVIRONMENT=${APP_ASPNETCORE_ENVIRONMENT}" \
+              "ASPNETCORE_URLS=${APP_ASPNETCORE_URLS}" \
+              "MongoDb__ConnectionString=${APP_MONGODB_CONNECTION_STRING}" \
+              "MongoDb__DatabaseName=${APP_MONGODB_DATABASE_NAME}" \
+              "SeedAdmin__UserName=${APP_SEEDADMIN_USERNAME}" \
+              "SeedAdmin__Email=${APP_SEEDADMIN_EMAIL}" \
+              "SeedAdmin__Password=${APP_SEEDADMIN_PASSWORD}" \
+              > "$APP_ROOT/shared/runtime.env"
             chmod 600 "$APP_ROOT/shared/runtime.env"
 
-            cat > "$APP_ROOT/shared/run-current.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-APP_ROOT="__APP_ROOT__"
-set -a
-[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"
-[ -f "$APP_ROOT/shared/app.env" ] && . "$APP_ROOT/shared/app.env"
-set +a
-exec dotnet "$APP_ROOT/current/LoggingActivity.Web.dll"
-EOF
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'set -euo pipefail' \
+              'APP_ROOT="__APP_ROOT__"' \
+              'set -a' \
+              '[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"' \
+              '[ -f "$APP_ROOT/shared/app.env" ] && . "$APP_ROOT/shared/app.env"' \
+              'set +a' \
+              'exec dotnet "$APP_ROOT/current/LoggingActivity.Web.dll"' \
+              > "$APP_ROOT/shared/run-current.sh"
             sed -i "s|__APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/shared/run-current.sh"
             chmod +x "$APP_ROOT/shared/run-current.sh"
 
@@ -250,22 +250,22 @@ EOF
                 echo "Available service names containing 'logging' or 'activity':"
                 sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
 
-                sudo tee "/etc/systemd/system/$SERVICE_UNIT" > /dev/null <<EOF
-[Unit]
-Description=LoggingActivity (managed by CI)
-After=network.target
-
-[Service]
-Type=simple
-User=$SERVICE_USER
-WorkingDirectory=$APP_ROOT/current
-ExecStart=$APP_ROOT/shared/run-current.sh
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
+                printf '%s\n' \
+                  '[Unit]' \
+                  'Description=LoggingActivity (managed by CI)' \
+                  'After=network.target' \
+                  '' \
+                  '[Service]' \
+                  'Type=simple' \
+                  "User=$SERVICE_USER" \
+                  "WorkingDirectory=$APP_ROOT/current" \
+                  "ExecStart=$APP_ROOT/shared/run-current.sh" \
+                  'Restart=always' \
+                  'RestartSec=5' \
+                  '' \
+                  '[Install]' \
+                  'WantedBy=multi-user.target' \
+                  | sudo tee "/etc/systemd/system/$SERVICE_UNIT" > /dev/null
 
                 sudo systemctl daemon-reload
                 sudo systemctl enable "$SERVICE_UNIT"
