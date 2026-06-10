@@ -211,6 +211,7 @@ jobs:
 
             restart_by_process() {
               ENV_FILE="$APP_ROOT/shared/app.env"
+              PID_FILE="$APP_ROOT/shared/loggingactivity.pid"
               mkdir -p "$APP_ROOT/shared/logs"
               # Prefer runtime values from secrets; optional fallback file may override.
               export ASPNETCORE_ENVIRONMENT="$APP_ASPNETCORE_ENVIRONMENT"
@@ -230,11 +231,19 @@ jobs:
 
               [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
 
-              pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
+              if [ -f "$PID_FILE" ]; then
+                OLD_PID="$(cat "$PID_FILE" || true)"
+                if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+                  kill "$OLD_PID" || true
+                  sleep 2
+                fi
+              fi
 
               nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
+              NEW_PID=$!
+              echo "$NEW_PID" > "$PID_FILE"
               sleep 2
-              pgrep -f 'dotnet .*LoggingActivity.Web.dll' > /dev/null
+              kill -0 "$NEW_PID" 2>/dev/null
             }
 
             RESTARTED=0
