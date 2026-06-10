@@ -97,7 +97,7 @@ Thiết lập trong GitHub repo:
 	- `PROD_VPS_SERVICE_NAME` (tuỳ chọn, nếu bỏ trống workflow sẽ restart app bằng process, không dùng systemd)
 	- `PROD_VPS_HEALTHCHECK_URL` (tuỳ chọn)
 	- `PROD_APP_ASPNETCORE_ENVIRONMENT` (tuỳ chọn, mặc định `Production`)
-	- `PROD_APP_ASPNETCORE_URLS` (tuỳ chọn, mặc định `http://127.0.0.1:5005`)
+	- `PROD_APP_ASPNETCORE_URLS` (tuỳ chọn, mặc định `http://0.0.0.0:5005`)
 	- `PROD_APP_MONGODB_CONNECTION_STRING` (bắt buộc)
 	- `PROD_APP_MONGODB_DATABASE_NAME` (tuỳ chọn)
 	- `PROD_APP_SEEDADMIN_USERNAME` (tuỳ chọn)
@@ -122,6 +122,7 @@ Lưu ý server:
 
 - Production deploy cố định tại thư mục `/var/www/logging`.
 - Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
+- Cổng `5005` chỉ cần app lắng nghe nội bộ để Nginx proxy (`127.0.0.1:5005`), không bắt buộc mở public internet.
 - Process mode ưu tiên đọc biến runtime từ GitHub Secrets `PROD_APP_*`, không cần cấu hình thêm file trên server.
 - Workflow sẽ fail sớm nếu thiếu `PROD_APP_MONGODB_CONNECTION_STRING`.
 - SeedAdmin sẽ tự động tắt khi thiếu `PROD_APP_SEEDADMIN_*`, app vẫn khởi động bình thường.
