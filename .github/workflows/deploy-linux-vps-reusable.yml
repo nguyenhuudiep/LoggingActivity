@@ -162,8 +162,18 @@ jobs:
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
             restart_by_process() {
+              ENV_FILE="$APP_ROOT/shared/app.env"
               mkdir -p "$APP_ROOT/shared/logs"
               pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
+
+              # Load runtime env vars from shared file in KEY=VALUE format.
+              set -a
+              if [ -f "$ENV_FILE" ]; then
+                # shellcheck disable=SC1090
+                . "$ENV_FILE"
+              fi
+              set +a
+
               nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
               sleep 2
               pgrep -f 'dotnet .*LoggingActivity.Web.dll' > /dev/null

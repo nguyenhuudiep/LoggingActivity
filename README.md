@@ -114,8 +114,29 @@ Lưu ý server:
 
 - Production deploy cố định tại thư mục `/var/www/logging`.
 - Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
+- Process mode sẽ tự nạp biến môi trường từ file `/var/www/logging/shared/app.env` (định dạng `KEY=VALUE`).
 - Nếu dùng systemd, `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
+
+Ví dụ file `/var/www/logging/shared/app.env`:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_URLS=http://127.0.0.1:5005
+MongoDb__ConnectionString=mongodb://<host>:27017/<db>
+MongoDb__DatabaseName=<db>
+SeedAdmin__UserName=admin
+SeedAdmin__Email=admin@example.com
+SeedAdmin__Password=<strong-password>
+```
+
+Tạo nhanh trên server:
+
+```bash
+mkdir -p /var/www/logging/shared
+nano /var/www/logging/shared/app.env
+chmod 600 /var/www/logging/shared/app.env
+```
 
 Lỗi thường gặp `ssh: unable to authenticate, attempted methods [none]`:
 
