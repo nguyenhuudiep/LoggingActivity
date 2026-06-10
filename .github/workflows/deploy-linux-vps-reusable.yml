@@ -80,6 +80,13 @@ jobs:
       - name: Publish application
         run: dotnet publish $PROJECT_PATH --configuration Release --no-build --output $PUBLISH_DIR
 
+      - name: Include nginx config in artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$PUBLISH_DIR/tools"
+          cp tools/nginx.logging.conf "$PUBLISH_DIR/tools/nginx.logging.conf"
+
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4
         with:
