@@ -9,11 +9,16 @@ public sealed class AuthService
 {
     private readonly UserService _userService;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(UserService userService, PermissionGroupService permissionGroupService)
+    public AuthService(
+        UserService userService,
+        PermissionGroupService permissionGroupService,
+        ILogger<AuthService> logger)
     {
         _userService = userService;
         _permissionGroupService = permissionGroupService;
+        _logger = logger;
     }
 
     public async Task<AppUser?> ValidateCredentialsAsync(string userName, string password, CancellationToken cancellationToken = default)
@@ -46,16 +51,29 @@ public sealed class AuthService
 
         if (string.Equals(safeRole, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
         {
-            var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(safePermissionGroupIds);
-            var customPermissions = safeCustomPermissions.Count > 0
-                ? safeCustomPermissions
-                : safeFunctionPermissions;
-            var effectivePermissions = customPermissions.Concat(groupPermissions);
+            try
+            {
+                var allowedPermissions = AdminFunctionPermissions.All
+                    .Select(permission => permission.Code)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            claims.AddRange(effectivePermissions
-                .Where(permission => !string.IsNullOrWhiteSpace(permission))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));
+                var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(safePermissionGroupIds);
+                var customPermissions = safeCustomPermissions.Count > 0
+                    ? safeCustomPermissions
+                    : safeFunctionPermissions;
+                var effectivePermissions = customPermissions.Concat(groupPermissions);
+
+                claims.AddRange(effectivePermissions
+                    .Where(permission => !string.IsNullOrWhiteSpace(permission))
+                    .Select(permission => permission.Trim())
+                    .Where(permission => allowedPermissions.Contains(permission))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to resolve function permissions for user {UserName}", safeUserName);
+            }
         }
 
         var principal = new ClaimsPrincipal(
