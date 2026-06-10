@@ -215,6 +215,7 @@ jobs:
               '[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"' \
               '[ -f "$APP_ROOT/shared/app.env" ] && . "$APP_ROOT/shared/app.env"' \
               'set +a' \
+              'cd "$APP_ROOT/current"' \
               'exec dotnet "$APP_ROOT/current/LoggingActivity.Web.dll"' \
               > "$APP_ROOT/shared/run-current.sh"
             sed -i "s|__APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/shared/run-current.sh"
@@ -251,7 +252,7 @@ jobs:
                 fi
               fi
 
-              nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
+              nohup "$APP_ROOT/shared/run-current.sh" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
               NEW_PID=$!
               echo "$NEW_PID" > "$PID_FILE"
               sleep 2
@@ -363,6 +364,7 @@ jobs:
             echo "HTTP checks for CSS via backend and nginx host routing:"
             curl -I --max-time 10 http://127.0.0.1:5005/css/site.css || true
             curl -I --max-time 10 -H "Host: logging.tima.vn" http://127.0.0.1/css/site.css || true
+            curl -I --max-time 10 -H "Host: logging.tima.vn" http://127.0.0.1/img/tima-logo.svg || true
 
             echo "Last 80 lines of app log:"
             tail -n 80 "$APP_ROOT/shared/logs/app.log" || true
