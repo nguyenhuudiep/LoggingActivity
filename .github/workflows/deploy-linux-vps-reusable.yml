@@ -98,6 +98,21 @@ jobs:
           [ -n "${{ secrets.VPS_SERVICE_NAME }}" ] || (echo "Missing secret: VPS_SERVICE_NAME" && exit 1)
           [ -n "${{ secrets.VPS_HEALTHCHECK_URL }}" ] || (echo "Missing secret: VPS_HEALTHCHECK_URL" && exit 1)
 
+      - name: Verify SSH authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -p "${{ secrets.VPS_PORT }}" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=no \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "echo SSH auth success"
+
       - name: Upload release package to incoming folder
         uses: appleboy/scp-action@v0.1.7
         with:
