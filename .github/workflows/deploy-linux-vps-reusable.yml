@@ -109,6 +109,10 @@ jobs:
           [ -n "${{ secrets.VPS_USER }}" ] || (echo "Missing secret: VPS_USER" && exit 1)
           [ -n "${{ secrets.VPS_SSH_KEY }}" ] || (echo "Missing secret: VPS_SSH_KEY" && exit 1)
           [ -n "${{ secrets.VPS_APP_ROOT }}" ] || (echo "Missing secret: VPS_APP_ROOT" && exit 1)
+          [ -n "${{ secrets.APP_MONGODB_CONNECTION_STRING }}" ] || (echo "Missing secret: APP_MONGODB_CONNECTION_STRING" && exit 1)
+          [ -n "${{ secrets.APP_SEEDADMIN_USERNAME }}" ] || (echo "Missing secret: APP_SEEDADMIN_USERNAME" && exit 1)
+          [ -n "${{ secrets.APP_SEEDADMIN_EMAIL }}" ] || (echo "Missing secret: APP_SEEDADMIN_EMAIL" && exit 1)
+          [ -n "${{ secrets.APP_SEEDADMIN_PASSWORD }}" ] || (echo "Missing secret: APP_SEEDADMIN_PASSWORD" && exit 1)
 
       - name: Verify SSH authentication
         shell: bash
@@ -149,6 +153,7 @@ jobs:
             APP_ROOT="${{ secrets.VPS_APP_ROOT }}"
             SERVICE_NAME="${{ secrets.VPS_SERVICE_NAME }}"
             SERVICE_UNIT="${SERVICE_NAME%.service}.service"
+            SERVICE_USER="$(whoami)"
             HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}"
             APP_ASPNETCORE_ENVIRONMENT="${{ secrets.APP_ASPNETCORE_ENVIRONMENT || 'Production' }}"
             APP_ASPNETCORE_URLS="${{ secrets.APP_ASPNETCORE_URLS || 'http://127.0.0.1:5005' }}"
@@ -166,6 +171,7 @@ jobs:
             CURRENT_LINK="$APP_ROOT/current"
 
             mkdir -p "$RELEASES_DIR"
+            mkdir -p "$APP_ROOT/shared/logs"
             if [ ! -d "$INCOMING_DIR" ]; then
               echo "Incoming folder not found: $INCOMING_DIR"
               exit 1
@@ -181,6 +187,30 @@ jobs:
             rm -rf "$INCOMING_DIR"
 
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+
+            cat > "$APP_ROOT/shared/runtime.env" <<EOF
+ASPNETCORE_ENVIRONMENT=${APP_ASPNETCORE_ENVIRONMENT}
+ASPNETCORE_URLS=${APP_ASPNETCORE_URLS}
+MongoDb__ConnectionString=${APP_MONGODB_CONNECTION_STRING}
+MongoDb__DatabaseName=${APP_MONGODB_DATABASE_NAME}
+SeedAdmin__UserName=${APP_SEEDADMIN_USERNAME}
+SeedAdmin__Email=${APP_SEEDADMIN_EMAIL}
+SeedAdmin__Password=${APP_SEEDADMIN_PASSWORD}
+EOF
+            chmod 600 "$APP_ROOT/shared/runtime.env"
+
+            cat > "$APP_ROOT/shared/run-current.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+APP_ROOT="__APP_ROOT__"
+set -a
+[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"
+[ -f "$APP_ROOT/shared/app.env" ] && . "$APP_ROOT/shared/app.env"
+set +a
+exec dotnet "$APP_ROOT/current/LoggingActivity.Web.dll"
+EOF
+            sed -i "s|__APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/shared/run-current.sh"
+            chmod +x "$APP_ROOT/shared/run-current.sh"
 
             restart_by_process() {
               ENV_FILE="$APP_ROOT/shared/app.env"
@@ -201,12 +231,10 @@ jobs:
                 set +a
               fi
 
-              if [ -z "${MongoDb__ConnectionString:-}" ] || [ -z "${SeedAdmin__UserName:-}" ] || [ -z "${SeedAdmin__Email:-}" ] || [ -z "${SeedAdmin__Password:-}" ]; then
-                echo "Skipping process restart: runtime env is incomplete."
-                echo "Deployment files are uploaded and current release pointer is updated."
-                echo "To auto-run app, provide VPS_SERVICE_NAME or runtime env via secrets/file."
-                return 2
-              fi
+              [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
+              [ -n "${SeedAdmin__UserName:-}" ] || (echo "Missing runtime value: SeedAdmin__UserName" && exit 1)
+              [ -n "${SeedAdmin__Email:-}" ] || (echo "Missing runtime value: SeedAdmin__Email" && exit 1)
+              [ -n "${SeedAdmin__Password:-}" ] || (echo "Missing runtime value: SeedAdmin__Password" && exit 1)
 
               pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
 
@@ -221,10 +249,29 @@ jobs:
               sudo systemctl daemon-reload
               if ! sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "$SERVICE_UNIT"; then
                 echo "Systemd unit not found: $SERVICE_UNIT"
-                echo "Falling back to process mode."
+                echo "Creating standard systemd unit automatically."
                 echo "Available service names containing 'logging' or 'activity':"
                 sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
-                SERVICE_NAME=""
+
+                sudo tee "/etc/systemd/system/$SERVICE_UNIT" > /dev/null <<EOF
+[Unit]
+Description=LoggingActivity (managed by CI)
+After=network.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+WorkingDirectory=$APP_ROOT/current
+ExecStart=$APP_ROOT/shared/run-current.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+                sudo systemctl daemon-reload
+                sudo systemctl enable "$SERVICE_UNIT"
               fi
               if [ -n "$SERVICE_NAME" ]; then
                 sudo systemctl restart "$SERVICE_UNIT"
@@ -234,11 +281,8 @@ jobs:
             fi
 
             if [ "$RESTARTED" -eq 0 ]; then
-              if restart_by_process; then
-                RESTARTED=1
-              else
-                RESTARTED=0
-              fi
+              restart_by_process
+              RESTARTED=1
             fi
 
             HEALTH_OK=1
@@ -274,6 +318,9 @@ jobs:
             if [ -n "$SERVICE_NAME" ]; then
               sudo systemctl status "$SERVICE_UNIT" --no-pager
             fi
+
+            echo "Last 80 lines of app log:"
+            tail -n 80 "$APP_ROOT/shared/logs/app.log" || true
 
             if [ "$KEEP_RELEASES" -gt 0 ]; then
               cd "$RELEASES_DIR"
