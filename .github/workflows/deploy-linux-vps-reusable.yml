@@ -329,13 +329,20 @@ jobs:
               sudo systemctl status "$SERVICE_UNIT" --no-pager
             fi
 
-            if [ -f "$CURRENT_LINK/tools/nginx.logging.conf" ]; then
-              sudo cp "$CURRENT_LINK/tools/nginx.logging.conf" /etc/nginx/sites-available/logging
-              sudo ln -sfn /etc/nginx/sites-available/logging /etc/nginx/sites-enabled/logging
-              sudo rm -f /etc/nginx/sites-enabled/default
-              sudo nginx -t
-              sudo systemctl reload nginx
+            NGINX_SOURCE_CONF="$CURRENT_LINK/tools/nginx.logging.conf"
+            NGINX_TARGET_CONF="/etc/nginx/sites-available/logging"
+
+            if [ ! -f "$NGINX_SOURCE_CONF" ]; then
+              echo "Missing nginx config in release: $NGINX_SOURCE_CONF"
+              exit 1
             fi
+
+            sudo cp "$NGINX_SOURCE_CONF" "$NGINX_TARGET_CONF"
+            sudo test -f "$NGINX_TARGET_CONF"
+            sudo ln -sfn /etc/nginx/sites-available/logging /etc/nginx/sites-enabled/logging
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo nginx -t
+            sudo systemctl reload nginx
 
             echo "Last 80 lines of app log:"
             tail -n 80 "$APP_ROOT/shared/logs/app.log" || true
