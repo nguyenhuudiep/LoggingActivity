@@ -1,74 +1,58 @@
-name: Build and Deploy to Linux VPS
+name: Deploy to Linux VPS
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'LoggingActivity.Web/**'
+      - '.github/workflows/deploy-linux-vps.yml'
+      - '.github/workflows/deploy-linux-vps-reusable.yml'
+      - 'LoggingActivity.sln'
   workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        required: true
+        type: choice
+        default: production
+        options:
+          - production
+          - staging
+          - both
 
-env:
-  PROJECT_PATH: LoggingActivity.Web/LoggingActivity.Web.csproj
-  PUBLISH_DIR: ./publish
+permissions:
+  contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  deploy-production:
+    if: github.event_name == 'push' || github.event.inputs.target == 'production' || github.event.inputs.target == 'both'
+    uses: ./.github/workflows/deploy-linux-vps-reusable.yml
+    with:
+      environment_name: production
+      keep_releases: 5
+    secrets:
+      VPS_HOST: ${{ secrets.PROD_VPS_HOST }}
+      VPS_PORT: ${{ secrets.PROD_VPS_PORT }}
+      VPS_USER: ${{ secrets.PROD_VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.PROD_VPS_SSH_KEY }}
+      VPS_SSH_PASSPHRASE: ${{ secrets.PROD_VPS_SSH_PASSPHRASE }}
+      VPS_APP_ROOT: /var/www/logging
+      VPS_SERVICE_NAME: ${{ secrets.PROD_VPS_SERVICE_NAME }}
+      VPS_HEALTHCHECK_URL: ${{ secrets.PROD_VPS_HEALTHCHECK_URL }}
 
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 7
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 7.0.x
-
-      - name: Restore dependencies
-        run: dotnet restore $PROJECT_PATH
-
-      - name: Build application
-        run: dotnet build $PROJECT_PATH --configuration Release --no-restore
-
-      - name: Publish application
-        run: dotnet publish $PROJECT_PATH --configuration Release --no-build --output $PUBLISH_DIR
-
-      - name: Upload publish artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: loggingactivity-publish
-          path: ${{ env.PUBLISH_DIR }}
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: production
-
-    steps:
-      - name: Download publish artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: loggingactivity-publish
-          path: ./publish
-
-      - name: Copy build to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          source: publish/*
-          target: ${{ secrets.VPS_APP_PATH }}
-          strip_components: 1
-
-      - name: Restart systemd service
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
-            sudo systemctl daemon-reload
-            sudo systemctl restart ${{ secrets.VPS_SERVICE_NAME }}
-            sudo systemctl status ${{ secrets.VPS_SERVICE_NAME }} --no-pager
+  deploy-staging:
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'staging' || github.event.inputs.target == 'both')
+    uses: ./.github/workflows/deploy-linux-vps-reusable.yml
+    with:
+      environment_name: staging
+      keep_releases: 3
+    secrets:
+      VPS_HOST: ${{ secrets.STAGING_VPS_HOST }}
+      VPS_PORT: ${{ secrets.STAGING_VPS_PORT }}
+      VPS_USER: ${{ secrets.STAGING_VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.STAGING_VPS_SSH_KEY }}
+      VPS_SSH_PASSPHRASE: ${{ secrets.STAGING_VPS_SSH_PASSPHRASE }}
+      VPS_APP_ROOT: ${{ secrets.STAGING_VPS_APP_ROOT }}
+      VPS_SERVICE_NAME: ${{ secrets.STAGING_VPS_SERVICE_NAME }}
+      VPS_HEALTHCHECK_URL: ${{ secrets.STAGING_VPS_HEALTHCHECK_URL }}

@@ -1,0 +1,171 @@
+name: Reusable Deploy to Linux VPS
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        required: true
+        type: string
+      keep_releases:
+        required: false
+        type: number
+        default: 5
+    secrets:
+      VPS_HOST:
+        required: true
+      VPS_PORT:
+        required: true
+      VPS_USER:
+        required: true
+      VPS_SSH_KEY:
+        required: true
+      VPS_SSH_PASSPHRASE:
+        required: false
+      VPS_APP_ROOT:
+        required: true
+      VPS_SERVICE_NAME:
+        required: true
+      VPS_HEALTHCHECK_URL:
+        required: true
+
+concurrency:
+  group: deploy-${{ inputs.environment_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_PATH: LoggingActivity.Web/LoggingActivity.Web.csproj
+  PUBLISH_DIR: ./publish
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: |
+            LoggingActivity.Web/LoggingActivity.Web.csproj
+            LoggingActivity.sln
+
+      - name: Restore dependencies
+        run: dotnet restore $PROJECT_PATH
+
+      - name: Build application
+        run: dotnet build $PROJECT_PATH --configuration Release --no-restore
+
+      - name: Publish application
+        run: dotnet publish $PROJECT_PATH --configuration Release --no-build --output $PUBLISH_DIR
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: loggingactivity-publish-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.environment_name }}
+          path: ${{ env.PUBLISH_DIR }}
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: loggingactivity-publish-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.environment_name }}
+          path: ./publish
+
+      - name: Upload release package to incoming folder
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: ${{ secrets.VPS_PORT }}
+          source: publish/*
+          target: ${{ secrets.VPS_APP_ROOT }}/incoming/${{ github.run_id }}-${{ github.run_attempt }}
+          strip_components: 1
+
+      - name: Activate release with rollback on failed health check
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -euo pipefail
+
+            APP_ROOT="${{ secrets.VPS_APP_ROOT }}"
+            SERVICE_NAME="${{ secrets.VPS_SERVICE_NAME }}"
+            HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}"
+            KEEP_RELEASES=${{ inputs.keep_releases }}
+            RELEASE_ID="${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}"
+
+            RELEASES_DIR="$APP_ROOT/releases"
+            INCOMING_DIR="$APP_ROOT/incoming/${{ github.run_id }}-${{ github.run_attempt }}"
+            RELEASE_DIR="$RELEASES_DIR/$RELEASE_ID"
+            CURRENT_LINK="$APP_ROOT/current"
+
+            mkdir -p "$RELEASES_DIR"
+            if [ ! -d "$INCOMING_DIR" ]; then
+              echo "Incoming folder not found: $INCOMING_DIR"
+              exit 1
+            fi
+
+            PREVIOUS_TARGET=""
+            if [ -L "$CURRENT_LINK" ] || [ -e "$CURRENT_LINK" ]; then
+              PREVIOUS_TARGET="$(readlink -f "$CURRENT_LINK" || true)"
+            fi
+
+            mkdir -p "$RELEASE_DIR"
+            cp -a "$INCOMING_DIR"/. "$RELEASE_DIR"/
+            rm -rf "$INCOMING_DIR"
+
+            ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart "$SERVICE_NAME"
+            sudo systemctl is-active --quiet "$SERVICE_NAME"
+
+            HEALTH_OK=0
+            for _ in $(seq 1 20); do
+              if curl -fsS --max-time 5 "$HEALTHCHECK_URL" >/dev/null; then
+                HEALTH_OK=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "Health check failed. Rolling back to previous release."
+              if [ -n "$PREVIOUS_TARGET" ] && [ -d "$PREVIOUS_TARGET" ]; then
+                ln -sfn "$PREVIOUS_TARGET" "$CURRENT_LINK"
+                sudo systemctl restart "$SERVICE_NAME"
+                sudo systemctl is-active --quiet "$SERVICE_NAME"
+              fi
+
+              sudo systemctl status "$SERVICE_NAME" --no-pager || true
+              exit 1
+            fi
+
+            sudo systemctl status "$SERVICE_NAME" --no-pager
+
+            if [ "$KEEP_RELEASES" -gt 0 ]; then
+              cd "$RELEASES_DIR"
+              ls -1dt */ | tail -n +$((KEEP_RELEASES + 1)) | xargs -r rm -rf
+            fi

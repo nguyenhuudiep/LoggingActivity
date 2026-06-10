@@ -62,7 +62,58 @@ Payload gửi log là JSON gồm `userId`, `userName`, `action`, `description`, 
 
 ## Deploy
 
-Workflow mẫu deploy Linux VPS nằm ở [.github/workflows/deploy-linux-vps.yml](.github/workflows/deploy-linux-vps.yml). Dùng file đó làm điểm khởi đầu nếu cần triển khai tự động.
+Workflow deploy Linux VPS:
+
+- Điều phối môi trường: [.github/workflows/deploy-linux-vps.yml](.github/workflows/deploy-linux-vps.yml)
+- Logic reusable: [.github/workflows/deploy-linux-vps-reusable.yml](.github/workflows/deploy-linux-vps-reusable.yml)
+
+### CI/CD qua GitHub Actions (SSH private key)
+
+Workflow đã sẵn cơ chế triển khai theo mô hình chuẩn:
+
+1. Zero-downtime theo release thư mục: mỗi lần deploy tạo release mới trong `releases`, sau đó đổi symlink `current`.
+2. Rollback tự động: nếu health check fail sau restart service, workflow tự quay về release trước.
+3. Reusable workflow cho nhiều môi trường: file điều phối gọi chung workflow tái sử dụng cho production hoặc staging.
+
+Workflow có thêm các thiết lập an toàn:
+
+- Chống deploy chồng nhau (`concurrency`)
+- Timeout cho từng job
+- Cache NuGet để build nhanh hơn
+- Fail rõ ràng nếu artifact không tồn tại, service không active, hoặc health check không đạt
+
+Thiết lập trong GitHub repo:
+
+1. Vào `Settings -> Secrets and variables -> Actions`.
+2. Tạo secrets cho production:
+	- `PROD_VPS_HOST`
+	- `PROD_VPS_PORT`
+	- `PROD_VPS_USER`
+	- `PROD_VPS_SSH_KEY`
+	- `PROD_VPS_SSH_PASSPHRASE` (nếu key không có passphrase thì để trống)
+	- `PROD_VPS_SERVICE_NAME` (ví dụ `logging-activity`)
+	- `PROD_VPS_HEALTHCHECK_URL` (ví dụ `https://your-domain.com/`)
+3. Tạo secrets cho staging nếu cần deploy staging:
+	- `STAGING_VPS_HOST`
+	- `STAGING_VPS_PORT`
+	- `STAGING_VPS_USER`
+	- `STAGING_VPS_SSH_KEY`
+	- `STAGING_VPS_SSH_PASSPHRASE`
+	- `STAGING_VPS_APP_ROOT`
+	- `STAGING_VPS_SERVICE_NAME`
+	- `STAGING_VPS_HEALTHCHECK_URL`
+
+Luồng chạy:
+
+- Push nhánh `main`: tự deploy production.
+- Chạy tay `workflow_dispatch`: chọn `production`, `staging` hoặc `both`.
+
+Lưu ý server:
+
+- Production deploy cố định tại thư mục `/var/www/logging`.
+- Service systemd nên chạy từ symlink `current` để tận dụng zero-downtime release switching.
+- `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
+- Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
 
 ## Ghi chú
 
