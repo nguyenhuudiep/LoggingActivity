@@ -136,6 +136,7 @@ jobs:
 
             APP_ROOT="${{ secrets.VPS_APP_ROOT }}"
             SERVICE_NAME="${{ secrets.VPS_SERVICE_NAME }}"
+            SERVICE_UNIT="${SERVICE_NAME%.service}.service"
             HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}"
             KEEP_RELEASES=${{ inputs.keep_releases }}
             RELEASE_ID="${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}"
@@ -163,8 +164,16 @@ jobs:
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
             sudo systemctl daemon-reload
-            sudo systemctl restart "$SERVICE_NAME"
-            sudo systemctl is-active --quiet "$SERVICE_NAME"
+            if ! sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "$SERVICE_UNIT"; then
+              echo "Systemd unit not found: $SERVICE_UNIT"
+              echo "Set secret VPS_SERVICE_NAME to an existing service name."
+              echo "Available service names containing 'logging' or 'activity':"
+              sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
+              exit 1
+            fi
+
+            sudo systemctl restart "$SERVICE_UNIT"
+            sudo systemctl is-active --quiet "$SERVICE_UNIT"
 
             HEALTH_OK=0
             for _ in $(seq 1 20); do
@@ -179,15 +188,15 @@ jobs:
               echo "Health check failed. Rolling back to previous release."
               if [ -n "$PREVIOUS_TARGET" ] && [ -d "$PREVIOUS_TARGET" ]; then
                 ln -sfn "$PREVIOUS_TARGET" "$CURRENT_LINK"
-                sudo systemctl restart "$SERVICE_NAME"
-                sudo systemctl is-active --quiet "$SERVICE_NAME"
+                sudo systemctl restart "$SERVICE_UNIT"
+                sudo systemctl is-active --quiet "$SERVICE_UNIT"
               fi
 
-              sudo systemctl status "$SERVICE_NAME" --no-pager || true
+              sudo systemctl status "$SERVICE_UNIT" --no-pager || true
               exit 1
             fi
 
-            sudo systemctl status "$SERVICE_NAME" --no-pager
+            sudo systemctl status "$SERVICE_UNIT" --no-pager
 
             if [ "$KEEP_RELEASES" -gt 0 ]; then
               cd "$RELEASES_DIR"

@@ -93,7 +93,7 @@ Thiết lập trong GitHub repo:
 	- `PROD_VPS_USER`
 	- `PROD_VPS_SSH_KEY`
 	- `PROD_VPS_SSH_PASSPHRASE` (nếu key không có passphrase thì để trống)
-	- `PROD_VPS_SERVICE_NAME` (ví dụ `logging-activity`)
+	- `PROD_VPS_SERVICE_NAME` (tên unit systemd thực tế, ví dụ `logging-activity` hoặc `logging-activity.service`)
 	- `PROD_VPS_HEALTHCHECK_URL` (ví dụ `https://your-domain.com/`)
 5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
@@ -122,6 +122,11 @@ Lỗi thường gặp `ssh: unable to authenticate, attempted methods [none]`:
 - Secret SSH key rỗng/sai tên hoặc đặt sai scope (repo vs environment).
 - `PROD_VPS_USER` không đúng user đã được thêm public key trong `~/.ssh/authorized_keys`.
 - Private key không khớp public key trên server.
+
+Lỗi thường gặp `Unit ... service not found`:
+
+- Secret `PROD_VPS_SERVICE_NAME` không khớp unit đang tồn tại trên server.
+- Kiểm tra danh sách unit bằng lệnh `systemctl list-unit-files --type=service | grep -Ei 'logging|activity'`.
 
 ## Ghi chú
 
