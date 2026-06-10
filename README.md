@@ -95,6 +95,13 @@ Thiết lập trong GitHub repo:
 	- `PROD_VPS_SSH_PASSPHRASE` (tuỳ chọn)
 	- `PROD_VPS_SERVICE_NAME` (tuỳ chọn, nếu bỏ trống workflow sẽ restart app bằng process, không dùng systemd)
 	- `PROD_VPS_HEALTHCHECK_URL` (tuỳ chọn)
+	- `PROD_APP_ASPNETCORE_ENVIRONMENT` (tuỳ chọn, mặc định `Production`)
+	- `PROD_APP_ASPNETCORE_URLS` (tuỳ chọn, mặc định `http://127.0.0.1:5005`)
+	- `PROD_APP_MONGODB_CONNECTION_STRING` (bắt buộc khi chạy process mode)
+	- `PROD_APP_MONGODB_DATABASE_NAME` (tuỳ chọn)
+	- `PROD_APP_SEEDADMIN_USERNAME` (bắt buộc khi chạy process mode)
+	- `PROD_APP_SEEDADMIN_EMAIL` (bắt buộc khi chạy process mode)
+	- `PROD_APP_SEEDADMIN_PASSWORD` (bắt buộc khi chạy process mode)
 5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
 	- `STAGING_VPS_PORT`
@@ -114,11 +121,11 @@ Lưu ý server:
 
 - Production deploy cố định tại thư mục `/var/www/logging`.
 - Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
-- Process mode sẽ tự nạp biến môi trường từ file `/var/www/logging/shared/app.env` (định dạng `KEY=VALUE`).
+- Process mode ưu tiên đọc biến runtime từ GitHub Secrets `PROD_APP_*`, không cần cấu hình thêm file trên server.
 - Nếu dùng systemd, `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
 
-Ví dụ file `/var/www/logging/shared/app.env`:
+Tuỳ chọn: vẫn có thể override bằng file `/var/www/logging/shared/app.env`:
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Production

@@ -27,6 +27,20 @@ on:
         required: false
       VPS_HEALTHCHECK_URL:
         required: false
+      APP_ASPNETCORE_ENVIRONMENT:
+        required: false
+      APP_ASPNETCORE_URLS:
+        required: false
+      APP_MONGODB_CONNECTION_STRING:
+        required: false
+      APP_MONGODB_DATABASE_NAME:
+        required: false
+      APP_SEEDADMIN_USERNAME:
+        required: false
+      APP_SEEDADMIN_EMAIL:
+        required: false
+      APP_SEEDADMIN_PASSWORD:
+        required: false
 
 concurrency:
   group: deploy-${{ inputs.environment_name }}-${{ github.ref }}
@@ -136,6 +150,13 @@ jobs:
             SERVICE_NAME="${{ secrets.VPS_SERVICE_NAME }}"
             SERVICE_UNIT="${SERVICE_NAME%.service}.service"
             HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}"
+            APP_ASPNETCORE_ENVIRONMENT="${{ secrets.APP_ASPNETCORE_ENVIRONMENT || 'Production' }}"
+            APP_ASPNETCORE_URLS="${{ secrets.APP_ASPNETCORE_URLS || 'http://127.0.0.1:5005' }}"
+            APP_MONGODB_CONNECTION_STRING="${{ secrets.APP_MONGODB_CONNECTION_STRING }}"
+            APP_MONGODB_DATABASE_NAME="${{ secrets.APP_MONGODB_DATABASE_NAME }}"
+            APP_SEEDADMIN_USERNAME="${{ secrets.APP_SEEDADMIN_USERNAME }}"
+            APP_SEEDADMIN_EMAIL="${{ secrets.APP_SEEDADMIN_EMAIL }}"
+            APP_SEEDADMIN_PASSWORD="${{ secrets.APP_SEEDADMIN_PASSWORD }}"
             KEEP_RELEASES=${{ inputs.keep_releases }}
             RELEASE_ID="${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}"
 
@@ -166,13 +187,26 @@ jobs:
               mkdir -p "$APP_ROOT/shared/logs"
               pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
 
-              # Load runtime env vars from shared file in KEY=VALUE format.
-              set -a
+              export ASPNETCORE_ENVIRONMENT="$APP_ASPNETCORE_ENVIRONMENT"
+              export ASPNETCORE_URLS="$APP_ASPNETCORE_URLS"
+              export MongoDb__ConnectionString="$APP_MONGODB_CONNECTION_STRING"
+              export MongoDb__DatabaseName="$APP_MONGODB_DATABASE_NAME"
+              export SeedAdmin__UserName="$APP_SEEDADMIN_USERNAME"
+              export SeedAdmin__Email="$APP_SEEDADMIN_EMAIL"
+              export SeedAdmin__Password="$APP_SEEDADMIN_PASSWORD"
+
+              # Optional fallback file for local overrides, if present.
               if [ -f "$ENV_FILE" ]; then
+                set -a
                 # shellcheck disable=SC1090
                 . "$ENV_FILE"
+                set +a
               fi
-              set +a
+
+              [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
+              [ -n "${SeedAdmin__UserName:-}" ] || (echo "Missing runtime value: SeedAdmin__UserName" && exit 1)
+              [ -n "${SeedAdmin__Email:-}" ] || (echo "Missing runtime value: SeedAdmin__Email" && exit 1)
+              [ -n "${SeedAdmin__Password:-}" ] || (echo "Missing runtime value: SeedAdmin__Password" && exit 1)
 
               nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
               sleep 2
