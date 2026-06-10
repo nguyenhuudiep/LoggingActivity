@@ -129,6 +129,27 @@ Lưu ý server:
 - Nếu dùng systemd, `ExecStart` sẽ chạy wrapper script `shared/run-current.sh` để nạp env và chạy `current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
 
+Thiết lập Nginx reverse proxy:
+
+1. Copy file mẫu [tools/nginx.logging.conf](tools/nginx.logging.conf) lên server:
+	- `/etc/nginx/sites-available/logging`
+2. Đổi `server_name` trong file theo domain thật.
+3. Bật site và tắt site mặc định:
+
+```bash
+sudo ln -sf /etc/nginx/sites-available/logging /etc/nginx/sites-enabled/logging
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Kiểm tra nhanh:
+
+```bash
+curl -I http://127.0.0.1:5005
+curl -I http://your-domain.com
+```
+
 Sau mỗi deploy workflow sẽ in 80 dòng cuối của log app (`/var/www/logging/shared/logs/app.log`) để kiểm tra nhanh tình trạng runtime.
 
 Tuỳ chọn: vẫn có thể override bằng file `/var/www/logging/shared/app.env`:
