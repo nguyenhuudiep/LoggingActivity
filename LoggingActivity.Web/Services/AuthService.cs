@@ -79,10 +79,33 @@ public sealed class AuthService
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
 
-        await httpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            principal,
-            new AuthenticationProperties { IsPersistent = isPersistent });
+        try
+        {
+            await httpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                new AuthenticationProperties { IsPersistent = isPersistent });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Primary sign-in failed for user {UserName}. Retrying with minimal claims.", safeUserName);
+
+            var minimalPrincipal = new ClaimsPrincipal(
+                new ClaimsIdentity(
+                    new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, string.IsNullOrWhiteSpace(user.Id) ? safeUserName : user.Id),
+                        new Claim(ClaimTypes.Name, safeUserName),
+                        new Claim(ClaimTypes.GivenName, safeDisplayName),
+                        new Claim(ClaimTypes.Role, safeRole)
+                    },
+                    CookieAuthenticationDefaults.AuthenticationScheme));
+
+            await httpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                minimalPrincipal,
+                new AuthenticationProperties { IsPersistent = isPersistent });
+        }
     }
 
     public Task SignOutAsync(HttpContext httpContext)

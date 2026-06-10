@@ -17,10 +17,14 @@ if (!builder.Environment.IsDevelopment() && Directory.Exists(deployedWebRoot))
     builder.WebHost.UseWebRoot(deployedWebRoot);
 }
 
-var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".dpkeys");
+var configuredDpPath = builder.Configuration["APP_DATA_PROTECTION_KEYS_PATH"];
+var dataProtectionKeysPath = string.IsNullOrWhiteSpace(configuredDpPath)
+    ? Path.Combine(Path.GetTempPath(), "loggingactivity-dpkeys")
+    : configuredDpPath.Trim();
 Directory.CreateDirectory(dataProtectionKeysPath);
 builder.Services
     .AddDataProtection()
+    .SetApplicationName("LoggingActivity.Web")
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
 var enableHttpsRedirection = !string.Equals(
