@@ -355,6 +355,15 @@ jobs:
             sudo nginx -t
             sudo systemctl reload nginx
 
+            echo "Post-deploy static asset checks:"
+            ls -lah "$CURRENT_LINK/wwwroot" || true
+            ls -lah "$CURRENT_LINK/wwwroot/css" || true
+            ls -lah "$CURRENT_LINK/wwwroot/img" || true
+
+            echo "HTTP checks for CSS via backend and nginx host routing:"
+            curl -I --max-time 10 http://127.0.0.1:5005/css/site.css || true
+            curl -I --max-time 10 -H "Host: logging.tima.vn" http://127.0.0.1/css/site.css || true
+
             echo "Last 80 lines of app log:"
             tail -n 80 "$APP_ROOT/shared/logs/app.log" || true
 
