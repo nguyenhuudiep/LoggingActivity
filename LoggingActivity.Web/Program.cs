@@ -4,6 +4,7 @@ using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,12 @@ if (!builder.Environment.IsDevelopment() && Directory.Exists(deployedWebRoot))
     builder.WebHost.UseContentRoot(deployedBaseDirectory);
     builder.WebHost.UseWebRoot(deployedWebRoot);
 }
+
+var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".dpkeys");
+Directory.CreateDirectory(dataProtectionKeysPath);
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
 var enableHttpsRedirection = !string.Equals(
     builder.Configuration["APP_ENABLE_HTTPS_REDIRECTION"],
