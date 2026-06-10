@@ -89,12 +89,12 @@ Thiết lập trong GitHub repo:
 3. Nếu bạn lưu secret ở repository-level thì áp dụng cho tất cả môi trường.
 4. Tạo secrets cho production:
 	- `PROD_VPS_HOST`
-	- `PROD_VPS_PORT`
 	- `PROD_VPS_USER`
 	- `PROD_VPS_SSH_KEY`
-	- `PROD_VPS_SSH_PASSPHRASE` (nếu key không có passphrase thì để trống)
-	- `PROD_VPS_SERVICE_NAME` (tên unit systemd thực tế, ví dụ `logging-activity` hoặc `logging-activity.service`)
-	- `PROD_VPS_HEALTHCHECK_URL` (ví dụ `https://your-domain.com/`)
+	- `PROD_VPS_PORT` (tuỳ chọn, mặc định `22`)
+	- `PROD_VPS_SSH_PASSPHRASE` (tuỳ chọn)
+	- `PROD_VPS_SERVICE_NAME` (tuỳ chọn, nếu bỏ trống workflow sẽ restart app bằng process, không dùng systemd)
+	- `PROD_VPS_HEALTHCHECK_URL` (tuỳ chọn)
 5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
 	- `STAGING_VPS_PORT`
@@ -113,8 +113,8 @@ Luồng chạy:
 Lưu ý server:
 
 - Production deploy cố định tại thư mục `/var/www/logging`.
-- Service systemd nên chạy từ symlink `current` để tận dụng zero-downtime release switching.
-- `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
+- Nếu không dùng `PROD_VPS_SERVICE_NAME`, workflow sẽ tự chạy `dotnet .../current/LoggingActivity.Web.dll` bằng process mode.
+- Nếu dùng systemd, `ExecStart` nên trỏ vào `.../current/LoggingActivity.Web.dll`.
 - Biến môi trường runtime (`MongoDb__*`, `SeedAdmin__*`) nên set trong service để app khởi động ổn định sau mỗi lần deploy.
 
 Lỗi thường gặp `ssh: unable to authenticate, attempted methods [none]`:

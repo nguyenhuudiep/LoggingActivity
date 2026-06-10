@@ -14,7 +14,7 @@ on:
       VPS_HOST:
         required: true
       VPS_PORT:
-        required: true
+        required: false
       VPS_USER:
         required: true
       VPS_SSH_KEY:
@@ -24,9 +24,9 @@ on:
       VPS_APP_ROOT:
         required: true
       VPS_SERVICE_NAME:
-        required: true
+        required: false
       VPS_HEALTHCHECK_URL:
-        required: true
+        required: false
 
 concurrency:
   group: deploy-${{ inputs.environment_name }}-${{ github.ref }}
@@ -92,11 +92,9 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "${{ secrets.VPS_HOST }}" ] || (echo "Missing secret: VPS_HOST" && exit 1)
-          [ -n "${{ secrets.VPS_PORT }}" ] || (echo "Missing secret: VPS_PORT" && exit 1)
           [ -n "${{ secrets.VPS_USER }}" ] || (echo "Missing secret: VPS_USER" && exit 1)
           [ -n "${{ secrets.VPS_SSH_KEY }}" ] || (echo "Missing secret: VPS_SSH_KEY" && exit 1)
-          [ -n "${{ secrets.VPS_SERVICE_NAME }}" ] || (echo "Missing secret: VPS_SERVICE_NAME" && exit 1)
-          [ -n "${{ secrets.VPS_HEALTHCHECK_URL }}" ] || (echo "Missing secret: VPS_HEALTHCHECK_URL" && exit 1)
+          [ -n "${{ secrets.VPS_APP_ROOT }}" ] || (echo "Missing secret: VPS_APP_ROOT" && exit 1)
 
       - name: Verify SSH authentication
         shell: bash
@@ -105,9 +103,9 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > "$HOME/.ssh/deploy_key"
           chmod 600 "$HOME/.ssh/deploy_key"
-          ssh-keyscan -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          ssh-keyscan -p "${{ secrets.VPS_PORT || '22' }}" "${{ secrets.VPS_HOST }}" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
           ssh -i "$HOME/.ssh/deploy_key" \
-            -p "${{ secrets.VPS_PORT }}" \
+            -p "${{ secrets.VPS_PORT || '22' }}" \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=no \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
@@ -119,7 +117,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          port: ${{ secrets.VPS_PORT || '22' }}
           source: publish/*
           target: ${{ secrets.VPS_APP_ROOT }}/incoming/${{ github.run_id }}-${{ github.run_attempt }}
           strip_components: 1
@@ -130,7 +128,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          port: ${{ secrets.VPS_PORT || '22' }}
           script: |
             set -euo pipefail
 
@@ -163,40 +161,62 @@ jobs:
 
             ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-            sudo systemctl daemon-reload
-            if ! sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "$SERVICE_UNIT"; then
-              echo "Systemd unit not found: $SERVICE_UNIT"
-              echo "Set secret VPS_SERVICE_NAME to an existing service name."
-              echo "Available service names containing 'logging' or 'activity':"
-              sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
-              exit 1
+            restart_by_process() {
+              mkdir -p "$APP_ROOT/shared/logs"
+              pkill -f 'dotnet .*LoggingActivity.Web.dll' || true
+              nohup dotnet "$CURRENT_LINK/LoggingActivity.Web.dll" > "$APP_ROOT/shared/logs/app.log" 2>&1 < /dev/null &
+              sleep 2
+              pgrep -f 'dotnet .*LoggingActivity.Web.dll' > /dev/null
+            }
+
+            if [ -n "$SERVICE_NAME" ]; then
+              sudo systemctl daemon-reload
+              if ! sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "$SERVICE_UNIT"; then
+                echo "Systemd unit not found: $SERVICE_UNIT"
+                echo "Clear VPS_SERVICE_NAME secret to deploy without systemd, or set the correct unit name."
+                echo "Available service names containing 'logging' or 'activity':"
+                sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
+                exit 1
+              fi
+              sudo systemctl restart "$SERVICE_UNIT"
+              sudo systemctl is-active --quiet "$SERVICE_UNIT"
+            else
+              restart_by_process
             fi
 
-            sudo systemctl restart "$SERVICE_UNIT"
-            sudo systemctl is-active --quiet "$SERVICE_UNIT"
-
-            HEALTH_OK=0
-            for _ in $(seq 1 20); do
-              if curl -fsS --max-time 5 "$HEALTHCHECK_URL" >/dev/null; then
-                HEALTH_OK=1
-                break
-              fi
-              sleep 2
-            done
+            HEALTH_OK=1
+            if [ -n "$HEALTHCHECK_URL" ]; then
+              HEALTH_OK=0
+              for _ in $(seq 1 20); do
+                if curl -fsS --max-time 5 "$HEALTHCHECK_URL" >/dev/null; then
+                  HEALTH_OK=1
+                  break
+                fi
+                sleep 2
+              done
+            fi
 
             if [ "$HEALTH_OK" -ne 1 ]; then
               echo "Health check failed. Rolling back to previous release."
               if [ -n "$PREVIOUS_TARGET" ] && [ -d "$PREVIOUS_TARGET" ]; then
                 ln -sfn "$PREVIOUS_TARGET" "$CURRENT_LINK"
-                sudo systemctl restart "$SERVICE_UNIT"
-                sudo systemctl is-active --quiet "$SERVICE_UNIT"
+                if [ -n "$SERVICE_NAME" ]; then
+                  sudo systemctl restart "$SERVICE_UNIT"
+                  sudo systemctl is-active --quiet "$SERVICE_UNIT"
+                else
+                  restart_by_process
+                fi
               fi
 
-              sudo systemctl status "$SERVICE_UNIT" --no-pager || true
+              if [ -n "$SERVICE_NAME" ]; then
+                sudo systemctl status "$SERVICE_UNIT" --no-pager || true
+              fi
               exit 1
             fi
 
-            sudo systemctl status "$SERVICE_UNIT" --no-pager
+            if [ -n "$SERVICE_NAME" ]; then
+              sudo systemctl status "$SERVICE_UNIT" --no-pager
+            fi
 
             if [ "$KEEP_RELEASES" -gt 0 ]; then
               cd "$RELEASES_DIR"
