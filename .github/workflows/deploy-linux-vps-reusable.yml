@@ -221,15 +221,19 @@ jobs:
               sudo systemctl daemon-reload
               if ! sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "$SERVICE_UNIT"; then
                 echo "Systemd unit not found: $SERVICE_UNIT"
-                echo "Clear VPS_SERVICE_NAME secret to deploy without systemd, or set the correct unit name."
+                echo "Falling back to process mode."
                 echo "Available service names containing 'logging' or 'activity':"
                 sudo systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Ei 'logging|activity' || true
-                exit 1
+                SERVICE_NAME=""
               fi
-              sudo systemctl restart "$SERVICE_UNIT"
-              sudo systemctl is-active --quiet "$SERVICE_UNIT"
-              RESTARTED=1
-            else
+              if [ -n "$SERVICE_NAME" ]; then
+                sudo systemctl restart "$SERVICE_UNIT"
+                sudo systemctl is-active --quiet "$SERVICE_UNIT"
+                RESTARTED=1
+              fi
+            fi
+
+            if [ "$RESTARTED" -eq 0 ]; then
               if restart_by_process; then
                 RESTARTED=1
               else
