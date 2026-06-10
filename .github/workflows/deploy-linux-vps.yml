@@ -27,7 +27,6 @@ permissions:
 jobs:
   deploy-production:
     if: github.event_name == 'push' || github.event.inputs.target == 'production' || github.event.inputs.target == 'both'
-    environment: production
     uses: ./.github/workflows/deploy-linux-vps-reusable.yml
     with:
       environment_name: production
@@ -44,7 +43,6 @@ jobs:
 
   deploy-staging:
     if: github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'staging' || github.event.inputs.target == 'both')
-    environment: staging
     uses: ./.github/workflows/deploy-linux-vps-reusable.yml
     with:
       environment_name: staging
