@@ -290,6 +290,16 @@ jobs:
                 sudo systemctl enable "$SERVICE_UNIT"
               fi
               if [ -n "$SERVICE_NAME" ]; then
+                sudo mkdir -p "/etc/systemd/system/$SERVICE_UNIT.d"
+                printf '%s\n' \
+                  '[Service]' \
+                  "WorkingDirectory=$APP_ROOT/current" \
+                  'ExecStart=' \
+                  "ExecStart=$APP_ROOT/shared/run-current.sh" \
+                  > "/tmp/${SERVICE_UNIT}.override.conf"
+                sudo mv "/tmp/${SERVICE_UNIT}.override.conf" "/etc/systemd/system/$SERVICE_UNIT.d/override.conf"
+                sudo chmod 644 "/etc/systemd/system/$SERVICE_UNIT.d/override.conf"
+                sudo systemctl daemon-reload
                 sudo systemctl restart "$SERVICE_UNIT"
                 sudo systemctl is-active --quiet "$SERVICE_UNIT"
                 RESTARTED=1
