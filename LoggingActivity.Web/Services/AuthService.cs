@@ -3,7 +3,6 @@ using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Options;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace LoggingActivity.Web.Services;
@@ -13,20 +12,17 @@ public sealed class AuthService
     private readonly UserService _userService;
     private readonly PermissionGroupService _permissionGroupService;
     private readonly IOptions<SeedAdminOptions> _seedAdminOptions;
-    private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         UserService userService,
         PermissionGroupService permissionGroupService,
         IOptions<SeedAdminOptions> seedAdminOptions,
-        IHostEnvironment hostEnvironment,
         ILogger<AuthService> logger)
     {
         _userService = userService;
         _permissionGroupService = permissionGroupService;
         _seedAdminOptions = seedAdminOptions;
-        _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
 
@@ -59,34 +55,21 @@ public sealed class AuthService
     private AppUser? TryValidateSeedAdmin(string userName, string password)
     {
         var options = _seedAdminOptions.Value;
-        var configuredUserName = ResolveSeedAdminValue(options.UserName, "admin");
-        var configuredPassword = ResolveSeedAdminValue(options.Password, "Admin@123456");
-
-        if (!_hostEnvironment.IsDevelopment() && !_hostEnvironment.IsEnvironment("Local"))
-        {
-            configuredUserName = options.UserName?.Trim() ?? string.Empty;
-            configuredPassword = options.Password ?? string.Empty;
-        }
-
         if (string.IsNullOrWhiteSpace(options.UserName)
             || string.IsNullOrWhiteSpace(options.Password))
         {
-            if (string.IsNullOrWhiteSpace(configuredUserName)
-                || string.IsNullOrWhiteSpace(configuredPassword))
-            {
-                return null;
-            }
+            return null;
         }
 
-        if (!string.Equals(configuredUserName, userName, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(configuredPassword, password, StringComparison.Ordinal))
+        if (!string.Equals(options.UserName.Trim(), userName, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(options.Password, password, StringComparison.Ordinal))
         {
             return null;
         }
 
         return new AppUser
         {
-            UserName = configuredUserName,
+            UserName = options.UserName.Trim(),
             DisplayName = "Seed Admin",
             Email = string.IsNullOrWhiteSpace(options.Email) ? string.Empty : options.Email.Trim(),
             Role = SystemRoles.Admin,
@@ -95,19 +78,6 @@ public sealed class AuthService
             PermissionGroupIds = new List<string>(),
             IsActive = true
         };
-    }
-
-    private string ResolveSeedAdminValue(string? configuredValue, string localFallback)
-    {
-        if (!string.IsNullOrWhiteSpace(configuredValue)
-            && !configuredValue.Contains("<set-via-user-secrets-or-env>", StringComparison.OrdinalIgnoreCase))
-        {
-            return configuredValue.Trim();
-        }
-
-        return _hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("Local")
-            ? localFallback
-            : string.Empty;
     }
 
     public async Task SignInAsync(HttpContext httpContext, AppUser user, bool isPersistent)

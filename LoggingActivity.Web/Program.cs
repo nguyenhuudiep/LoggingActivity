@@ -33,8 +33,19 @@ var enableHttpsRedirection = !string.Equals(
     StringComparison.OrdinalIgnoreCase);
 
 builder.Configuration
-    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+
+var useLocalSettings = string.Equals(
+    builder.Configuration["APP_USE_LOCAL_SETTINGS"],
+    "true",
+    StringComparison.OrdinalIgnoreCase);
+
+if (useLocalSettings)
+{
+    builder.Configuration
+        .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
+}
 
 var disableMongoBackgroundWorkers =
     bool.TryParse(builder.Configuration["AppRuntime:DisableMongoBackgroundWorkers"], out var disableFromConfig)
