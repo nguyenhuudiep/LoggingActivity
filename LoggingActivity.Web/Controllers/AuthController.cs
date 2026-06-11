@@ -52,7 +52,7 @@ public sealed class AuthController : Controller
         {
             var traceId = HttpContext.TraceIdentifier;
             _logger.LogError(ex, "Login failed for user {UserName}. TraceId: {TraceId}", model.UserName, traceId);
-            ModelState.AddModelError(string.Empty, $"Hệ thống đang bận, vui lòng thử lại sau. Mã lỗi: {traceId}");
+            ModelState.AddModelError(string.Empty, $"Hệ thống đang bận, vui lòng thử lại sau. Mã lỗi: {traceId} ({ex.GetType().Name})");
             return View(model);
         }
 

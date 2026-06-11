@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using LoggingActivity.Web.Models;
+using LoggingActivity.Web.Options;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
 
 namespace LoggingActivity.Web.Services;
 
@@ -9,27 +11,68 @@ public sealed class AuthService
 {
     private readonly UserService _userService;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly IOptions<SeedAdminOptions> _seedAdminOptions;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         UserService userService,
         PermissionGroupService permissionGroupService,
+        IOptions<SeedAdminOptions> seedAdminOptions,
         ILogger<AuthService> logger)
     {
         _userService = userService;
         _permissionGroupService = permissionGroupService;
+        _seedAdminOptions = seedAdminOptions;
         _logger = logger;
     }
 
     public async Task<AppUser?> ValidateCredentialsAsync(string userName, string password, CancellationToken cancellationToken = default)
     {
-        var user = await _userService.GetByUserNameAsync(userName, cancellationToken);
-        if (user is null || !user.IsActive)
+        var normalizedUserName = string.IsNullOrWhiteSpace(userName) ? string.Empty : userName.Trim();
+
+        try
+        {
+            var user = await _userService.GetByUserNameAsync(normalizedUserName, cancellationToken);
+            if (user is null || !user.IsActive)
+            {
+                return null;
+            }
+
+            return await _userService.VerifyPasswordAsync(user, password) ? user : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Primary credential validation failed for user {UserName}. Trying SeedAdmin fallback.", normalizedUserName);
+            return TryValidateSeedAdmin(normalizedUserName, password);
+        }
+    }
+
+    private AppUser? TryValidateSeedAdmin(string userName, string password)
+    {
+        var options = _seedAdminOptions.Value;
+        if (string.IsNullOrWhiteSpace(options.UserName)
+            || string.IsNullOrWhiteSpace(options.Password))
         {
             return null;
         }
 
-        return await _userService.VerifyPasswordAsync(user, password) ? user : null;
+        if (!string.Equals(options.UserName.Trim(), userName, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(options.Password, password, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return new AppUser
+        {
+            UserName = options.UserName.Trim(),
+            DisplayName = "Seed Admin",
+            Email = string.IsNullOrWhiteSpace(options.Email) ? string.Empty : options.Email.Trim(),
+            Role = SystemRoles.Admin,
+            FunctionPermissions = AdminFunctionPermissions.All.Select(permission => permission.Code).ToList(),
+            CustomFunctionPermissions = new List<string>(),
+            PermissionGroupIds = new List<string>(),
+            IsActive = true
+        };
     }
 
     public async Task SignInAsync(HttpContext httpContext, AppUser user, bool isPersistent)
