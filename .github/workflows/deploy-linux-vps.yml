@@ -8,6 +8,7 @@ on:
       - 'LoggingActivity.Web/**'
       - '.github/workflows/deploy-linux-vps.yml'
       - '.github/workflows/deploy-linux-vps-reusable.yml'
+      - 'tools/nginx.logging.conf'
       - 'LoggingActivity.sln'
   workflow_dispatch:
     inputs:
