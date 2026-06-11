@@ -212,8 +212,8 @@ jobs:
               'set -euo pipefail' \
               'APP_ROOT="__APP_ROOT__"' \
               'set -a' \
-              '[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"' \
               '[ -f "$APP_ROOT/shared/app.env" ] && . "$APP_ROOT/shared/app.env"' \
+              '[ -f "$APP_ROOT/shared/runtime.env" ] && . "$APP_ROOT/shared/runtime.env"' \
               'set +a' \
               'cd "$APP_ROOT/current"' \
               'exec dotnet "$APP_ROOT/current/LoggingActivity.Web.dll"' \
@@ -225,7 +225,14 @@ jobs:
               ENV_FILE="$APP_ROOT/shared/app.env"
               PID_FILE="$APP_ROOT/shared/loggingactivity.pid"
               mkdir -p "$APP_ROOT/shared/logs"
-              # Prefer runtime values from secrets; optional fallback file may override.
+              if [ -f "$ENV_FILE" ]; then
+                set -a
+                # shellcheck disable=SC1090
+                . "$ENV_FILE"
+                set +a
+              fi
+
+              # Runtime values from secrets must override optional shared env file.
               export ASPNETCORE_ENVIRONMENT="$APP_ASPNETCORE_ENVIRONMENT"
               export ASPNETCORE_URLS="$APP_ASPNETCORE_URLS"
               export APP_ENABLE_HTTPS_REDIRECTION="$APP_ENABLE_HTTPS_REDIRECTION"
@@ -234,13 +241,6 @@ jobs:
               export SeedAdmin__UserName="$APP_SEEDADMIN_USERNAME"
               export SeedAdmin__Email="$APP_SEEDADMIN_EMAIL"
               export SeedAdmin__Password="$APP_SEEDADMIN_PASSWORD"
-
-              if [ -f "$ENV_FILE" ]; then
-                set -a
-                # shellcheck disable=SC1090
-                . "$ENV_FILE"
-                set +a
-              fi
 
               [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
 
