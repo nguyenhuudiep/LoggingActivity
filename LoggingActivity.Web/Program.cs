@@ -36,6 +36,16 @@ builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
 
+var disableMongoBackgroundWorkers =
+    bool.TryParse(builder.Configuration["AppRuntime:DisableMongoBackgroundWorkers"], out var disableFromConfig)
+        ? disableFromConfig
+        : builder.Environment.IsDevelopment()
+            || builder.Environment.IsEnvironment("Local")
+            || string.Equals(
+                builder.Configuration["APP_DISABLE_MONGO_BACKGROUND_SERVICES"],
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+
 builder.Services
     .AddOptions<MongoDbSettings>()
     .Bind(builder.Configuration.GetSection(MongoDbSettings.SectionName))
@@ -104,7 +114,10 @@ builder.Services.AddScoped<AlertRuleService>();
 builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();
-builder.Services.AddHostedService<ActivityLogIngestProcessorHostedService>();
+if (!disableMongoBackgroundWorkers)
+{
+    builder.Services.AddHostedService<ActivityLogIngestProcessorHostedService>();
+}
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

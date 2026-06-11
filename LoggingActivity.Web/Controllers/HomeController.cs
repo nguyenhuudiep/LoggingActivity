@@ -25,18 +25,27 @@ public class HomeController : AppController
     {
         var today = DateTime.Today;
         ViewData["DisplayName"] = User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value ?? User.Identity?.Name;
-        return View(new HomeDashboardViewModel
+        try
         {
-            OverviewStatistics = await _activityLogService.GetStatisticsAsync(new LogQuery
+            return View(new HomeDashboardViewModel
             {
-                FromUtc = today.AddDays(-6),
-                ToUtc = today.AddDays(1).AddTicks(-1),
-                Page = 1,
-                PageSize = 10
-            }, cancellationToken),
-            ActiveWarnings = await _alertRuleService.GetActiveWarningsAsync(cancellationToken),
-            UnconfiguredActionWarnings = await _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken)
-        });
+                OverviewStatistics = await _activityLogService.GetStatisticsAsync(new LogQuery
+                {
+                    FromUtc = today.AddDays(-6),
+                    ToUtc = today.AddDays(1).AddTicks(-1),
+                    Page = 1,
+                    PageSize = 10
+                }, cancellationToken),
+                ActiveWarnings = await _alertRuleService.GetActiveWarningsAsync(cancellationToken),
+                UnconfiguredActionWarnings = await _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Không thể tải dashboard do kho dữ liệu chưa sẵn sàng.");
+            TempData["WarningMessage"] = "Không thể tải dữ liệu dashboard vì MongoDB chưa sẵn sàng. Bạn vẫn có thể đăng nhập và cấu hình hệ thống.";
+            return View(new HomeDashboardViewModel());
+        }
     }
 
     [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]

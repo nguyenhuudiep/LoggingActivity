@@ -28,23 +28,30 @@ public sealed class SeedAdminHostedService : IHostedService
             return;
         }
 
-        using var scope = _serviceProvider.CreateScope();
-        var userService = scope.ServiceProvider.GetRequiredService<UserService>();
-
-        var existingAdmin = await userService.GetByUserNameAsync(_options.UserName, cancellationToken);
-        if (existingAdmin is not null)
+        try
         {
-            return;
+            using var scope = _serviceProvider.CreateScope();
+            var userService = scope.ServiceProvider.GetRequiredService<UserService>();
+
+            var existingAdmin = await userService.GetByUserNameAsync(_options.UserName, cancellationToken);
+            if (existingAdmin is not null)
+            {
+                return;
+            }
+
+            await userService.CreateAsync(new AppUser
+            {
+                UserName = _options.UserName,
+                DisplayName = _options.DisplayName,
+                Email = _options.Email,
+                Role = SystemRoles.Admin,
+                IsActive = true
+            }, _options.Password, cancellationToken);
         }
-
-        await userService.CreateAsync(new AppUser
+        catch (Exception ex)
         {
-            UserName = _options.UserName,
-            DisplayName = _options.DisplayName,
-            Email = _options.Email,
-            Role = SystemRoles.Admin,
-            IsActive = true
-        }, _options.Password, cancellationToken);
+            _logger.LogWarning(ex, "Seed admin bootstrap skipped because data store is unavailable.");
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
