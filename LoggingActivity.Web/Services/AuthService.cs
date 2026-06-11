@@ -47,8 +47,15 @@ public sealed class AuthService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Primary credential validation failed for user {UserName}. Trying SeedAdmin fallback.", normalizedUserName);
-            return TryValidateSeedAdmin(normalizedUserName, password);
+            var fallbackSeedAdminUser = TryValidateSeedAdmin(normalizedUserName, password);
+            if (fallbackSeedAdminUser is not null)
+            {
+                _logger.LogWarning(ex, "Primary credential validation failed for user {UserName}. SeedAdmin fallback was used.", normalizedUserName);
+                return fallbackSeedAdminUser;
+            }
+
+            _logger.LogError(ex, "Credential validation failed for user {UserName}.", normalizedUserName);
+            throw;
         }
     }
 
