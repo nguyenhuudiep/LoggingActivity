@@ -1,4 +1,5 @@
 using LoggingActivity.Web.Data;
+using LoggingActivity.Web.Infrastructure;
 using LoggingActivity.Web.Models;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -169,7 +170,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             .Where(log => !string.IsNullOrWhiteSpace(log.Action))
             .Select(log => new
             {
-                AlertDateUtc = log.CreatedAtUtc.ToLocalTime().Date,
+                AlertDateUtc = VietnamTimeExtensions.VietnamDateToUtcStart(log.CreatedAtUtc.ToVietnamTime().Date),
                 OccurredAtUtc = log.CreatedAtUtc,
                 PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
                 PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),

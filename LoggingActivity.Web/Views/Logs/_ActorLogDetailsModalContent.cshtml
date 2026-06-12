@@ -73,7 +73,7 @@
                 {
                     <tr>
                         <td class="table-stt-cell">@(rowNumber++)</td>
-                        <td>@log.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@log.CreatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@(string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName)</td>
                         <td>@log.UserName</td>
                         <td><span class="badge bg-primary-subtle text-primary-emphasis">@log.Action</span></td>

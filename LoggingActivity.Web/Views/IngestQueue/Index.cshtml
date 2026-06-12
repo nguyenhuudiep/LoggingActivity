@@ -186,7 +186,7 @@
                     <tr>
                         <td class="table-stt-cell">@(rowNumber++)</td>
                         <td>
-                            <div>@item.ReceivedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            <div>@item.ReceivedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                             <div class="text-secondary small">@item.Endpoint</div>
                         </td>
                         <td>
@@ -212,17 +212,17 @@
                         <td>
                             @if (item.Status == ActivityLogIngestQueueStatuses.Pending)
                             {
-                                <div>Retry lúc @item.AvailableAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                                <div>Retry lúc @item.AvailableAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                             }
                             else if (item.Status == ActivityLogIngestQueueStatuses.Processing && item.LeaseExpiresAtUtc.HasValue)
                             {
-                                <div>Lease tới @item.LeaseExpiresAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                                <div>Lease tới @item.LeaseExpiresAtUtc.Value.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                             }
                             else if (item.ProcessedAtUtc.HasValue)
                             {
-                                <div>Xong lúc @item.ProcessedAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                                <div>Xong lúc @item.ProcessedAtUtc.Value.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                             }
-                            <div class="text-secondary small">Cập nhật @item.UpdatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
+                            <div class="text-secondary small">Cập nhật @item.UpdatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</div>
                         </td>
                         <td>
                             @if (string.IsNullOrWhiteSpace(item.LastError))

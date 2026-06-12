@@ -215,7 +215,7 @@
                     var actorDetailsUrl = BuildActorDetailsUrl(log);
                     <tr>
                         <td class="table-stt-cell">@(rowNumber++)</td>
-                        <td>@log.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@log.CreatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@(string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName)</td>
                         <td>
                             @if (!string.IsNullOrWhiteSpace(actorDetailsUrl))

@@ -1,5 +1,6 @@
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Repositories;
+using LoggingActivity.Web.Infrastructure;
 
 namespace LoggingActivity.Web.Services;
 
@@ -45,9 +46,9 @@ public sealed class AlertRuleService
             return Array.Empty<AlertWarning>();
         }
 
-        var localToday = DateTime.Today;
-        var fromUtc = localToday.ToUniversalTime();
-        var toUtc = localToday.AddDays(1).ToUniversalTime();
+        var localToday = VietnamTimeExtensions.TodayInVietnamDate();
+        var fromUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localToday);
+        var toUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localToday.AddDays(1));
         var userActionCounts = await _activityLogRepository.GetUserActionCountsAsync(fromUtc, toUtc, cancellationToken);
 
         var warnings = userActionCounts
@@ -143,9 +144,9 @@ public sealed class AlertRuleService
             return;
         }
 
-        var localAlertDate = logEntry.CreatedAtUtc.ToLocalTime().Date;
-        var alertDateUtc = localAlertDate.ToUniversalTime();
-        var nextDateUtc = localAlertDate.AddDays(1).ToUniversalTime();
+        var localAlertDate = logEntry.CreatedAtUtc.ToVietnamTime().Date;
+        var alertDateUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localAlertDate);
+        var nextDateUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localAlertDate.AddDays(1));
         var currentCount = await _activityLogRepository.GetUserActionCountAsync(
             actorIdentifier,
             logEntry.DisplayActorIdentifierType,
@@ -184,7 +185,7 @@ public sealed class AlertRuleService
             Action = logEntry.Action.Trim(),
             DailyLimit = rule.DailyLimit,
             CurrentCount = currentCount,
-            AlertDateUtc = localAlertDate,
+            AlertDateUtc = alertDateUtc,
             OccurredAtUtc = logEntry.CreatedAtUtc,
             Message = BuildAlertMessage(actorIdentifier, logEntry.DisplayActorIdentifierType, normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount)
         }, cancellationToken);
@@ -197,7 +198,7 @@ public sealed class AlertRuleService
             return;
         }
 
-        var todayUtc = DateTime.Today;
+        var todayUtc = VietnamTimeExtensions.VietnamDateToUtcStart(VietnamTimeExtensions.TodayInVietnamDate());
         foreach (var warning in warnings.Where(item => !string.IsNullOrWhiteSpace(item.DisplayActorIdentifier)))
         {
             var actorIdentifier = warning.DisplayActorIdentifier;
