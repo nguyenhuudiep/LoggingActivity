@@ -12,10 +12,16 @@ public sealed class MongoDbContext
     public MongoDbContext(IOptions<MongoDbSettings> options)
     {
         var settings = options.Value;
-        var client = new MongoClient(settings.ConnectionString);
+        var connectionString = BuildEffectiveConnectionString(settings.ConnectionString);
+        var mongoUrl = MongoUrl.Create(connectionString);
+        var clientSettings = MongoClientSettings.FromUrl(mongoUrl);
+        clientSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(8);
+        clientSettings.ConnectTimeout = TimeSpan.FromSeconds(8);
+        clientSettings.SocketTimeout = TimeSpan.FromSeconds(30);
+        var client = new MongoClient(clientSettings);
         var databaseName = !string.IsNullOrWhiteSpace(settings.DatabaseName)
             ? settings.DatabaseName
-            : MongoUrl.Create(settings.ConnectionString).DatabaseName;
+            : mongoUrl.DatabaseName;
 
         if (string.IsNullOrWhiteSpace(databaseName))
         {
@@ -31,6 +37,25 @@ public sealed class MongoDbContext
         AlertRules = _database.GetCollection<AlertRule>(settings.AlertRulesCollectionName);
         LogActionDefinitions = _database.GetCollection<LogActionDefinition>(settings.LogActionDefinitionsCollectionName);
         AlertHistories = _database.GetCollection<AlertHistory>(settings.AlertHistoriesCollectionName);
+    }
+
+    private static string BuildEffectiveConnectionString(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return connectionString;
+        }
+
+        var hasReplicaSet = connectionString.Contains("replicaSet=", StringComparison.OrdinalIgnoreCase);
+        var hasDirectConnection = connectionString.Contains("directConnection=", StringComparison.OrdinalIgnoreCase);
+        if (!hasReplicaSet || hasDirectConnection)
+        {
+            return connectionString;
+        }
+
+        return connectionString.Contains('?')
+            ? $"{connectionString}&directConnection=true"
+            : $"{connectionString}?directConnection=true";
     }
 
     public IMongoCollection<AppUser> Users { get; }
