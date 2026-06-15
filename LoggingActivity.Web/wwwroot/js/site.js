@@ -429,15 +429,40 @@
 		if (!body) {
 			return;
 		}
+		var minVisibleDurationMs = 300;
+		var loadingIndicatorDelayMs = 160;
+		var loadingStartedAt = Date.now();
+		var showLoadingTimerId = null;
 
 		function showLoading() {
+			if (showLoadingTimerId !== null) {
+				window.clearTimeout(showLoadingTimerId);
+				showLoadingTimerId = null;
+			}
+
 			body.classList.add("list-page-loading");
 			body.classList.remove("list-page-ready");
+			loadingStartedAt = Date.now();
 		}
 
-		function deferNavigation(navigateFn) {
-			showLoading();
-			window.setTimeout(navigateFn, 320);
+		function queueLoading() {
+			if (showLoadingTimerId !== null) {
+				return;
+			}
+
+			showLoadingTimerId = window.setTimeout(function () {
+				showLoadingTimerId = null;
+				showLoading();
+			}, loadingIndicatorDelayMs);
+		}
+
+		function hideLoadingWithMinimumDuration() {
+			var elapsed = Date.now() - loadingStartedAt;
+			var wait = Math.max(0, minVisibleDurationMs - elapsed);
+			window.setTimeout(function () {
+				body.classList.remove("list-page-loading");
+				body.classList.add("list-page-ready");
+			}, wait);
 		}
 
 		document.querySelectorAll("a[data-show-loading-nav='true']").forEach(function (link) {
@@ -451,10 +476,7 @@
 					return;
 				}
 
-				event.preventDefault();
-				deferNavigation(function () {
-					window.location.href = href;
-				});
+				queueLoading();
 			});
 		});
 
@@ -464,12 +486,11 @@
 		}
 
 		body.classList.add("list-page-loading");
-		window.addEventListener("load", function () {
-			window.setTimeout(function () {
-				body.classList.remove("list-page-loading");
-				body.classList.add("list-page-ready");
-			}, 320);
-		}, { once: true });
+		if (document.readyState === "complete") {
+			hideLoadingWithMinimumDuration();
+		} else {
+			window.addEventListener("load", hideLoadingWithMinimumDuration, { once: true });
+		}
 
 		window.addEventListener("beforeunload", function () {
 			body.classList.add("list-page-loading");
@@ -500,9 +521,7 @@
 			var samePath = url.pathname === window.location.pathname;
 			var hasPageQuery = url.searchParams.has("page") || url.searchParams.has("pagesize");
 			if (samePath || hasPageQuery) {
-				deferNavigation(function () {
-					window.location.href = url.toString();
-				});
+				queueLoading();
 				return true;
 			}
 
@@ -516,18 +535,13 @@
 				}
 
 				form.dataset.loadingSubmitInProgress = "true";
-				event.preventDefault();
-				deferNavigation(function () {
-					form.submit();
-				});
+				queueLoading();
 			});
 		});
 
 		document.addEventListener("click", function (event) {
 			var link = event.target.closest("a");
-			if (maybeShowLoadingForLink(link)) {
-				event.preventDefault();
-			}
+			maybeShowLoadingForLink(link);
 		});
 	}
 
