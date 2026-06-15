@@ -10,17 +10,20 @@ public sealed class AlertRuleService
     private readonly IActivityLogRepository _activityLogRepository;
     private readonly ILogActionDefinitionRepository _logActionDefinitionRepository;
     private readonly AlertHistoryService _alertHistoryService;
+    private readonly ThresholdNotificationService _thresholdNotificationService;
 
     public AlertRuleService(
         IAlertRuleRepository alertRuleRepository,
         IActivityLogRepository activityLogRepository,
         ILogActionDefinitionRepository logActionDefinitionRepository,
-        AlertHistoryService alertHistoryService)
+        AlertHistoryService alertHistoryService,
+        ThresholdNotificationService thresholdNotificationService)
     {
         _alertRuleRepository = alertRuleRepository;
         _activityLogRepository = activityLogRepository;
         _logActionDefinitionRepository = logActionDefinitionRepository;
         _alertHistoryService = alertHistoryService;
+        _thresholdNotificationService = thresholdNotificationService;
     }
 
     public Task<IReadOnlyList<AlertRule>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -174,6 +177,8 @@ public sealed class AlertRuleService
         var normalizedUserName = string.IsNullOrWhiteSpace(logEntry.UserName) ? "Anonymous" : logEntry.UserName.Trim();
         var normalizedPartnerName = string.IsNullOrWhiteSpace(logEntry.PartnerName) ? "N/A" : logEntry.PartnerName.Trim();
 
+        var alertMessage = BuildAlertMessage(actorIdentifier, logEntry.DisplayActorIdentifierType, normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount);
+
         await _alertHistoryService.AddAsync(new AlertHistory
         {
             PartnerId = logEntry.PartnerId,
@@ -187,8 +192,10 @@ public sealed class AlertRuleService
             CurrentCount = currentCount,
             AlertDateUtc = alertDateUtc,
             OccurredAtUtc = logEntry.CreatedAtUtc,
-            Message = BuildAlertMessage(actorIdentifier, logEntry.DisplayActorIdentifierType, normalizedUserName, normalizedPartnerName, logEntry.Action.Trim(), rule.DailyLimit, currentCount)
+            Message = alertMessage
         }, cancellationToken);
+
+        await _thresholdNotificationService.NotifyAsync(alertMessage, cancellationToken);
     }
 
     private async Task BackfillAlertHistoryAsync(IReadOnlyList<AlertWarning> warnings, CancellationToken cancellationToken)

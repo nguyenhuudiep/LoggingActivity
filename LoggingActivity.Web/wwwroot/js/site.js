@@ -424,6 +424,113 @@
 		});
 	}
 
+	function initListLoadingState() {
+		var body = document.body;
+		if (!body) {
+			return;
+		}
+
+		function showLoading() {
+			body.classList.add("list-page-loading");
+			body.classList.remove("list-page-ready");
+		}
+
+		function deferNavigation(navigateFn) {
+			showLoading();
+			window.setTimeout(navigateFn, 320);
+		}
+
+		document.querySelectorAll("a[data-show-loading-nav='true']").forEach(function (link) {
+			link.addEventListener("click", function (event) {
+				if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+					return;
+				}
+
+				var href = link.getAttribute("href");
+				if (!href || href.startsWith("#") || href.startsWith("javascript:")) {
+					return;
+				}
+
+				event.preventDefault();
+				deferNavigation(function () {
+					window.location.href = href;
+				});
+			});
+		});
+
+		if (body.getAttribute("data-list-page") !== "true") {
+			body.classList.add("list-page-ready");
+			return;
+		}
+
+		body.classList.add("list-page-loading");
+		window.addEventListener("load", function () {
+			window.setTimeout(function () {
+				body.classList.remove("list-page-loading");
+				body.classList.add("list-page-ready");
+			}, 320);
+		}, { once: true });
+
+		window.addEventListener("beforeunload", function () {
+			body.classList.add("list-page-loading");
+			body.classList.remove("list-page-ready");
+		});
+
+		function maybeShowLoadingForLink(link) {
+			if (!link || link.target === "_blank" || link.hasAttribute("download")) {
+				return;
+			}
+
+			var href = link.getAttribute("href");
+			if (!href || href.startsWith("#") || href.startsWith("javascript:")) {
+				return;
+			}
+
+			var url;
+			try {
+				url = new URL(href, window.location.origin);
+			} catch (_) {
+				return;
+			}
+
+			if (url.origin !== window.location.origin) {
+				return;
+			}
+
+			var samePath = url.pathname === window.location.pathname;
+			var hasPageQuery = url.searchParams.has("page") || url.searchParams.has("pagesize");
+			if (samePath || hasPageQuery) {
+				deferNavigation(function () {
+					window.location.href = url.toString();
+				});
+				return true;
+			}
+
+			return false;
+		}
+
+		document.querySelectorAll("form[method='get'], form:not([method])").forEach(function (form) {
+			form.addEventListener("submit", function (event) {
+				if (form.dataset.loadingSubmitInProgress === "true") {
+					return;
+				}
+
+				form.dataset.loadingSubmitInProgress = "true";
+				event.preventDefault();
+				deferNavigation(function () {
+					form.submit();
+				});
+			});
+		});
+
+		document.addEventListener("click", function (event) {
+			var link = event.target.closest("a");
+			if (maybeShowLoadingForLink(link)) {
+				event.preventDefault();
+			}
+		});
+	}
+
 	function runInitializer(name, initFn) {
 		try {
 			initFn();
@@ -442,5 +549,6 @@
 		runInitializer("initAutoSubmitSelectForms", initAutoSubmitSelectForms);
 		runInitializer("initUserPermissionSyncForms", initUserPermissionSyncForms);
 		runInitializer("initActorLogModal", initActorLogModal);
+		runInitializer("initListLoadingState", initListLoadingState);
 	});
 })();

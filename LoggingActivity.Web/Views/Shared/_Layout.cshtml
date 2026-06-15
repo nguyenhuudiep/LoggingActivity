@@ -1,6 +1,16 @@
 ﻿@{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var isListPage = string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase)
+        && (string.Equals(currentController, "Users", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "Partners", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "PermissionGroups", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "Logs", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "IngestQueue", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "LogActions", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "AlertRules", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "AlertHistory", StringComparison.OrdinalIgnoreCase));
+    var bodyClass = isListPage ? "list-page-loading" : string.Empty;
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var currentUserName = User.Identity?.Name ?? "Người dùng";
     var currentUserRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Chưa phân quyền";
@@ -42,7 +52,11 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/LoggingActivity.Web.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="@bodyClass" data-controller="@currentController" data-action="@currentAction" data-list-page="@(isListPage ? "true" : "false")">
+    <div id="listPageLoadingOverlay" class="list-page-loading-overlay" aria-live="polite" aria-label="Đang tải danh sách">
+        <div class="list-page-loading-spinner" aria-hidden="true"></div>
+        <div class="list-page-loading-text">Đang tải danh sách...</div>
+    </div>
     @if (isAuthenticated)
     {
         <div class="admin-shell">
@@ -63,28 +77,28 @@
                         </a>
                         @if (User.IsInRole(SystemRoles.Admin) && canManageUsers)
                         {
-                            <a class="@SidebarLinkClass("Users")" asp-controller="Users" asp-action="Index">
+                            <a class="@SidebarLinkClass("Users")" asp-controller="Users" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">U</span>
                                 <span class="sidebar-link__text">Tài khoản</span>
                             </a>
                         }
                         @if (canAccessLogs)
                         {
-                            <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index">
+                            <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">L</span>
                                 <span class="sidebar-link__text">Log &amp; Thống kê</span>
                             </a>
                         }
                         @if (canAccessIngestQueue)
                         {
-                            <a class="@SidebarLinkClass("IngestQueue")" asp-controller="IngestQueue" asp-action="Index">
+                            <a class="@SidebarLinkClass("IngestQueue")" asp-controller="IngestQueue" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">Q</span>
                                 <span class="sidebar-link__text">Hàng đợi ingest</span>
                             </a>
                         }
                         @if (canAccessAlertHistory)
                         {
-                            <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index">
+                            <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">H</span>
                                 <span class="sidebar-link__text">Lịch sử cảnh báo</span>
                             </a>
@@ -99,28 +113,28 @@
                         <nav class="sidebar-nav">
                             @if (canManageLogActions)
                             {
-                            <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index">
+                            <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">A</span>
                                 <span class="sidebar-link__text">Action log</span>
                             </a>
                             }
                             @if (canManagePermissionGroups)
                             {
-                            <a class="@SidebarLinkClass("PermissionGroups")" asp-controller="PermissionGroups" asp-action="Index">
+                            <a class="@SidebarLinkClass("PermissionGroups")" asp-controller="PermissionGroups" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">G</span>
                                 <span class="sidebar-link__text">Nhóm quyền</span>
                             </a>
                             }
                             @if (canManagePartners)
                             {
-                            <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index">
+                            <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">P</span>
                                 <span class="sidebar-link__text">Partner</span>
                             </a>
                             }
                             @if (canManageAlertRules)
                             {
-                            <a class="@SidebarLinkClass("AlertRules")" asp-controller="AlertRules" asp-action="Index">
+                            <a class="@SidebarLinkClass("AlertRules")" asp-controller="AlertRules" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">C</span>
                                 <span class="sidebar-link__text">Cảnh báo log</span>
                             </a>

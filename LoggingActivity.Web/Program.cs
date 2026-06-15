@@ -105,6 +105,9 @@ builder.Services
             && !string.IsNullOrWhiteSpace(settings.Password)),
         "SeedAdmin requires UserName, Email, and Password when enabled.")
     .ValidateOnStart();
+builder.Services
+    .AddOptions<ThresholdNotificationOptions>()
+    .Bind(builder.Configuration.GetSection(ThresholdNotificationOptions.SectionName));
 
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -124,6 +127,7 @@ builder.Services.AddScoped<ActivityLogIngestQueueService>();
 builder.Services.AddScoped<AlertRuleService>();
 builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
+builder.Services.AddHttpClient<ThresholdNotificationService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();
 if (!disableMongoBackgroundWorkers)
 {
