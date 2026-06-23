@@ -4,6 +4,8 @@ namespace LoggingActivity.Web.Repositories;
 
 public interface IActivityLogRepository
 {
+    Task EnsureIndexesAsync(CancellationToken cancellationToken = default);
+
     Task AddAsync(ActivityLog logEntry, CancellationToken cancellationToken = default);
 
     Task<PagedResult<ActivityLog>> GetPagedAsync(LogQuery query, CancellationToken cancellationToken = default);

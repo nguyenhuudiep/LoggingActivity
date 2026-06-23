@@ -236,7 +236,7 @@ public sealed class AlertRuleService
     private static string BuildAlertMessage(string actorIdentifier, string actorIdentifierType, string userName, string partnerName, string action, int dailyLimit, long currentCount)
     {
         var keyLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType);
-        return $"{keyLabel} '{actorIdentifier}' của partner '{partnerName}' đã chạm hoặc vượt ngưỡng {dailyLimit}/ngày cho action '{action}' với {currentCount} log. User hiển thị: '{userName}'.";
+        return $"{keyLabel} '{actorIdentifier}' của partner '{partnerName}' đã chạm hoặc vượt ngưỡng cho action '{action}'. Số lượng/ngưỡng cấu hình: {currentCount}/{dailyLimit} (log/ngày). User hiển thị: '{userName}'.";
     }
 
     public async Task<(bool Success, string? Error)> UpsertAsync(string? existingAction, string action, int dailyLimit, bool isActive, CancellationToken cancellationToken = default)

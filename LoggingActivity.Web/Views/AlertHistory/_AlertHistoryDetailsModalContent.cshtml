@@ -1,0 +1,163 @@
+@model AlertHistoryDetailsViewModel
+
+@{
+    var currentPage = Model.Logs.Page;
+    var totalPages = Model.Logs.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Logs.Page - 1) * Model.Logs.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
+
+    string BuildDescription(ActivityLog log)
+    {
+        if (!string.IsNullOrWhiteSpace(log.Description))
+        {
+            return log.Description;
+        }
+
+        if (!string.IsNullOrWhiteSpace(log.PartnerName)
+            && !string.IsNullOrWhiteSpace(log.UserName)
+            && !string.IsNullOrWhiteSpace(log.Action))
+        {
+            return $"Partner {log.PartnerName}, username {log.UserName} thực hiện thao tác {log.Action}.";
+        }
+
+        return log.Description;
+    }
+
+    string BuildPageUrl(int page)
+    {
+        var baseUrl = Url.Action("Details", "AlertHistory")!;
+        return baseUrl
+            + "?actorIdentifier=" + Uri.EscapeDataString(Model.Filter.ActorIdentifier ?? string.Empty)
+            + "&actorIdentifierType=" + Uri.EscapeDataString(Model.Filter.ActorIdentifierType ?? string.Empty)
+            + "&partnerId=" + Uri.EscapeDataString(Model.Filter.PartnerId ?? string.Empty)
+            + "&action=" + Uri.EscapeDataString(Model.Filter.Action ?? string.Empty)
+            + "&alertDate=" + Uri.EscapeDataString(Model.AlertDate.ToString("yyyy-MM-dd"))
+            + "&page=" + page
+            + "&pageSize=10";
+    }
+}
+
+<div class="modal-header">
+    <div>
+        <div class="danger-modal__eyebrow">Chi tiết cảnh báo</div>
+        <h2 class="modal-title fs-5 fw-bold mb-0">@Model.ActorLabel: @Model.ActorIdentifier | Action: @Model.Action</h2>
+        <div class="small text-secondary actor-log-modal__meta">Ngày: @Model.AlertDate.ToVietnamTime().ToString("dd/MM/yyyy") | Tổng @Model.Logs.TotalCount bản ghi</div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+</div>
+<div class="modal-body p-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="table-stt-col">STT</th>
+                    <th>Thời gian</th>
+                    <th>Partner</th>
+                    <th>Username</th>
+                    <th>Mô tả</th>
+                    <th>Endpoint</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Model.Logs.Items)
+                {
+                    <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
+                        <td>@log.CreatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@(string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName)</td>
+                        <td>@log.UserName</td>
+                        <td>@BuildDescription(log)</td>
+                        <td><code>@log.Endpoint</code></td>
+                    </tr>
+                }
+                @if (!Model.Logs.Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-secondary py-4">Không có bản ghi nào cho cảnh báo này.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="modal-footer justify-content-between actor-log-modal__footer">
+    <div class="text-secondary small">Trang @Model.Logs.Page / @Model.Logs.TotalPages</div>
+    @if (Model.Logs.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination mb-0">
+                    @if (currentPage <= 1)
+                    {
+                        <li class="page-item disabled">
+                            <span class="page-link">Trước</span>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="page-item">
+                            <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(currentPage - 1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">Trước</a>
+                        </li>
+                    }
+
+                @if (startPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">1</a>
+                    </li>
+
+                    @if (startPage > 2)
+                    {
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    }
+                }
+
+                @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                {
+                    <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(pageNumber)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">@pageNumber</a>
+                    </li>
+                }
+
+                @if (endPage < totalPages)
+                {
+                    @if (endPage < totalPages - 1)
+                    {
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    }
+
+                    <li class="page-item">
+                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(totalPages)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">@totalPages</a>
+                    </li>
+                }
+
+                @if (currentPage >= totalPages)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">Sau</span>
+                    </li>
+                }
+                else
+                {
+                    <li class="page-item">
+                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(currentPage + 1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">Sau</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+    else
+    {
+        <span></span>
+    }
+</div>

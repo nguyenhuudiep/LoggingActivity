@@ -1,18 +1,65 @@
+using System.Globalization;
 using LoggingActivity.Web.Data;
 using LoggingActivity.Web.Infrastructure;
 using LoggingActivity.Web.Models;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
 namespace LoggingActivity.Web.Repositories;
 
 public sealed class ActivityLogRepository : IActivityLogRepository
 {
+    private static readonly string[] IntegratedSources =
+    [
+        ActivityLogSources.IntegratedApi,
+        ActivityLogSources.LegacyPartnerApi
+    ];
+
     private readonly MongoDbContext _context;
 
     public ActivityLogRepository(MongoDbContext context)
     {
         _context = context;
+    }
+
+    public Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
+    {
+        var indexes = new[]
+        {
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys.Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_created_at_desc" }),
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys
+                    .Ascending(log => log.PartnerId)
+                    .Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_partner_created_at" }),
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys
+                    .Ascending(log => log.Action)
+                    .Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_action_created_at" }),
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys
+                    .Ascending(log => log.ActorIdentifier)
+                    .Ascending(log => log.Action)
+                    .Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_actor_action_created_at" }),
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys
+                    .Ascending(log => log.ExternalUserId)
+                    .Ascending(log => log.Action)
+                    .Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_legacy_user_action_created_at" }),
+            new CreateIndexModel<ActivityLog>(
+                Builders<ActivityLog>.IndexKeys
+                    .Ascending(log => log.Source)
+                    .Descending(log => log.CreatedAtUtc),
+                new CreateIndexOptions { Name = "ix_activity_logs_source_created_at" })
+        };
+
+        return _context.ActivityLogs.Indexes.CreateManyAsync(indexes, cancellationToken);
     }
 
     public Task AddAsync(ActivityLog logEntry, CancellationToken cancellationToken = default)
@@ -75,17 +122,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc)
             & Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
 
-        var logs = await _context.ActivityLogs.Find(filter)
-            .Project(log => new ActivityLog
-            {
-                Action = log.Action
-            })
-            .ToListAsync(cancellationToken);
-
-        return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-            .GroupBy(log => log.Action, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.LongCount(), StringComparer.OrdinalIgnoreCase);
+        return await AggregateActionCountsAsync(filter, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AlertWarning>> GetUserActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
@@ -94,54 +131,57 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc)
             & Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
 
-        var logs = await _context.ActivityLogs.Find(filter)
-            .Project(log => new ActivityLog
+        var pipeline = new[]
+        {
+            BuildMatchStage(filter),
+            new BsonDocument("$project", new BsonDocument
             {
-                PartnerId = log.PartnerId,
-                PartnerName = log.PartnerName,
-                UserId = log.UserId,
-                ExternalUserId = log.ExternalUserId,
-                ActorIdentifier = log.ActorIdentifier,
-                ActorIdentifierType = log.ActorIdentifierType,
-                Source = log.Source,
-                UserName = log.UserName,
-                Action = log.Action
-            })
-            .ToListAsync(cancellationToken);
+                { "PartnerId", "$PartnerId" },
+                { "PartnerName", BuildNormalizedTextExpression("PartnerName", "N/A") },
+                { "UserId", "$ExternalUserId" },
+                { "ActorIdentifier", BuildResolvedActorIdentifierExpression() },
+                { "ActorIdentifierType", BuildNormalizedTextExpression("ActorIdentifierType", ActorIdentifierTypes.Unknown) },
+                { "UserName", BuildNormalizedTextExpression("UserName", "Anonymous") },
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) }
+            }),
+            new BsonDocument("$match", new BsonDocument
+            {
+                { "Action", new BsonDocument("$ne", string.Empty) },
+                { "$nor", new BsonArray
+                {
+                    new BsonDocument("ActorIdentifier", BsonNull.Value),
+                    new BsonDocument("ActorIdentifier", string.Empty)
+                }}
+            }),
+            new BsonDocument("$addFields", new BsonDocument
+            {
+                { "NormalizedActorIdentifier", new BsonDocument("$toUpper", "$ActorIdentifier") },
+                { "NormalizedAction", new BsonDocument("$toUpper", "$Action") }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                {
+                    "_id",
+                    new BsonDocument
+                    {
+                        { "actor", "$NormalizedActorIdentifier" },
+                        { "action", "$NormalizedAction" }
+                    }
+                },
+                { "PartnerId", new BsonDocument("$first", "$PartnerId") },
+                { "PartnerName", new BsonDocument("$first", "$PartnerName") },
+                { "UserId", new BsonDocument("$first", "$UserId") },
+                { "ActorIdentifier", new BsonDocument("$first", "$ActorIdentifier") },
+                { "ActorIdentifierType", new BsonDocument("$first", "$ActorIdentifierType") },
+                { "UserName", new BsonDocument("$first", "$UserName") },
+                { "Action", new BsonDocument("$first", "$Action") },
+                { "CurrentCount", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$sort", new BsonDocument("CurrentCount", -1L))
+        };
 
-        return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-            .Select(log => new
-            {
-                PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
-                PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
-                LegacyUserId = log.ExternalUserId,
-                ActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
-                ActorIdentifierType = ActorIdentityHelper.ResolveType(log),
-                UserName = string.IsNullOrWhiteSpace(log.UserName) ? "Anonymous" : log.UserName.Trim(),
-                Action = log.Action.Trim(),
-                NormalizedActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
-                NormalizedAction = log.Action.Trim().ToUpperInvariant()
-            })
-            .Where(log => !string.IsNullOrWhiteSpace(log.NormalizedActorIdentifier))
-            .GroupBy(log => new
-            {
-                log.NormalizedActorIdentifier,
-                log.NormalizedAction
-            })
-            .Select(group => new AlertWarning
-            {
-                PartnerId = group.Select(item => item.PartnerId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
-                PartnerName = group.Select(item => item.PartnerName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "N/A",
-                UserId = group.Select(item => item.LegacyUserId).FirstOrDefault(id => id.HasValue),
-                ActorIdentifier = group.Key.NormalizedActorIdentifier,
-                ActorIdentifierType = group.Select(item => item.ActorIdentifierType).FirstOrDefault(type => !string.IsNullOrWhiteSpace(type)) ?? ActorIdentifierTypes.Unknown,
-                UserName = group.First().UserName,
-                Action = group.First().Action,
-                CurrentCount = group.LongCount()
-            })
-            .OrderByDescending(item => item.CurrentCount)
-            .ToList();
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        return docs.Select(ToAlertWarning).ToList();
     }
 
     public async Task<IReadOnlyList<DailyAlertCount>> GetDailyUserActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
@@ -150,60 +190,94 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, toUtc)
             & Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
 
-        var logs = await _context.ActivityLogs.Find(filter)
-            .Project(log => new ActivityLog
+        var pipeline = new[]
+        {
+            BuildMatchStage(filter),
+            new BsonDocument("$project", new BsonDocument
             {
-                PartnerId = log.PartnerId,
-                PartnerName = log.PartnerName,
-                UserId = log.UserId,
-                ExternalUserId = log.ExternalUserId,
-                ActorIdentifier = log.ActorIdentifier,
-                ActorIdentifierType = log.ActorIdentifierType,
-                Source = log.Source,
-                UserName = log.UserName,
-                Action = log.Action,
-                CreatedAtUtc = log.CreatedAtUtc
+                { "CreatedAtUtc", "$CreatedAtUtc" },
+                { "AlertDateLocal", new BsonDocument("$dateToString", new BsonDocument
+                    {
+                        { "date", "$CreatedAtUtc" },
+                        { "format", "%Y-%m-%d" },
+                        { "timezone", "Asia/Ho_Chi_Minh" }
+                    })
+                },
+                { "PartnerId", "$PartnerId" },
+                { "PartnerName", BuildNormalizedTextExpression("PartnerName", "N/A") },
+                { "UserId", "$ExternalUserId" },
+                { "ActorIdentifier", BuildResolvedActorIdentifierExpression() },
+                { "ActorIdentifierType", BuildNormalizedTextExpression("ActorIdentifierType", ActorIdentifierTypes.Unknown) },
+                { "UserName", BuildNormalizedTextExpression("UserName", "Anonymous") },
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) }
+            }),
+            new BsonDocument("$match", new BsonDocument
+            {
+                { "Action", new BsonDocument("$ne", string.Empty) },
+                { "$nor", new BsonArray
+                {
+                    new BsonDocument("ActorIdentifier", BsonNull.Value),
+                    new BsonDocument("ActorIdentifier", string.Empty)
+                }}
+            }),
+            new BsonDocument("$addFields", new BsonDocument
+            {
+                { "NormalizedActorIdentifier", new BsonDocument("$toUpper", "$ActorIdentifier") },
+                { "NormalizedAction", new BsonDocument("$toUpper", "$Action") }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                {
+                    "_id",
+                    new BsonDocument
+                    {
+                        { "date", "$AlertDateLocal" },
+                        { "actor", "$NormalizedActorIdentifier" },
+                        { "action", "$NormalizedAction" }
+                    }
+                },
+                { "OccurredAtUtc", new BsonDocument("$max", "$CreatedAtUtc") },
+                { "PartnerId", new BsonDocument("$first", "$PartnerId") },
+                { "PartnerName", new BsonDocument("$first", "$PartnerName") },
+                { "UserId", new BsonDocument("$first", "$UserId") },
+                { "ActorIdentifier", new BsonDocument("$first", "$ActorIdentifier") },
+                { "ActorIdentifierType", new BsonDocument("$first", "$ActorIdentifierType") },
+                { "UserName", new BsonDocument("$first", "$UserName") },
+                { "Action", new BsonDocument("$first", "$Action") },
+                { "CurrentCount", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$sort", new BsonDocument
+            {
+                { "_id.date", -1L },
+                { "CurrentCount", -1L }
             })
-            .ToListAsync(cancellationToken);
+        };
 
-        return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-            .Select(log => new
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+
+        var results = new List<DailyAlertCount>(docs.Count);
+        foreach (var doc in docs)
+        {
+            var id = doc["_id"].AsBsonDocument;
+            var localDateText = GetTrimmedString(id, "date");
+            var localDate = DateTime.ParseExact(localDateText, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            results.Add(new DailyAlertCount
             {
-                AlertDateUtc = VietnamTimeExtensions.VietnamDateToUtcStart(log.CreatedAtUtc.ToVietnamTime().Date),
-                OccurredAtUtc = log.CreatedAtUtc,
-                PartnerId = string.IsNullOrWhiteSpace(log.PartnerId) ? null : log.PartnerId.Trim(),
-                PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
-                UserId = log.ExternalUserId,
-                ActorIdentifier = ActorIdentityHelper.ResolveIdentifier(log),
-                ActorIdentifierType = ActorIdentityHelper.ResolveType(log),
-                UserName = string.IsNullOrWhiteSpace(log.UserName) ? "Anonymous" : log.UserName.Trim(),
-                Action = log.Action.Trim(),
-                NormalizedAction = log.Action.Trim().ToUpperInvariant()
-            })
-            .Where(log => !string.IsNullOrWhiteSpace(log.ActorIdentifier))
-            .GroupBy(log => new
-            {
-                log.AlertDateUtc,
-                log.ActorIdentifier,
-                log.NormalizedAction
-            })
-            .Select(group => new DailyAlertCount
-            {
-                AlertDateUtc = group.Key.AlertDateUtc,
-                OccurredAtUtc = group.Max(item => item.OccurredAtUtc),
-                PartnerId = group.Select(item => item.PartnerId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)),
-                PartnerName = group.Select(item => item.PartnerName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "N/A",
-                UserId = group.Select(item => item.UserId).FirstOrDefault(id => id.HasValue),
-                ActorIdentifier = group.Key.ActorIdentifier,
-                ActorIdentifierType = group.Select(item => item.ActorIdentifierType).FirstOrDefault(type => !string.IsNullOrWhiteSpace(type)) ?? ActorIdentifierTypes.Unknown,
-                UserName = group.Select(item => item.UserName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Anonymous",
-                Action = group.First().Action,
-                CurrentCount = group.LongCount()
-            })
-            .OrderByDescending(item => item.AlertDateUtc)
-            .ThenByDescending(item => item.CurrentCount)
-            .ToList();
+                AlertDateUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localDate),
+                OccurredAtUtc = GetDateTimeUtc(doc, "OccurredAtUtc"),
+                PartnerId = GetNullableString(doc, "PartnerId"),
+                PartnerName = GetTrimmedString(doc, "PartnerName", "N/A"),
+                UserId = GetNullableInt(doc, "UserId"),
+                ActorIdentifier = GetTrimmedString(doc, "ActorIdentifier"),
+                ActorIdentifierType = ActorIdentityHelper.NormalizeType(GetTrimmedString(doc, "ActorIdentifierType", ActorIdentifierTypes.Unknown), GetTrimmedString(doc, "ActorIdentifier")),
+                UserName = GetTrimmedString(doc, "UserName", "Anonymous"),
+                Action = GetTrimmedString(doc, "Action"),
+                CurrentCount = GetInt64(doc, "CurrentCount")
+            });
+        }
+
+        return results;
     }
 
     public Task<long> GetUserActionCountAsync(string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default)
@@ -231,17 +305,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
     public async Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default)
     {
         var filter = Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
-        var logs = await _context.ActivityLogs.Find(filter)
-            .Project(log => new ActivityLog
-            {
-                Action = log.Action
-            })
-            .ToListAsync(cancellationToken);
-
-        return logs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-            .GroupBy(log => log.Action, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.LongCount(), StringComparer.OrdinalIgnoreCase);
+        return await AggregateActionCountsAsync(filter, cancellationToken);
     }
 
     private async Task<PagedResult<ActivityLog>> GetPagedInternalAsync(
@@ -323,11 +387,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             if (string.Equals(query.Source, ActivityLogSources.IntegratedApi, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(query.Source, ActivityLogSources.LegacyPartnerApi, StringComparison.OrdinalIgnoreCase))
             {
-                filters.Add(builder.In(log => log.Source, new[]
-                {
-                    ActivityLogSources.IntegratedApi,
-                    ActivityLogSources.LegacyPartnerApi
-                }));
+                filters.Add(builder.In(log => log.Source, IntegratedSources));
             }
             else
             {
@@ -353,98 +413,483 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         CancellationToken cancellationToken)
     {
         var today = DateTime.UtcNow.Date;
-        var totalLogs = await _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var todayLogs = await _context.ActivityLogs.CountDocumentsAsync(
-            filter & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, today),
-            cancellationToken: cancellationToken);
-        var integratedLogs = await _context.ActivityLogs.CountDocumentsAsync(
-            filter & Builders<ActivityLog>.Filter.In(log => log.Source, new[]
-            {
-                ActivityLogSources.IntegratedApi,
-                ActivityLogSources.LegacyPartnerApi
-            }),
-            cancellationToken: cancellationToken);
-
-        var statsLogs = await _context.ActivityLogs.Find(filter)
-            .Project(log => new ActivityLog
-            {
-                UserId = log.UserId,
-                ExternalUserId = log.ExternalUserId,
-                ActorIdentifier = log.ActorIdentifier,
-                ActorIdentifierType = log.ActorIdentifierType,
-                UserName = log.UserName,
-                PartnerName = log.PartnerName,
-                Source = log.Source,
-                Action = log.Action,
-                CreatedAtUtc = log.CreatedAtUtc
-            })
-            .ToListAsync(cancellationToken);
-
         var chartDays = Enumerable.Range(0, 7)
             .Select(offset => today.AddDays(offset - 6))
             .ToList();
 
-        var actionDailySeries = statsLogs
-            .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-            .Select(log => new
-            {
-                PartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim(),
-                Action = log.Action.Trim(),
-                CreatedAtUtc = log.CreatedAtUtc,
-                NormalizedPartnerName = string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName.Trim().ToUpperInvariant(),
-                NormalizedAction = log.Action.Trim().ToUpperInvariant()
-            })
-            .GroupBy(log => new
-            {
-                log.NormalizedPartnerName,
-                log.NormalizedAction
-            })
-            .Select(group => new ActionTrendSeries
-            {
-                Action = $"{group.First().PartnerName} - {group.First().Action}",
-                Values = chartDays
-                    .Select(day => group.LongCount(log => log.CreatedAtUtc.Date == day))
-                    .ToList()
-            })
-            .OrderByDescending(series => series.Values.Sum())
-            .Take(5)
-            .ToList();
+        var totalLogsTask = _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var todayLogsTask = _context.ActivityLogs.CountDocumentsAsync(
+            filter & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, today),
+            cancellationToken: cancellationToken);
+        var integratedLogsTask = _context.ActivityLogs.CountDocumentsAsync(
+            filter & Builders<ActivityLog>.Filter.In(log => log.Source, IntegratedSources),
+            cancellationToken: cancellationToken);
+        var uniqueUsersTask = GetUniqueUsersCountAsync(filter, cancellationToken);
+        var topActionsTask = GetTopActionsAsync(filter, cancellationToken);
+        var dailyActivityTask = GetDailyActivityAsync(filter, chartDays, cancellationToken);
+        var actionTrendSeriesTask = GetActionTrendSeriesAsync(filter, chartDays, cancellationToken);
+
+        await Task.WhenAll(
+            totalLogsTask,
+            todayLogsTask,
+            integratedLogsTask,
+            uniqueUsersTask,
+            topActionsTask,
+            dailyActivityTask,
+            actionTrendSeriesTask);
 
         return new LogStatistics
         {
-            TotalLogs = totalLogs,
-            TodayLogs = todayLogs,
-            UniqueUsers = statsLogs
-                .Select(log =>
-                {
-                    var actorIdentifier = ActorIdentityHelper.ResolveIdentifier(log);
-                    return string.IsNullOrWhiteSpace(actorIdentifier)
-                        ? log.UserName
-                        : actorIdentifier;
-                })
-                .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "Anonymous", StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .LongCount(),
-            IntegratedLogs = integratedLogs,
-            TopActions = statsLogs
-                .Where(log => !string.IsNullOrWhiteSpace(log.Action))
-                .GroupBy(log => log.Action)
-                .Select(group => new BreakdownItem
-                {
-                    Label = group.Key,
-                    Value = group.LongCount()
-                })
-                .OrderByDescending(item => item.Value)
-                .Take(5)
-                .ToList(),
-            DailyActivity = chartDays
-                .Select(day => new ChartPoint
-                {
-                    Label = day.ToString("yyyy-MM-dd"),
-                    Value = statsLogs.LongCount(log => log.CreatedAtUtc.Date == day)
-                })
-                .ToList(),
-            ActionDailySeries = actionDailySeries
+            TotalLogs = totalLogsTask.Result,
+            TodayLogs = todayLogsTask.Result,
+            UniqueUsers = uniqueUsersTask.Result,
+            IntegratedLogs = integratedLogsTask.Result,
+            TopActions = topActionsTask.Result,
+            DailyActivity = dailyActivityTask.Result,
+            ActionDailySeries = actionTrendSeriesTask.Result
         };
+    }
+
+    private async Task<IReadOnlyDictionary<string, long>> AggregateActionCountsAsync(
+        FilterDefinition<ActivityLog> filter,
+        CancellationToken cancellationToken)
+    {
+        var pipeline = new[]
+        {
+            BuildMatchStage(filter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) }
+            }),
+            new BsonDocument("$match", new BsonDocument("Action", new BsonDocument("$ne", string.Empty))),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", new BsonDocument("$toUpper", "$Action") },
+                { "Count", new BsonDocument("$sum", 1) }
+            })
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        return docs.ToDictionary(
+            doc => doc["_id"].AsString,
+            doc => GetInt64(doc, "Count"),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<long> GetUniqueUsersCountAsync(FilterDefinition<ActivityLog> filter, CancellationToken cancellationToken)
+    {
+        var pipeline = new[]
+        {
+            BuildMatchStage(filter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                { "ResolvedIdentifier", BuildResolvedActorOrUserExpression() }
+            }),
+            new BsonDocument("$match", new BsonDocument
+            {
+                { "$nor", new BsonArray
+                {
+                    new BsonDocument("ResolvedIdentifier", BsonNull.Value),
+                    new BsonDocument("ResolvedIdentifier", string.Empty)
+                }}
+            }),
+            new BsonDocument("$group", new BsonDocument("_id", new BsonDocument("$toUpper", "$ResolvedIdentifier"))),
+            new BsonDocument("$match", new BsonDocument("_id", new BsonDocument("$ne", "ANONYMOUS"))),
+            new BsonDocument("$count", "Value")
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        return docs.Count == 0 ? 0 : GetInt64(docs[0], "Value");
+    }
+
+    private async Task<IReadOnlyList<BreakdownItem>> GetTopActionsAsync(FilterDefinition<ActivityLog> filter, CancellationToken cancellationToken)
+    {
+        var pipeline = new[]
+        {
+            BuildMatchStage(filter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) }
+            }),
+            new BsonDocument("$match", new BsonDocument("Action", new BsonDocument("$ne", string.Empty))),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$Action" },
+                { "Value", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$sort", new BsonDocument("Value", -1L)),
+            new BsonDocument("$limit", 5)
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        return docs.Select(doc => new BreakdownItem
+        {
+            Label = GetTrimmedString(doc, "_id"),
+            Value = GetInt64(doc, "Value")
+        }).ToList();
+    }
+
+    private async Task<IReadOnlyList<ChartPoint>> GetDailyActivityAsync(
+        FilterDefinition<ActivityLog> filter,
+        IReadOnlyList<DateTime> chartDays,
+        CancellationToken cancellationToken)
+    {
+        var startDate = chartDays[0];
+        var endDate = chartDays[^1].AddDays(1);
+
+        var scopedFilter = filter
+            & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, startDate)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endDate);
+
+        var pipeline = new[]
+        {
+            BuildMatchStage(scopedFilter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                {
+                    "Day",
+                    new BsonDocument("$dateToString", new BsonDocument
+                    {
+                        { "date", "$CreatedAtUtc" },
+                        { "format", "%Y-%m-%d" },
+                        { "timezone", "UTC" }
+                    })
+                }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$Day" },
+                { "Value", new BsonDocument("$sum", 1) }
+            })
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        var valuesByDay = docs.ToDictionary(
+            doc => GetTrimmedString(doc, "_id"),
+            doc => GetInt64(doc, "Value"),
+            StringComparer.OrdinalIgnoreCase);
+
+        return chartDays
+            .Select(day =>
+            {
+                var key = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                valuesByDay.TryGetValue(key, out var value);
+                return new ChartPoint
+                {
+                    Label = key,
+                    Value = value
+                };
+            })
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<ActionTrendSeries>> GetActionTrendSeriesAsync(
+        FilterDefinition<ActivityLog> filter,
+        IReadOnlyList<DateTime> chartDays,
+        CancellationToken cancellationToken)
+    {
+        var startDate = chartDays[0];
+        var endDate = chartDays[^1].AddDays(1);
+
+        var scopedFilter = filter
+            & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, startDate)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endDate)
+            & Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
+
+        var pipeline = new[]
+        {
+            BuildMatchStage(scopedFilter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                { "PartnerName", BuildNormalizedTextExpression("PartnerName", "N/A") },
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) },
+                {
+                    "Day",
+                    new BsonDocument("$dateToString", new BsonDocument
+                    {
+                        { "date", "$CreatedAtUtc" },
+                        { "format", "%Y-%m-%d" },
+                        { "timezone", "UTC" }
+                    })
+                }
+            }),
+            new BsonDocument("$match", new BsonDocument("Action", new BsonDocument("$ne", string.Empty))),
+            new BsonDocument("$addFields", new BsonDocument
+            {
+                { "PartnerNameNormalized", new BsonDocument("$toUpper", "$PartnerName") },
+                { "ActionNormalized", new BsonDocument("$toUpper", "$Action") }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                {
+                    "_id",
+                    new BsonDocument
+                    {
+                        { "PartnerNameNormalized", "$PartnerNameNormalized" },
+                        { "ActionNormalized", "$ActionNormalized" },
+                        { "Day", "$Day" }
+                    }
+                },
+                { "PartnerName", new BsonDocument("$first", "$PartnerName") },
+                { "Action", new BsonDocument("$first", "$Action") },
+                { "Value", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                {
+                    "_id",
+                    new BsonDocument
+                    {
+                        { "PartnerNameNormalized", "$_id.PartnerNameNormalized" },
+                        { "ActionNormalized", "$_id.ActionNormalized" }
+                    }
+                },
+                { "PartnerName", new BsonDocument("$first", "$PartnerName") },
+                { "Action", new BsonDocument("$first", "$Action") },
+                { "Total", new BsonDocument("$sum", "$Value") },
+                {
+                    "Daily",
+                    new BsonDocument("$push", new BsonDocument
+                    {
+                        { "Day", "$_id.Day" },
+                        { "Value", "$Value" }
+                    })
+                }
+            }),
+            new BsonDocument("$sort", new BsonDocument("Total", -1L)),
+            new BsonDocument("$limit", 5)
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        var dayLabels = chartDays
+            .Select(day => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+            .ToList();
+
+        var result = new List<ActionTrendSeries>(docs.Count);
+        foreach (var doc in docs)
+        {
+            var dailyMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            if (doc.TryGetValue("Daily", out var dailyValue) && dailyValue.IsBsonArray)
+            {
+                foreach (var item in dailyValue.AsBsonArray)
+                {
+                    var dailyEntry = item.AsBsonDocument;
+                    dailyMap[GetTrimmedString(dailyEntry, "Day")] = GetInt64(dailyEntry, "Value");
+                }
+            }
+
+            result.Add(new ActionTrendSeries
+            {
+                Action = $"{GetTrimmedString(doc, "PartnerName", "N/A")} - {GetTrimmedString(doc, "Action")}",
+                Values = dayLabels.Select(label => dailyMap.TryGetValue(label, out var value) ? value : 0).ToList()
+            });
+        }
+
+        return result;
+    }
+
+    private static AlertWarning ToAlertWarning(BsonDocument doc)
+    {
+        var actorIdentifier = GetTrimmedString(doc, "ActorIdentifier");
+        return new AlertWarning
+        {
+            PartnerId = GetNullableString(doc, "PartnerId"),
+            PartnerName = GetTrimmedString(doc, "PartnerName", "N/A"),
+            UserId = GetNullableInt(doc, "UserId"),
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = ActorIdentityHelper.NormalizeType(GetTrimmedString(doc, "ActorIdentifierType", ActorIdentifierTypes.Unknown), actorIdentifier),
+            UserName = GetTrimmedString(doc, "UserName", "Anonymous"),
+            Action = GetTrimmedString(doc, "Action"),
+            CurrentCount = GetInt64(doc, "CurrentCount")
+        };
+    }
+
+    private BsonDocument BuildMatchStage(FilterDefinition<ActivityLog> filter)
+    {
+        var serializer = BsonSerializer.SerializerRegistry.GetSerializer<ActivityLog>();
+        var renderedFilter = filter.Render(new RenderArgs<ActivityLog>(serializer, BsonSerializer.SerializerRegistry));
+        return new BsonDocument("$match", renderedFilter);
+    }
+
+    private static BsonDocument BuildNormalizedTextExpression(string field, string fallback)
+    {
+        return new BsonDocument("$let", new BsonDocument
+        {
+            {
+                "vars",
+                new BsonDocument("value", new BsonDocument("$trim", new BsonDocument("input", new BsonDocument("$ifNull", new BsonArray { $"${field}", string.Empty }))))
+            },
+            {
+                "in",
+                new BsonDocument("$cond", new BsonArray
+                {
+                    new BsonDocument("$eq", new BsonArray { "$$value", string.Empty }),
+                    fallback,
+                    "$$value"
+                })
+            }
+        });
+    }
+
+    private static BsonDocument BuildResolvedActorIdentifierExpression()
+    {
+        return new BsonDocument("$let", new BsonDocument
+        {
+            {
+                "vars",
+                new BsonDocument
+                {
+                    { "actor", new BsonDocument("$trim", new BsonDocument("input", new BsonDocument("$ifNull", new BsonArray { "$ActorIdentifier", string.Empty }))) },
+                    {
+                        "legacy",
+                        new BsonDocument("$cond", new BsonArray
+                        {
+                            new BsonDocument("$eq", new BsonArray { "$ExternalUserId", BsonNull.Value }),
+                            string.Empty,
+                            new BsonDocument("$toString", "$ExternalUserId")
+                        })
+                    }
+                }
+            },
+            {
+                "in",
+                new BsonDocument("$cond", new BsonArray
+                {
+                    new BsonDocument("$ne", new BsonArray { "$$actor", string.Empty }),
+                    "$$actor",
+                    new BsonDocument("$cond", new BsonArray
+                    {
+                        new BsonDocument("$ne", new BsonArray { "$$legacy", string.Empty }),
+                        "$$legacy",
+                        BsonNull.Value
+                    })
+                })
+            }
+        });
+    }
+
+    private static BsonDocument BuildResolvedActorOrUserExpression()
+    {
+        return new BsonDocument("$let", new BsonDocument
+        {
+            {
+                "vars",
+                new BsonDocument
+                {
+                    { "actor", new BsonDocument("$trim", new BsonDocument("input", new BsonDocument("$ifNull", new BsonArray { "$ActorIdentifier", string.Empty }))) },
+                    {
+                        "legacy",
+                        new BsonDocument("$cond", new BsonArray
+                        {
+                            new BsonDocument("$eq", new BsonArray { "$ExternalUserId", BsonNull.Value }),
+                            string.Empty,
+                            new BsonDocument("$toString", "$ExternalUserId")
+                        })
+                    },
+                    { "userName", new BsonDocument("$trim", new BsonDocument("input", new BsonDocument("$ifNull", new BsonArray { "$UserName", string.Empty }))) }
+                }
+            },
+            {
+                "in",
+                new BsonDocument("$cond", new BsonArray
+                {
+                    new BsonDocument("$ne", new BsonArray { "$$actor", string.Empty }),
+                    "$$actor",
+                    new BsonDocument("$cond", new BsonArray
+                    {
+                        new BsonDocument("$ne", new BsonArray { "$$legacy", string.Empty }),
+                        "$$legacy",
+                        "$$userName"
+                    })
+                })
+            }
+        });
+    }
+
+    private static string GetTrimmedString(BsonDocument doc, string key, string fallback = "")
+    {
+        if (!doc.TryGetValue(key, out var value) || value.IsBsonNull)
+        {
+            return fallback;
+        }
+
+        var text = (value.ToString() ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(text) ? fallback : text;
+    }
+
+    private static string? GetNullableString(BsonDocument doc, string key)
+    {
+        var value = GetTrimmedString(doc, key);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static int? GetNullableInt(BsonDocument doc, string key)
+    {
+        if (!doc.TryGetValue(key, out var value) || value.IsBsonNull)
+        {
+            return null;
+        }
+
+        if (value.IsInt32)
+        {
+            return value.AsInt32;
+        }
+
+        if (value.IsInt64)
+        {
+            return (int)value.AsInt64;
+        }
+
+        if (int.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static long GetInt64(BsonDocument doc, string key)
+    {
+        if (!doc.TryGetValue(key, out var value) || value.IsBsonNull)
+        {
+            return 0;
+        }
+
+        if (value.IsInt64)
+        {
+            return value.AsInt64;
+        }
+
+        if (value.IsInt32)
+        {
+            return value.AsInt32;
+        }
+
+        if (long.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return 0;
+    }
+
+    private static DateTime GetDateTimeUtc(BsonDocument doc, string key)
+    {
+        if (!doc.TryGetValue(key, out var value) || value.IsBsonNull)
+        {
+            return DateTime.UtcNow;
+        }
+
+        if (value.IsValidDateTime)
+        {
+            return value.ToUniversalTime();
+        }
+
+        if (DateTime.TryParse(value.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+        {
+            return parsed;
+        }
+
+        return DateTime.UtcNow;
     }
 }

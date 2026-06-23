@@ -103,7 +103,7 @@
     <div class="data-card__header">
         <div>
             <h2 class="data-card__title">Danh sách cảnh báo đã ghi nhận</h2>
-            <p class="data-card__subtitle">Mỗi dòng là một lần user chạm ngưỡng action trong ngày và đã được hệ thống lưu lịch sử cảnh báo.</p>
+            <p class="data-card__subtitle">Mỗi dòng là một lần user chạm ngưỡng action trong ngày và đã được hệ thống lưu lịch sử cảnh báo. Bấm vào Key để xem chi tiết.</p>
         </div>
     </div>
     <div class="table-responsive">
@@ -130,9 +130,27 @@
                         <td>@alert.OccurredAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@alert.AlertDateUtc.ToVietnamTime().ToString("dd/MM/yyyy")</td>
                         <td>@alert.PartnerName</td>
-                        <td>@alert.DisplayActorIdentifier</td>
+                        <td>
+                            <a href="#" class="alert-history-detail-trigger" 
+                               data-actor-identifier="@alert.ActorIdentifier"
+                               data-actor-identifier-type="@alert.ActorIdentifierType"
+                               data-action="@alert.Action"
+                               data-alert-date="@alert.AlertDateUtc.ToVietnamTime().ToString("yyyy-MM-dd")"
+                               data-partner-id="@alert.PartnerId">
+                                @alert.DisplayActorIdentifier
+                            </a>
+                        </td>
                         <td>@alert.UserName</td>
-                        <td><span class="badge bg-danger-subtle text-danger-emphasis">@alert.Action</span></td>
+                        <td>
+                            <a href="#" class="alert-history-detail-trigger"
+                               data-actor-identifier="@alert.ActorIdentifier"
+                               data-actor-identifier-type="@alert.ActorIdentifierType"
+                               data-action="@alert.Action"
+                               data-alert-date="@alert.AlertDateUtc.ToVietnamTime().ToString("yyyy-MM-dd")"
+                               data-partner-id="@alert.PartnerId">
+                                <span class="badge bg-danger-subtle text-danger-emphasis">@alert.Action</span>
+                            </a>
+                        </td>
                         <td>@alert.DailyLimit</td>
                         <td>@alert.CurrentCount</td>
                         <td>@alert.Message</td>
@@ -220,3 +238,128 @@
         </div>
     }
 </div>
+
+<div class="modal fade" id="alertHistoryDetailsModal" tabindex="-1" role="dialog" aria-labelledby="alertHistoryDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content" id="alertHistoryDetailsHost">
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var modal = null;
+            var paginationHandlerBound = false;
+
+            function loadAlertHistoryDetails(url) {
+                return fetch(url, {
+                    cache: 'no-store',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('Không thể tải chi tiết cảnh báo');
+                        }
+                        return response.text();
+                    })
+                    .then(function (html) {
+                        var host = document.getElementById('alertHistoryDetailsHost');
+                        if (host) {
+                            host.innerHTML = html;
+                        }
+
+                        if (modal) {
+                            modal.show();
+                        }
+                    });
+            }
+
+            function initAlertHistoryDetails() {
+                var triggers = document.querySelectorAll('.alert-history-detail-trigger');
+                if (!triggers.length) {
+                    return;
+                }
+
+                if (!modal) {
+                    var modalElement = document.getElementById('alertHistoryDetailsModal');
+                    if (modalElement && typeof bootstrap !== 'undefined') {
+                        modal = new bootstrap.Modal(modalElement);
+                    }
+                }
+
+                if (!paginationHandlerBound) {
+                    var host = document.getElementById('alertHistoryDetailsHost');
+                    if (host) {
+                        host.addEventListener('click', function (event) {
+                            var link = event.target.closest('[data-alert-history-modal-link]');
+                            if (!link) {
+                                return;
+                            }
+
+                            event.preventDefault();
+                            var href = link.getAttribute('data-url') || link.getAttribute('href');
+                            if (!href || href === '#') {
+                                return;
+                            }
+
+                            loadAlertHistoryDetails(href).catch(function (error) {
+                                console.error('Error loading alert details pagination:', error);
+                                alert('Lỗi: ' + error.message);
+                            });
+                        });
+
+                        paginationHandlerBound = true;
+                    }
+                }
+
+                window.alertHistoryDetailsNavigate = function (event, link) {
+                    if (event) {
+                        event.preventDefault();
+                    }
+
+                    var href = link && typeof link.getAttribute === 'function'
+                        ? (link.getAttribute('data-url') || link.getAttribute('href'))
+                        : null;
+                    if (!href || href === '#') {
+                        return false;
+                    }
+
+                    loadAlertHistoryDetails(href).catch(function (error) {
+                        console.error('Error loading alert details pagination (fallback):', error);
+                        alert('Lỗi: ' + error.message);
+                    });
+
+                    return false;
+                };
+
+                triggers.forEach(function (trigger) {
+                    trigger.addEventListener('click', function (event) {
+                        event.preventDefault();
+
+                        var url = '@Url.Action("Details", "AlertHistory")'
+                            + '?actorIdentifier=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier') || '')
+                            + '&actorIdentifierType=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier-type') || '')
+                            + '&action=' + encodeURIComponent(trigger.getAttribute('data-action') || '')
+                            + '&alertDate=' + encodeURIComponent(trigger.getAttribute('data-alert-date') || '')
+                            + '&partnerId=' + encodeURIComponent(trigger.getAttribute('data-partner-id') || '');
+
+                        loadAlertHistoryDetails(url)
+                            .catch(function (error) {
+                                console.error('Error loading alert details:', error);
+                                alert('Lỗi: ' + error.message);
+                            });
+                    });
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initAlertHistoryDetails);
+            } else {
+                initAlertHistoryDetails();
+            }
+        })();
+    </script>
+}

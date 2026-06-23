@@ -74,52 +74,22 @@
     </div>
 </section>
 
-@if (Model.ActiveWarnings.Any())
-{
-    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
-        <div class="dashboard-warning__header">
-            <strong>Cảnh báo đang hoạt động</strong>
-            <span class="text-secondary">Các key định danh có action đã chạm hoặc vượt ngưỡng log trong ngày hiện tại.</span>
-        </div>
-        <div class="dashboard-warning__list">
-            @foreach (var warning in Model.ActiveWarnings)
-            {
-                <div class="dashboard-warning__item">
-                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.DisplayActorIdentifier - @warning.UserName - @warning.Action</span>
-                    <span>
-                        @if (warning.IsAtLimit)
-                        {
-                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, đã chạm ngưỡng cấu hình @warning.DailyLimit.
-                        }
-                        else
-                        {
-                            @:Key @warning.DisplayActorIdentifier, user @warning.UserName có @warning.CurrentCount log hôm nay cho action @warning.Action, vượt ngưỡng cấu hình @warning.DailyLimit thêm @warning.ExceededBy log.
-                        }
-                    </span>
-                </div>
-            }
-        </div>
+<div id="logsInsightsHost"
+     data-logs-insights-url="@Url.Action("Insights", new
+     {
+         searchTerm = Model.Filter.SearchTerm,
+         partnerId = Model.Filter.PartnerId,
+         action = Model.Filter.Action,
+         from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+         to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+         page = Model.Filter.Page,
+         pageSize = Model.Filter.PageSize
+     })"
+     class="mb-4">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4 text-secondary">Đang tải thống kê và cảnh báo...</div>
     </div>
-}
-
-@if (Model.UnconfiguredActionWarnings.Any())
-{
-    <div class="alert alert-warning dashboard-warning mb-4" role="alert">
-        <div class="dashboard-warning__header">
-            <strong>Phát hiện action chưa được cấu hình</strong>
-            <a class="btn btn-sm btn-outline-dark" asp-controller="LogActions" asp-action="Index">Quản lý action</a>
-        </div>
-        <div class="dashboard-warning__list">
-            @foreach (var warning in Model.UnconfiguredActionWarnings)
-            {
-                <div class="dashboard-warning__item">
-                    <span class="badge bg-danger-subtle text-danger-emphasis">@warning.Action</span>
-                    <span>Hiện có @warning.Count log dùng action này nhưng chưa được định nghĩa trong menu Action log.</span>
-                </div>
-            }
-        </div>
-    </div>
-}
+</div>
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
@@ -170,21 +140,6 @@
                 </div>
             </div>
         </form>
-    </div>
-</div>
-
-<div class="row g-4 mb-4">
-    <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Tổng log</div><div class="metric-card__value">@Model.Statistics.TotalLogs</div><div class="metric-card__meta">Tổng số sự kiện đã được ghi nhận.</div></div></div>
-    </div>
-    <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Log hôm nay</div><div class="metric-card__value">@Model.Statistics.TodayLogs</div><div class="metric-card__meta">Giao dịch và thao tác mới trong ngày.</div></div></div>
-    </div>
-    <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Log cảnh báo trong ngày</div><div class="metric-card__value">@Model.ActiveWarnings.Count</div><div class="metric-card__meta">Số user đã chạm hoặc vượt ngưỡng cảnh báo trong ngày hiện tại.</div></div></div>
-    </div>
-    <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Log tích hợp</div><div class="metric-card__value">@Model.Statistics.IntegratedLogs</div><div class="metric-card__meta">Số bản ghi được gửi vào từ API tích hợp.</div></div></div>
     </div>
 </div>
 

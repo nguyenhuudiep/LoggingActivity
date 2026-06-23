@@ -38,21 +38,9 @@ public sealed class LogsController : AppController
         filter.From ??= DateTime.Today;
         filter.To ??= DateTime.Today;
 
-        var query = new LogQuery
-        {
-            SearchTerm = filter.SearchTerm,
-            PartnerId = filter.PartnerId,
-            Action = filter.Action,
-            FromUtc = filter.From,
-            ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
-            Page = filter.Page,
-            PageSize = filter.PageSize
-        };
+        var query = BuildLogQuery(filter);
 
         var logs = await _activityLogService.GetPagedAsync(query, cancellationToken);
-        var statistics = await _activityLogService.GetStatisticsAsync(query, cancellationToken);
-        var activeWarnings = await _alertRuleService.GetActiveWarningsAsync(cancellationToken);
-        var unconfiguredActionWarnings = await _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken);
         var availableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken);
         var availablePartners = await _partnerService.GetAllAsync(cancellationToken);
 
@@ -60,11 +48,35 @@ public sealed class LogsController : AppController
         {
             Filter = filter,
             Logs = logs,
-            Statistics = statistics,
             AvailableActions = availableActions,
-            AvailablePartners = availablePartners,
-            ActiveWarnings = activeWarnings,
-            UnconfiguredActionWarnings = unconfiguredActionWarnings
+            AvailablePartners = availablePartners
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Insights([FromQuery] LogFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        filter.From ??= DateTime.Today;
+        filter.To ??= DateTime.Today;
+        var query = BuildLogQuery(filter);
+
+        var statisticsTask = _activityLogService.GetStatisticsAsync(query, cancellationToken);
+        var activeWarningsTask = _alertRuleService.GetActiveWarningsAsync(cancellationToken);
+        var unconfiguredActionWarningsTask = _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken);
+
+        await Task.WhenAll(statisticsTask, activeWarningsTask, unconfiguredActionWarningsTask);
+
+        return PartialView("_Insights", new LogInsightsViewModel
+        {
+            Statistics = statisticsTask.Result,
+            ActiveWarnings = activeWarningsTask.Result,
+            UnconfiguredActionWarnings = unconfiguredActionWarningsTask.Result
         });
     }
 
@@ -151,5 +163,19 @@ public sealed class LogsController : AppController
             ActorIdentifierType = actorIdentifierType,
             ActorLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType)
         });
+    }
+
+    private static LogQuery BuildLogQuery(LogFilterViewModel filter)
+    {
+        return new LogQuery
+        {
+            SearchTerm = filter.SearchTerm,
+            PartnerId = filter.PartnerId,
+            Action = filter.Action,
+            FromUtc = filter.From,
+            ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
+            Page = filter.Page,
+            PageSize = filter.PageSize
+        };
     }
 }

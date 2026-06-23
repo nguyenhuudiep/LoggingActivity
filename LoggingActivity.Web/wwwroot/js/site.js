@@ -424,6 +424,57 @@
 		});
 	}
 
+	function initLogsInsightsAsync() {
+		var host = document.querySelector("[data-logs-insights-url]");
+		if (!host) {
+			return;
+		}
+
+		var url = host.getAttribute("data-logs-insights-url");
+		if (!url) {
+			return;
+		}
+
+		var maxRetries = 3;
+		var retryDelay = 500; // milliseconds
+
+		function fetchWithRetry(attempt) {
+			if (attempt === undefined) {
+				attempt = 0;
+			}
+
+			fetch(url, {
+				headers: {
+					"X-Requested-With": "XMLHttpRequest"
+				}
+			})
+				.then(function (response) {
+					if (!response.ok) {
+						throw new Error("HTTP " + response.status);
+					}
+
+					return response.text();
+				})
+				.then(function (html) {
+					host.innerHTML = html;
+				})
+				.catch(function (error) {
+					if (attempt < maxRetries) {
+						var delay = retryDelay * Math.pow(2, attempt);
+						console.log("Retry tải thống kê (lần " + (attempt + 1) + "/" + maxRetries + ") sau " + delay + "ms");
+						setTimeout(function () {
+							fetchWithRetry(attempt + 1);
+						}, delay);
+					} else {
+						console.error("Lỗi tải thống kê sau " + maxRetries + " lần retry:", error);
+						host.innerHTML = '<div class="alert alert-warning" role="alert">Không thể tải thống kê và cảnh báo. <a href="javascript:location.reload()">Tải lại trang</a></div>';
+					}
+				});
+		}
+
+		fetchWithRetry();
+	}
+
 	function initListLoadingState() {
 		var body = document.body;
 		if (!body) {
@@ -502,6 +553,10 @@
 				return;
 			}
 
+			if (link.hasAttribute("data-actor-log-trigger") || link.hasAttribute("data-actor-log-modal-link")) {
+				return;
+			}
+
 			var href = link.getAttribute("href");
 			if (!href || href.startsWith("#") || href.startsWith("javascript:")) {
 				return;
@@ -540,6 +595,10 @@
 		});
 
 		document.addEventListener("click", function (event) {
+			if (event.defaultPrevented) {
+				return;
+			}
+
 			var link = event.target.closest("a");
 			maybeShowLoadingForLink(link);
 		});
@@ -563,6 +622,7 @@
 		runInitializer("initAutoSubmitSelectForms", initAutoSubmitSelectForms);
 		runInitializer("initUserPermissionSyncForms", initUserPermissionSyncForms);
 		runInitializer("initActorLogModal", initActorLogModal);
+		runInitializer("initLogsInsightsAsync", initLogsInsightsAsync);
 		runInitializer("initListLoadingState", initListLoadingState);
 	});
 })();

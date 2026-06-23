@@ -1,4 +1,5 @@
 using LoggingActivity.Web.Models;
+using LoggingActivity.Web.Infrastructure;
 using LoggingActivity.Web.Services;
 using LoggingActivity.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
@@ -10,20 +11,20 @@ namespace LoggingActivity.Web.Controllers;
 public sealed class AlertHistoryController : AppController
 {
     private readonly AlertHistoryService _alertHistoryService;
-    private readonly AlertRuleService _alertRuleService;
     private readonly PartnerService _partnerService;
     private readonly LogActionDefinitionService _logActionDefinitionService;
+    private readonly ActivityLogService _activityLogService;
 
     public AlertHistoryController(
         AlertHistoryService alertHistoryService,
-        AlertRuleService alertRuleService,
         PartnerService partnerService,
-        LogActionDefinitionService logActionDefinitionService)
+        LogActionDefinitionService logActionDefinitionService,
+        ActivityLogService activityLogService)
     {
         _alertHistoryService = alertHistoryService;
-        _alertRuleService = alertRuleService;
         _partnerService = partnerService;
         _logActionDefinitionService = logActionDefinitionService;
+        _activityLogService = activityLogService;
     }
 
     [HttpGet]
@@ -50,17 +51,18 @@ public sealed class AlertHistoryController : AppController
             PageSize = filter.PageSize
         };
 
-        if (query.FromUtc.HasValue && query.ToUtc.HasValue)
-        {
-            await _alertRuleService.EnsureAlertHistoryBackfillAsync(query.FromUtc.Value, query.ToUtc.Value.AddTicks(1), cancellationToken);
-        }
+        var alertsTask = _alertHistoryService.GetPagedAsync(query, cancellationToken);
+        var availablePartnersTask = _partnerService.GetAllAsync(cancellationToken);
+        var availableActionsTask = _logActionDefinitionService.GetActiveAsync(cancellationToken);
+
+        await Task.WhenAll(alertsTask, availablePartnersTask, availableActionsTask);
 
         return View(new AlertHistoryListViewModel
         {
             Filter = filter,
-            Alerts = await _alertHistoryService.GetPagedAsync(query, cancellationToken),
-            AvailablePartners = await _partnerService.GetAllAsync(cancellationToken),
-            AvailableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken)
+            Alerts = alertsTask.Result,
+            AvailablePartners = availablePartnersTask.Result,
+            AvailableActions = availableActionsTask.Result
         });
     }
 
@@ -76,13 +78,6 @@ public sealed class AlertHistoryController : AppController
         filter.From ??= DateTime.Today.AddDays(-6);
         filter.To ??= DateTime.Today;
 
-        var fromUtc = filter.From?.Date;
-        var toUtc = filter.To?.Date.AddDays(1).AddTicks(-1);
-        if (fromUtc.HasValue && toUtc.HasValue)
-        {
-            await _alertRuleService.EnsureAlertHistoryBackfillAsync(fromUtc.Value, toUtc.Value.AddTicks(1), cancellationToken);
-        }
-
         var alerts = await ReadAllPagesAsync(
             (page, pageSize, token) => _alertHistoryService.GetPagedAsync(new AlertHistoryQuery
             {
@@ -90,8 +85,8 @@ public sealed class AlertHistoryController : AppController
                 PartnerId = filter.PartnerId,
                 Action = filter.Action,
                 Status = filter.Status,
-                FromUtc = fromUtc,
-                ToUtc = toUtc,
+                FromUtc = filter.From?.Date,
+                ToUtc = filter.To?.Date.AddDays(1).AddTicks(-1),
                 Page = page,
                 PageSize = pageSize
             }, token),
@@ -114,5 +109,66 @@ public sealed class AlertHistoryController : AppController
             "alert-history",
             ["OccurredAtUtc", "AlertDateUtc", "PartnerName", "ActorIdentifier", "UserName", "Action", "DailyLimit", "CurrentCount", "Message"],
             rows);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Details([FromQuery] AlertHistoryDetailsFilterViewModel filter, CancellationToken cancellationToken)
+    {
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
+        if (accessDenied is not null)
+        {
+            return accessDenied;
+        }
+
+        var actorIdentifier = ActorIdentityHelper.NormalizeIdentifier(filter.ActorIdentifier);
+        if (string.IsNullOrWhiteSpace(actorIdentifier))
+        {
+            return BadRequest("Thiếu key cần tra cứu.");
+        }
+
+        if (string.IsNullOrWhiteSpace(filter.Action))
+        {
+            return BadRequest("Thiếu action cần tra cứu.");
+        }
+
+        var actorIdentifierType = ActorIdentityHelper.NormalizeType(filter.ActorIdentifierType, actorIdentifier);
+        var localAlertDate = filter.AlertDate?.Date ?? VietnamTimeExtensions.TodayInVietnamDate();
+        var fromUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localAlertDate);
+        var toUtc = VietnamTimeExtensions.VietnamDateToUtcStart(localAlertDate.AddDays(1)).AddTicks(-1);
+        var normalizedPage = Math.Max(filter.Page, 1);
+        const int normalizedPageSize = 10;
+        var normalizedFilter = new AlertHistoryDetailsFilterViewModel
+        {
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
+            PartnerId = filter.PartnerId,
+            Action = filter.Action.Trim(),
+            AlertDate = localAlertDate,
+            Page = normalizedPage,
+            PageSize = normalizedPageSize
+        };
+
+        var query = new LogQuery
+        {
+            PartnerId = normalizedFilter.PartnerId,
+            Action = normalizedFilter.Action,
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
+            FromUtc = fromUtc,
+            ToUtc = toUtc,
+            Page = normalizedPage,
+            PageSize = normalizedPageSize
+        };
+
+        return PartialView("_AlertHistoryDetailsModalContent", new AlertHistoryDetailsViewModel
+        {
+            Filter = normalizedFilter,
+            Logs = await _activityLogService.GetPagedAsync(query, cancellationToken),
+            ActorIdentifier = actorIdentifier,
+            ActorIdentifierType = actorIdentifierType,
+            Action = normalizedFilter.Action,
+            AlertDate = localAlertDate,
+            ActorLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType)
+        });
     }
 }
