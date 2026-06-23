@@ -28,6 +28,17 @@
 	}
 
 	function initLogCharts() {
+		var numberFormatter = new Intl.NumberFormat("vi-VN");
+
+		function formatTooltipSeriesName(rawName) {
+			if (!rawName) {
+				return "Series";
+			}
+
+			var parts = rawName.split("-").map(function (item) { return item.trim(); }).filter(Boolean);
+			return parts.length > 1 ? parts[parts.length - 1] : rawName;
+		}
+
 		var actionTrendHost = document.querySelector("[data-action-trend-chart]");
 		if (actionTrendHost && typeof Chart !== "undefined") {
 			var actionTrendCanvas = document.getElementById("actionTrendChart");
@@ -60,11 +71,16 @@
 									borderWidth: 3,
 									tension: 0.35,
 									pointRadius: 4,
-									pointHoverRadius: 6
+								pointHoverRadius: 6,
+								pointHitRadius: 14
 								};
 							})
 						},
 						options: {
+							interaction: {
+								mode: "index",
+								intersect: false
+							},
 							plugins: {
 								legend: {
 									position: "bottom",
@@ -80,8 +96,50 @@
 									backgroundColor: "rgba(17, 24, 39, 0.92)",
 									titleColor: "#f9fafb",
 									bodyColor: "#f9fafb",
+									displayColors: true,
+									usePointStyle: true,
+									bodySpacing: 8,
+									boxPadding: 4,
+									titleFont: {
+										size: 13,
+										weight: "700"
+									},
+									bodyFont: {
+										size: 12,
+										weight: "600"
+									},
 									cornerRadius: 12,
-									padding: 12
+									padding: {
+										top: 12,
+										right: 14,
+										bottom: 12,
+										left: 14
+									},
+									callbacks: {
+										title: function (items) {
+											if (!items || items.length === 0) {
+												return "";
+											}
+											return "Ngày " + items[0].label;
+										},
+										label: function (context) {
+											var name = formatTooltipSeriesName(context.dataset.label || "Series");
+											var value = typeof context.parsed.y === "number" ? context.parsed.y : 0;
+											return name + ": " + numberFormatter.format(value) + " log";
+										},
+										afterBody: function (items) {
+											if (!items || items.length === 0) {
+												return [];
+											}
+
+											var total = items.reduce(function (sum, item) {
+												var value = typeof item.parsed.y === "number" ? item.parsed.y : 0;
+												return sum + value;
+											}, 0);
+
+											return ["Tổng tại ngày: " + numberFormatter.format(total) + " log"];
+										}
+									}
 								}
 							},
 							maintainAspectRatio: false,
