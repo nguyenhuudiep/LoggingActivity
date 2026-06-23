@@ -12,6 +12,8 @@ public sealed class LogStatistics
 
     public IReadOnlyList<ChartPoint> DailyActivity { get; init; } = Array.Empty<ChartPoint>();
 
+    public IReadOnlyList<ChartPoint> HourlyActivity { get; init; } = Array.Empty<ChartPoint>();
+
     public IReadOnlyList<BreakdownItem> TopActions { get; init; } = Array.Empty<BreakdownItem>();
 
     public IReadOnlyList<ActionTrendSeries> ActionDailySeries { get; init; } = Array.Empty<ActionTrendSeries>();

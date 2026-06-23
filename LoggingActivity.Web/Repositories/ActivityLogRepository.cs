@@ -427,6 +427,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         var uniqueUsersTask = GetUniqueUsersCountAsync(filter, cancellationToken);
         var topActionsTask = GetTopActionsAsync(filter, cancellationToken);
         var dailyActivityTask = GetDailyActivityAsync(filter, chartDays, cancellationToken);
+        var hourlyActivityTask = GetHourlyActivityAsync(filter, cancellationToken);
         var actionTrendSeriesTask = GetActionTrendSeriesAsync(filter, chartDays, cancellationToken);
 
         await Task.WhenAll(
@@ -436,6 +437,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             uniqueUsersTask,
             topActionsTask,
             dailyActivityTask,
+            hourlyActivityTask,
             actionTrendSeriesTask);
 
         return new LogStatistics
@@ -446,6 +448,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             IntegratedLogs = integratedLogsTask.Result,
             TopActions = topActionsTask.Result,
             DailyActivity = dailyActivityTask.Result,
+            HourlyActivity = hourlyActivityTask.Result,
             ActionDailySeries = actionTrendSeriesTask.Result
         };
     }
@@ -577,6 +580,60 @@ public sealed class ActivityLogRepository : IActivityLogRepository
                 return new ChartPoint
                 {
                     Label = key,
+                    Value = value
+                };
+            })
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<ChartPoint>> GetHourlyActivityAsync(
+        FilterDefinition<ActivityLog> filter,
+        CancellationToken cancellationToken)
+    {
+        var todayVietnam = VietnamTimeExtensions.TodayInVietnamDate();
+        var startUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam);
+        var endUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam.AddDays(1));
+
+        var scopedFilter = filter
+            & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, startUtc)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endUtc);
+
+        var pipeline = new[]
+        {
+            BuildMatchStage(scopedFilter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                {
+                    "Hour",
+                    new BsonDocument("$dateToString", new BsonDocument
+                    {
+                        { "date", "$CreatedAtUtc" },
+                        { "format", "%H" },
+                        { "timezone", "Asia/Ho_Chi_Minh" }
+                    })
+                }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$Hour" },
+                { "Value", new BsonDocument("$sum", 1) }
+            })
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        var valuesByHour = docs.ToDictionary(
+            doc => GetTrimmedString(doc, "_id"),
+            doc => GetInt64(doc, "Value"),
+            StringComparer.OrdinalIgnoreCase);
+
+        return Enumerable.Range(0, 24)
+            .Select(hour =>
+            {
+                var key = hour.ToString("00", CultureInfo.InvariantCulture);
+                valuesByHour.TryGetValue(key, out var value);
+                return new ChartPoint
+                {
+                    Label = $"{key}:00",
                     Value = value
                 };
             })

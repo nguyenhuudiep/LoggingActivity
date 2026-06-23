@@ -800,6 +800,54 @@ pre {
   line-height: 1.5;
 }
 
+.dashboard-snapshot-panel .page-eyebrow {
+  margin-bottom: 0.4rem;
+}
+
+.dashboard-snapshot-panel .section-header__title {
+  font-size: clamp(1.18rem, 1.7vw, 1.45rem);
+}
+
+.dashboard-snapshot-panel .section-header__subtitle {
+  margin-top: 0.28rem;
+  font-size: 0.82rem;
+}
+
+.dashboard-snapshot-grid .metric-card {
+  border: 1px solid rgba(54, 153, 255, 0.08);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.metric-card--compact .card-body {
+  padding: 1.05rem 1.1rem;
+}
+
+.metric-card--compact .metric-card__label {
+  font-size: 0.7rem;
+}
+
+.metric-card--compact .metric-card__value {
+  margin-top: 0.4rem;
+  font-size: clamp(1.55rem, 2.1vw, 2rem);
+}
+
+.metric-card--compact .metric-card__meta {
+  margin-top: 0.45rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.dashboard-snapshot-highlight {
+  border: 1px solid rgba(54, 153, 255, 0.1);
+  background: linear-gradient(180deg, #ffffff, #f6f9ff) !important;
+}
+
+.metric-card__value--compact {
+  margin-top: 0.35rem;
+  font-size: clamp(1.85rem, 2.2vw, 2.35rem);
+  line-height: 1.05;
+}
+
 .btn-outline-danger {
   color: var(--app-danger);
   border-color: rgba(241, 65, 108, 0.26);

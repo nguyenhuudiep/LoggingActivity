@@ -103,6 +103,60 @@
 			}
 		}
 
+		var hourlyTrendHost = document.querySelector("[data-hourly-trend-chart]");
+		if (hourlyTrendHost && typeof Chart !== "undefined") {
+			var hourlyTrendCanvas = document.getElementById("hourlyTrendChart");
+			if (hourlyTrendCanvas) {
+				var hourlyLabels = JSON.parse(hourlyTrendHost.getAttribute("data-hourly-labels") || "[]");
+				var hourlyValues = JSON.parse(hourlyTrendHost.getAttribute("data-hourly-values") || "[]");
+
+				if (hourlyLabels.length > 0 && hourlyValues.length > 0) {
+					new Chart(hourlyTrendCanvas, {
+						type: "line",
+						data: {
+							labels: hourlyLabels,
+							datasets: [{
+								label: "Số log",
+								data: hourlyValues,
+								borderColor: "#0f766e",
+								backgroundColor: "rgba(15, 118, 110, 0.18)",
+								fill: true,
+								borderWidth: 3,
+								tension: 0.3,
+								pointRadius: 2,
+								pointHoverRadius: 5
+							}]
+						},
+						options: {
+							plugins: {
+								legend: { display: false },
+								tooltip: {
+									backgroundColor: "rgba(17, 24, 39, 0.92)",
+									titleColor: "#f9fafb",
+									bodyColor: "#f9fafb",
+									cornerRadius: 12,
+									padding: 12
+								}
+							},
+							maintainAspectRatio: false,
+							responsive: true,
+							scales: {
+								x: {
+									grid: { color: "rgba(148, 163, 184, 0.12)" },
+									ticks: { color: "#6a7280", maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
+								},
+								y: {
+									beginAtZero: true,
+									grid: { color: "rgba(148, 163, 184, 0.18)" },
+									ticks: { color: "#6a7280", precision: 0 }
+								}
+							}
+						}
+					});
+				}
+			}
+		}
+
 		var chartHost = document.querySelector("[data-log-charts]");
 		if (!chartHost || typeof Chart === "undefined") {
 			return;
