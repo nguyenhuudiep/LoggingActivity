@@ -848,6 +848,27 @@ pre {
   line-height: 1.05;
 }
 
+.dashboard-equal-card {
+  overflow: hidden;
+}
+
+.dashboard-equal-card__body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-equal-card__chart {
+  flex: 1 1 auto;
+  min-height: 18rem;
+}
+
+@media (max-width: 1199.98px) {
+  .dashboard-equal-card__chart {
+    min-height: 16rem;
+  }
+}
+
 .btn-outline-danger {
   color: var(--app-danger);
   border-color: rgba(241, 65, 108, 0.26);

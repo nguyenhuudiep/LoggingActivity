@@ -172,10 +172,10 @@
     </div>
 
     <div class="col-12 col-xl-8">
-        <div class="card shadow-sm border-0 surface-panel" data-action-trend-chart
+        <div class="card shadow-sm border-0 surface-panel h-100 dashboard-equal-card" data-action-trend-chart
              data-chart-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.DailyActivity.Select(point => point.Label.Substring(5)))'
              data-chart-datasets='@JsonSerializer.Serialize(Model.OverviewStatistics.ActionDailySeries.Select(series => new { label = series.Action, values = series.Values }))'>
-            <div class="card-body p-4 p-lg-5">
+            <div class="card-body p-4 p-lg-5 dashboard-equal-card__body">
                 <div class="section-header mb-3">
                     <div>
                         <span class="page-eyebrow">Tổng quan log</span>
@@ -183,7 +183,7 @@
                         <p class="section-header__subtitle">Theo dõi xu hướng log 7 ngày gần nhất, chỉ hiển thị 5 cặp partner - action có tổng log cao nhất.</p>
                     </div>
                 </div>
-                <div class="chart-stage">
+                <div class="chart-stage dashboard-equal-card__chart">
                     <canvas id="actionTrendChart" aria-label="Biểu đồ tổng quan log theo ngày, partner và action"></canvas>
                 </div>
             </div>
@@ -191,10 +191,10 @@
     </div>
 
     <div class="col-12 col-xl-4">
-        <div class="card shadow-sm border-0 surface-panel" data-hourly-trend-chart
+        <div class="card shadow-sm border-0 surface-panel h-100 dashboard-equal-card" data-hourly-trend-chart
              data-hourly-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.HourlyActivity.Select(point => point.Label))'
              data-hourly-values='@JsonSerializer.Serialize(Model.OverviewStatistics.HourlyActivity.Select(point => point.Value))'>
-            <div class="card-body p-4 p-lg-5">
+            <div class="card-body p-4 p-lg-5 dashboard-equal-card__body">
                 <div class="section-header mb-3">
                     <div>
                         <span class="page-eyebrow">Phân bổ theo giờ</span>
@@ -202,7 +202,7 @@
                         <p class="section-header__subtitle">Theo dõi nhịp phát sinh log trong 24 giờ theo múi giờ Việt Nam để phát hiện khung giờ tăng đột biến.</p>
                     </div>
                 </div>
-                <div class="chart-stage">
+                <div class="chart-stage dashboard-equal-card__chart">
                     <canvas id="hourlyTrendChart" aria-label="Biểu đồ log theo giờ trong ngày"></canvas>
                 </div>
                 @if (Model.OverviewStatistics.TopActions.Any())
