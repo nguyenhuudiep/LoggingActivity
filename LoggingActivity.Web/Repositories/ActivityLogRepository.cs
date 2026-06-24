@@ -426,6 +426,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             cancellationToken: cancellationToken);
         var uniqueUsersTask = GetUniqueUsersCountAsync(filter, cancellationToken);
         var topActionsTask = GetTopActionsAsync(filter, cancellationToken);
+        var topActionsTodayTask = GetTopActionsTodayAsync(filter, cancellationToken);
         var dailyActivityTask = GetDailyActivityAsync(filter, chartDays, cancellationToken);
         var hourlyActivityTask = GetHourlyActivityAsync(filter, cancellationToken);
         var actionTrendSeriesTask = GetActionTrendSeriesAsync(filter, chartDays, cancellationToken);
@@ -436,6 +437,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             integratedLogsTask,
             uniqueUsersTask,
             topActionsTask,
+            topActionsTodayTask,
             dailyActivityTask,
             hourlyActivityTask,
             actionTrendSeriesTask);
@@ -447,6 +449,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             UniqueUsers = uniqueUsersTask.Result,
             IntegratedLogs = integratedLogsTask.Result,
             TopActions = topActionsTask.Result,
+            TopActionsToday = topActionsTodayTask.Result,
             DailyActivity = dailyActivityTask.Result,
             HourlyActivity = hourlyActivityTask.Result,
             ActionDailySeries = actionTrendSeriesTask.Result
@@ -530,6 +533,21 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             Label = GetTrimmedString(doc, "_id"),
             Value = GetInt64(doc, "Value")
         }).ToList();
+    }
+
+    private async Task<IReadOnlyList<BreakdownItem>> GetTopActionsTodayAsync(
+        FilterDefinition<ActivityLog> filter,
+        CancellationToken cancellationToken)
+    {
+        var todayVietnam = VietnamTimeExtensions.TodayInVietnamDate();
+        var startUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam);
+        var endUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam.AddDays(1));
+
+        var scopedFilter = filter
+            & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, startUtc)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endUtc);
+
+        return await GetTopActionsAsync(scopedFilter, cancellationToken);
     }
 
     private async Task<IReadOnlyList<ChartPoint>> GetDailyActivityAsync(

@@ -16,6 +16,8 @@ public sealed class LogStatistics
 
     public IReadOnlyList<BreakdownItem> TopActions { get; init; } = Array.Empty<BreakdownItem>();
 
+    public IReadOnlyList<BreakdownItem> TopActionsToday { get; init; } = Array.Empty<BreakdownItem>();
+
     public IReadOnlyList<ActionTrendSeries> ActionDailySeries { get; init; } = Array.Empty<ActionTrendSeries>();
 }
 
