@@ -8,6 +8,8 @@ public sealed class ActorLogDetailsViewModel
 
     public PagedResult<ActivityLog> Logs { get; init; } = new();
 
+    public IReadOnlyList<LogActionDefinition> AvailableActions { get; init; } = Array.Empty<LogActionDefinition>();
+
     public string ActorIdentifier { get; init; } = string.Empty;
 
     public string ActorIdentifierType { get; init; } = ActorIdentifierTypes.Unknown;

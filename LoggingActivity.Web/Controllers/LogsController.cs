@@ -155,10 +155,15 @@ public sealed class LogsController : AppController
             PageSize = filter.PageSize
         };
 
+        var logsTask = _activityLogService.GetPagedAsync(query, cancellationToken);
+        var availableActionsTask = _logActionDefinitionService.GetActiveAsync(cancellationToken);
+        await Task.WhenAll(logsTask, availableActionsTask);
+
         return PartialView("_ActorLogDetailsModalContent", new ActorLogDetailsViewModel
         {
             Filter = filter,
-            Logs = await _activityLogService.GetPagedAsync(query, cancellationToken),
+            Logs = logsTask.Result,
+            AvailableActions = availableActionsTask.Result,
             ActorIdentifier = actorIdentifier,
             ActorIdentifierType = actorIdentifierType,
             ActorLabel = ActorIdentityHelper.BuildDisplayLabel(actorIdentifierType)

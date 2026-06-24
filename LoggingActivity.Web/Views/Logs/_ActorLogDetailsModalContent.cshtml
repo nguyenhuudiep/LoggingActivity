@@ -13,6 +13,22 @@
         startPage = Math.Max(1, endPage - pageWindowSize + 1);
     }
 
+    var currentAction = Model.Filter.Action?.Trim() ?? string.Empty;
+    var actionOptions = Model.AvailableActions
+        .Where(item => !string.IsNullOrWhiteSpace(item.Code))
+        .OrderBy(item => item.DisplayName)
+        .ToList();
+
+    if (!string.IsNullOrWhiteSpace(currentAction)
+        && actionOptions.All(item => !string.Equals(item.Code, currentAction, StringComparison.OrdinalIgnoreCase)))
+    {
+        actionOptions.Insert(0, new LogActionDefinition
+        {
+            Code = currentAction,
+            DisplayName = currentAction
+        });
+    }
+
     string BuildDescription(ActivityLog log)
     {
         if (!string.IsNullOrWhiteSpace(log.Description))
@@ -44,6 +60,21 @@
             pageSize = Model.Filter.PageSize
         })!;
     }
+
+    string BuildActionFilterUrl(string? action)
+    {
+        return Url.Action("ActorDetails", "Logs", new
+        {
+            actorIdentifier = Model.Filter.ActorIdentifier,
+            actorIdentifierType = Model.Filter.ActorIdentifierType,
+            partnerId = Model.Filter.PartnerId,
+            action,
+            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            page = 1,
+            pageSize = Model.Filter.PageSize
+        })!;
+    }
 }
 
 <div class="modal-header">
@@ -55,6 +86,44 @@
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
 </div>
 <div class="modal-body p-0">
+    <div class="p-3 border-bottom">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="small text-secondary fw-semibold">Lọc theo action</span>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    @if (string.IsNullOrWhiteSpace(currentAction))
+                    {
+                        <span>Action: Tất cả</span>
+                    }
+                    else
+                    {
+                        var selectedAction = actionOptions.FirstOrDefault(item => string.Equals(item.Code, currentAction, StringComparison.OrdinalIgnoreCase));
+                        <span>Action: @(selectedAction is null || string.IsNullOrWhiteSpace(selectedAction.DisplayName) ? currentAction : selectedAction.DisplayName)</span>
+                    }
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item @(string.IsNullOrWhiteSpace(currentAction) ? "active" : null)"
+                           data-actor-log-modal-link
+                           href="@BuildActionFilterUrl(null)">
+                            Tất cả
+                        </a>
+                    </li>
+                    @foreach (var action in actionOptions)
+                    {
+                        var isActive = string.Equals(action.Code, currentAction, StringComparison.OrdinalIgnoreCase);
+                        <li>
+                            <a class="dropdown-item @(isActive ? "active" : null)"
+                               data-actor-log-modal-link
+                               href="@BuildActionFilterUrl(action.Code)">
+                                @(string.IsNullOrWhiteSpace(action.DisplayName) ? action.Code : action.DisplayName)
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
