@@ -46,35 +46,42 @@
         return log.Description;
     }
 
-    string BuildPageUrl(int page)
+    string BuildActorDetailsUrl(int page, string? actionCode)
     {
-        return Url.Action("ActorDetails", "Logs", new
+        var parameters = new List<string>
         {
-            actorIdentifier = Model.Filter.ActorIdentifier,
-            actorIdentifierType = Model.Filter.ActorIdentifierType,
-            partnerId = Model.Filter.PartnerId,
-            action = Model.Filter.Action,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
-            page,
-            pageSize = Model.Filter.PageSize
-        })!;
+            $"actorIdentifier={Uri.EscapeDataString(Model.ActorIdentifier)}",
+            $"actorIdentifierType={Uri.EscapeDataString(Model.ActorIdentifierType)}",
+            $"page={page}",
+            $"pageSize={Model.Filter.PageSize}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(Model.Filter.PartnerId))
+        {
+            parameters.Add($"partnerId={Uri.EscapeDataString(Model.Filter.PartnerId)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(actionCode))
+        {
+            parameters.Add($"action={Uri.EscapeDataString(actionCode)}");
+        }
+
+        if (Model.Filter.From.HasValue)
+        {
+            parameters.Add($"from={Model.Filter.From.Value:yyyy-MM-dd}");
+        }
+
+        if (Model.Filter.To.HasValue)
+        {
+            parameters.Add($"to={Model.Filter.To.Value:yyyy-MM-dd}");
+        }
+
+        return $"/Logs/ActorDetails?{string.Join("&", parameters)}";
     }
 
-    string BuildActionFilterUrl(string? action)
-    {
-        return Url.Action("ActorDetails", "Logs", new
-        {
-            actorIdentifier = Model.Filter.ActorIdentifier,
-            actorIdentifierType = Model.Filter.ActorIdentifierType,
-            partnerId = Model.Filter.PartnerId,
-            action,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
-            page = 1,
-            pageSize = Model.Filter.PageSize
-        })!;
-    }
+    string BuildPageUrl(int page) => BuildActorDetailsUrl(page, currentAction);
+
+    string BuildActionFilterUrl(string? action) => BuildActorDetailsUrl(1, action);
 }
 
 <div class="modal-header">
