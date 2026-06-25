@@ -28,6 +28,7 @@ public static class AdminFunctionPermissions
     public const string UserManagement = "user_management";
     public const string LogDashboard = "log_dashboard";
     public const string AlertHistory = "alert_history";
+    public const string SystemAccessHistory = "system_access_history";
     public const string LogActionManagement = "log_action_management";
     public const string PartnerManagement = "partner_management";
     public const string AlertRuleManagement = "alert_rule_management";
@@ -38,6 +39,7 @@ public static class AdminFunctionPermissions
         new AdminFunctionPermissionDefinition(UserManagement, "Quản lý tài khoản", "Tài khoản", "Xem danh sách, tạo mới và cập nhật tài khoản người dùng."),
         new AdminFunctionPermissionDefinition(LogDashboard, "Log và thống kê", "Dashboard log", "Truy cập màn hình log, bộ lọc, thống kê và cảnh báo active."),
         new AdminFunctionPermissionDefinition(AlertHistory, "Lịch sử cảnh báo", "Lịch sử cảnh báo", "Tra cứu toàn bộ lịch sử cảnh báo đã phát sinh theo thời gian."),
+        new AdminFunctionPermissionDefinition(SystemAccessHistory, "Lịch sử truy cập hệ thống", "Truy cập hệ thống", "Theo dõi lịch sử truy cập va dang nhap vao chinh he thong Logging."),
         new AdminFunctionPermissionDefinition(LogActionManagement, "Action log", "Danh mục action", "Quản lý danh mục action log và trạng thái từng action."),
         new AdminFunctionPermissionDefinition(PartnerManagement, "Partner", "Partner", "Quản lý danh sách partner, trạng thái và API key tích hợp."),
         new AdminFunctionPermissionDefinition(AlertRuleManagement, "Cảnh báo log", "Rule cảnh báo", "Thiết lập ngưỡng cảnh báo theo action và quản lý rule cảnh báo."),

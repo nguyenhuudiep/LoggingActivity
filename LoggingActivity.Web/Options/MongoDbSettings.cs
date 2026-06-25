@@ -23,4 +23,8 @@ public sealed class MongoDbSettings
     public string LogActionDefinitionsCollectionName { get; set; } = "log_action_definitions";
 
     public string AlertHistoriesCollectionName { get; set; } = "alert_histories";
+
+    public string SystemAccessLogsCollectionName { get; set; } = "system_access_logs";
+
+    public string UserActiveSessionsCollectionName { get; set; } = "user_active_sessions";
 }

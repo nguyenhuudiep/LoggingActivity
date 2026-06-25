@@ -21,7 +21,11 @@ public sealed class ActivityLogInfrastructureHostedService : IHostedService
         {
             using var scope = _serviceProvider.CreateScope();
             var activityLogRepository = scope.ServiceProvider.GetRequiredService<IActivityLogRepository>();
+            var systemAccessLogRepository = scope.ServiceProvider.GetRequiredService<ISystemAccessLogRepository>();
+            var userActiveSessionRepository = scope.ServiceProvider.GetRequiredService<IUserActiveSessionRepository>();
             await activityLogRepository.EnsureIndexesAsync(cancellationToken);
+            await systemAccessLogRepository.EnsureIndexesAsync(cancellationToken);
+            await userActiveSessionRepository.EnsureIndexesAsync(cancellationToken);
         }
         catch (Exception ex)
         {

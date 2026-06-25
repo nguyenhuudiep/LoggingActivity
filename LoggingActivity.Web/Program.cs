@@ -1,4 +1,5 @@
 using LoggingActivity.Web.Data;
+using LoggingActivity.Web.Middleware;
 using LoggingActivity.Web.Options;
 using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Services;
@@ -118,10 +119,14 @@ builder.Services.AddScoped<IActivityLogIngestQueueRepository, ActivityLogIngestQ
 builder.Services.AddScoped<IAlertRuleRepository, AlertRuleRepository>();
 builder.Services.AddScoped<IAlertHistoryRepository, AlertHistoryRepository>();
 builder.Services.AddScoped<ILogActionDefinitionRepository, LogActionDefinitionRepository>();
+builder.Services.AddScoped<ISystemAccessLogRepository, SystemAccessLogRepository>();
+builder.Services.AddScoped<IUserActiveSessionRepository, UserActiveSessionRepository>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<PermissionGroupService>();
 builder.Services.AddScoped<PartnerService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<SystemAccessAuditService>();
+builder.Services.AddScoped<SingleSessionCookieEvents>();
 builder.Services.AddScoped<ActivityLogService>();
 builder.Services.AddScoped<ActivityLogIngestQueueService>();
 builder.Services.AddScoped<AlertRuleService>();
@@ -143,6 +148,7 @@ builder.Services
         options.AccessDeniedPath = "/Auth/AccessDenied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
+        options.EventsType = typeof(SingleSessionCookieEvents);
     });
 
 builder.Services.AddAuthorization();
@@ -180,6 +186,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<SystemAccessAuditMiddleware>();
 
 app.MapControllerRoute(
     name: "default",

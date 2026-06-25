@@ -6,6 +6,7 @@
             || string.Equals(currentController, "Partners", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "PermissionGroups", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "Logs", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "SystemAccess", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "IngestQueue", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "LogActions", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "AlertRules", StringComparison.OrdinalIgnoreCase)
@@ -19,6 +20,7 @@
     var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
     var canManagePermissionGroups = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
     var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+    var canAccessSystemAccessHistory = User.HasFeatureAccess(AdminFunctionPermissions.SystemAccessHistory, allowAuditor: true);
     var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
@@ -87,6 +89,13 @@
                             <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">L</span>
                                 <span class="sidebar-link__text">Log &amp; Thống kê</span>
+                            </a>
+                        }
+                        @if (canAccessSystemAccessHistory)
+                        {
+                            <a class="@SidebarLinkClass("SystemAccess")" asp-controller="SystemAccess" asp-action="Index" data-show-loading-nav="true">
+                                <span class="sidebar-link__icon">S</span>
+                                <span class="sidebar-link__text">Lịch sử truy cập</span>
                             </a>
                         }
                         @if (canAccessIngestQueue)

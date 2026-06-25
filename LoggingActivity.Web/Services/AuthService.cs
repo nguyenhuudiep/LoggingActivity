@@ -11,17 +11,20 @@ public sealed class AuthService
 {
     private readonly UserService _userService;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly SystemAccessAuditService _systemAccessAuditService;
     private readonly IOptions<SeedAdminOptions> _seedAdminOptions;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         UserService userService,
         PermissionGroupService permissionGroupService,
+        SystemAccessAuditService systemAccessAuditService,
         IOptions<SeedAdminOptions> seedAdminOptions,
         ILogger<AuthService> logger)
     {
         _userService = userService;
         _permissionGroupService = permissionGroupService;
+        _systemAccessAuditService = systemAccessAuditService;
         _seedAdminOptions = seedAdminOptions;
         _logger = logger;
     }
@@ -92,6 +95,7 @@ public sealed class AuthService
         var safeUserName = string.IsNullOrWhiteSpace(user.UserName) ? "unknown-user" : user.UserName.Trim();
         var safeDisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? safeUserName : user.DisplayName.Trim();
         var safeRole = string.IsNullOrWhiteSpace(user.Role) ? SystemRoles.Auditor : user.Role.Trim();
+        var sessionId = Guid.NewGuid().ToString("N");
         var safePermissionGroupIds = user.PermissionGroupIds ?? new List<string>();
         var safeCustomPermissions = user.CustomFunctionPermissions ?? new List<string>();
         var safeFunctionPermissions = user.FunctionPermissions ?? new List<string>();
@@ -101,7 +105,8 @@ public sealed class AuthService
             new(ClaimTypes.NameIdentifier, string.IsNullOrWhiteSpace(user.Id) ? safeUserName : user.Id),
             new(ClaimTypes.Name, safeUserName),
             new(ClaimTypes.GivenName, safeDisplayName),
-            new(ClaimTypes.Role, safeRole)
+            new(ClaimTypes.Role, safeRole),
+            new(SystemAccessAuditService.SessionClaimType, sessionId)
         };
 
         if (string.Equals(safeRole, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
@@ -152,7 +157,8 @@ public sealed class AuthService
                         new Claim(ClaimTypes.NameIdentifier, string.IsNullOrWhiteSpace(user.Id) ? safeUserName : user.Id),
                         new Claim(ClaimTypes.Name, safeUserName),
                         new Claim(ClaimTypes.GivenName, safeDisplayName),
-                        new Claim(ClaimTypes.Role, safeRole)
+                        new Claim(ClaimTypes.Role, safeRole),
+                        new Claim(SystemAccessAuditService.SessionClaimType, sessionId)
                     },
                     CookieAuthenticationDefaults.AuthenticationScheme));
 
@@ -161,10 +167,19 @@ public sealed class AuthService
                 minimalPrincipal,
                 new AuthenticationProperties { IsPersistent = isPersistent });
         }
+
+        var replacedExistingSession = await _systemAccessAuditService.ActivateSessionAsync(httpContext, user, sessionId, httpContext.RequestAborted);
+        await _systemAccessAuditService.RecordLoginAsync(httpContext, user, sessionId, replacedExistingSession, httpContext.RequestAborted);
     }
 
-    public Task SignOutAsync(HttpContext httpContext)
+    public async Task SignOutAsync(HttpContext httpContext)
     {
-        return httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        await _systemAccessAuditService.RecordLogoutAsync(httpContext, httpContext.RequestAborted);
+
+        var userName = httpContext.User.Identity?.Name;
+        var sessionId = httpContext.User.FindFirst(SystemAccessAuditService.SessionClaimType)?.Value;
+        await _systemAccessAuditService.DeactivateSessionAsync(userName, sessionId, httpContext.RequestAborted);
+
+        await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 }

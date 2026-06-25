@@ -1,0 +1,198 @@
+@model SystemAccessLogListViewModel
+
+@{
+    ViewData["Title"] = "Lich su truy cap he thong";
+    var currentPage = Model.Logs.Page;
+    var totalPages = Model.Logs.TotalPages;
+    var pageWindowSize = 5;
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + pageWindowSize - 1);
+    var rowNumber = ((Model.Logs.Page - 1) * Model.Logs.PageSize) + 1;
+
+    if (endPage - startPage + 1 < pageWindowSize)
+    {
+        startPage = Math.Max(1, endPage - pageWindowSize + 1);
+    }
+
+    string BuildPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.Filter.SearchTerm,
+            eventType = Model.Filter.EventType,
+            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
+            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
+            pageSize = Model.Filter.PageSize,
+            page
+        })!;
+    }
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Audit</span>
+        <h1 class="page-title">Lich su truy cap he thong logging</h1>
+        <p class="page-subtitle">Nhat ky rieng theo doi dang nhap, dang xuat va truy cap vao he thong quan tri Logging.</p>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line" data-auto-submit-selects>
+            <input asp-for="Filter.PageSize" type="hidden" />
+            <div class="col-lg-3 col-md-6">
+                <label asp-for="Filter.SearchTerm" class="form-label">Tu khoa</label>
+                <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Username, endpoint, IP" />
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.EventType" class="form-label">Su kien</label>
+                <select asp-for="Filter.EventType" class="form-select" data-enhanced-select data-placeholder="Tat ca su kien">
+                    <option value="">Tat ca</option>
+                    @foreach (var eventType in Model.EventTypes)
+                    {
+                        <option value="@eventType">@eventType</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.From" class="form-label">Tu ngay</label>
+                <input asp-for="Filter.From" class="form-control" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" autocomplete="off" />
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <label asp-for="Filter.To" class="form-label">Den ngay</label>
+                <input asp-for="Filter.To" class="form-control" type="date" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" autocomplete="off" />
+            </div>
+            <div class="col-lg-3 col-md-12">
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-dark">Loc du lieu</button>
+                    <a class="btn btn-outline-secondary"
+                       asp-action="Export"
+                       asp-route-searchTerm="@Model.Filter.SearchTerm"
+                       asp-route-eventType="@Model.Filter.EventType"
+                       asp-route-from='@Model.Filter.From?.ToString("yyyy-MM-dd")'
+                       asp-route-to='@Model.Filter.To?.ToString("yyyy-MM-dd")'>Export CSV</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="data-card__header">
+        <div>
+            <h2 class="data-card__title">Nhat ky truy cap</h2>
+            <p class="data-card__subtitle">Collection rieng theo doi truy cap he thong noi bo.</p>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="table-stt-col">STT</th>
+                    <th>Thoi gian</th>
+                    <th>Username</th>
+                    <th>Display name</th>
+                    <th>Role</th>
+                    <th>Su kien</th>
+                    <th>Mo ta</th>
+                    <th>Method</th>
+                    <th>Endpoint</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Model.Logs.Items)
+                {
+                    <tr>
+                        <td class="table-stt-cell">@(rowNumber++)</td>
+                        <td>@log.CreatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@log.UserName</td>
+                        <td>@log.DisplayName</td>
+                        <td>@log.Role</td>
+                        <td><span class="badge bg-primary-subtle text-primary-emphasis">@log.EventType</span></td>
+                        <td>@log.Description</td>
+                        <td>@log.HttpMethod</td>
+                        <td><code>@log.Endpoint</code></td>
+                        <td>@log.IpAddress</td>
+                    </tr>
+                }
+                @if (!Model.Logs.Items.Any())
+                {
+                    <tr>
+                        <td colspan="10" class="text-center text-secondary py-4">Khong co du lieu lich su truy cap trong pham vi loc.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Logs.TotalPages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-secondary small">Trang @Model.Logs.Page / @Model.Logs.TotalPages - Tong @Model.Logs.TotalCount ban ghi</div>
+            <div class="pagination-toolbar">
+                <form method="get" class="page-size-form" data-auto-submit-selects>
+                    <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
+                    <input type="hidden" name="eventType" value="@Model.Filter.EventType" />
+                    <input type="hidden" name="from" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="page" value="1" />
+
+                    <label class="page-size-form__label" for="systemAccessPageSize">Hien thi</label>
+                    <select id="systemAccessPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
+                        <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
+                        <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
+                        <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
+                    </select>
+                    <span class="page-size-form__suffix">ban ghi</span>
+                </form>
+
+                <nav>
+                    <ul class="pagination mb-0">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Truoc</a>
+                        </li>
+
+                        @if (startPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(1)">1</a>
+                            </li>
+
+                            @if (startPage > 2)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+                        }
+
+                        @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                        {
+                            <li class="page-item @(pageNumber == currentPage ? "active" : null)">
+                                <a class="page-link" href="@BuildPageUrl(pageNumber)">@pageNumber</a>
+                            </li>
+                        }
+
+                        @if (endPage < totalPages)
+                        {
+                            @if (endPage < totalPages - 1)
+                            {
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            }
+
+                            <li class="page-item">
+                                <a class="page-link" href="@BuildPageUrl(totalPages)">@totalPages</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : null)">
+                            <a class="page-link" href="@BuildPageUrl(currentPage + 1)">Sau</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    }
+</div>
