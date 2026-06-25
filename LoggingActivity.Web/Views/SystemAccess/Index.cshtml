@@ -1,7 +1,7 @@
 @model SystemAccessLogListViewModel
 
 @{
-    ViewData["Title"] = "Lich su truy cap he thong";
+    ViewData["Title"] = "Lịch sử truy cập hệ thống";
     var currentPage = Model.Logs.Page;
     var totalPages = Model.Logs.TotalPages;
     var pageWindowSize = 5;
@@ -16,23 +16,19 @@
 
     string BuildPageUrl(int page)
     {
-        return Url.Action("Index", new
-        {
-            searchTerm = Model.Filter.SearchTerm,
-            eventType = Model.Filter.EventType,
-            from = Model.Filter.From?.ToString("yyyy-MM-dd"),
-            to = Model.Filter.To?.ToString("yyyy-MM-dd"),
-            pageSize = Model.Filter.PageSize,
-            page
-        })!;
+        var query = Context.Request.Query.Keys
+            .ToDictionary(key => key, key => (string?)Context.Request.Query[key].ToString());
+        query["page"] = page.ToString();
+        query["pageSize"] = Model.Filter.PageSize.ToString();
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Url.Action("Index")!, query);
     }
 }
 
 <section class="page-hero">
     <div class="page-hero__content">
         <span class="page-eyebrow">Audit</span>
-        <h1 class="page-title">Lich su truy cap he thong logging</h1>
-        <p class="page-subtitle">Nhat ky rieng theo doi dang nhap, dang xuat va truy cap vao he thong quan tri Logging.</p>
+        <h1 class="page-title">Lịch sử truy cập hệ thống logging</h1>
+        <p class="page-subtitle">Nhật ký riêng theo dõi đăng nhập, đăng xuất và các hành động bảo mật trên hệ thống Logging.</p>
     </div>
 </section>
 
@@ -41,13 +37,13 @@
         <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line" data-auto-submit-selects>
             <input asp-for="Filter.PageSize" type="hidden" />
             <div class="col-lg-3 col-md-6">
-                <label asp-for="Filter.SearchTerm" class="form-label">Tu khoa</label>
+                <label asp-for="Filter.SearchTerm" class="form-label">Từ khóa</label>
                 <input asp-for="Filter.SearchTerm" class="form-control" placeholder="Username, endpoint, IP" />
             </div>
             <div class="col-lg-2 col-md-6">
-                <label asp-for="Filter.EventType" class="form-label">Su kien</label>
-                <select asp-for="Filter.EventType" class="form-select" data-enhanced-select data-placeholder="Tat ca su kien">
-                    <option value="">Tat ca</option>
+                <label asp-for="Filter.EventType" class="form-label">Sự kiện</label>
+                <select asp-for="Filter.EventType" class="form-select" data-enhanced-select data-placeholder="Tất cả sự kiện">
+                    <option value="">Tất cả</option>
                     @foreach (var eventType in Model.EventTypes)
                     {
                         <option value="@eventType">@eventType</option>
@@ -55,16 +51,16 @@
                 </select>
             </div>
             <div class="col-lg-2 col-md-6">
-                <label asp-for="Filter.From" class="form-label">Tu ngay</label>
+                <label asp-for="Filter.From" class="form-label">Từ ngày</label>
                 <input asp-for="Filter.From" class="form-control" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" autocomplete="off" />
             </div>
             <div class="col-lg-2 col-md-6">
-                <label asp-for="Filter.To" class="form-label">Den ngay</label>
+                <label asp-for="Filter.To" class="form-label">Đến ngày</label>
                 <input asp-for="Filter.To" class="form-control" type="date" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" autocomplete="off" />
             </div>
             <div class="col-lg-3 col-md-12">
                 <div class="filter-actions">
-                    <button type="submit" class="btn btn-dark">Loc du lieu</button>
+                    <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                     <a class="btn btn-outline-secondary"
                        asp-action="Export"
                        asp-route-searchTerm="@Model.Filter.SearchTerm"
@@ -80,8 +76,8 @@
 <div class="card border-0 shadow-sm">
     <div class="data-card__header">
         <div>
-            <h2 class="data-card__title">Nhat ky truy cap</h2>
-            <p class="data-card__subtitle">Collection rieng theo doi truy cap he thong noi bo.</p>
+            <h2 class="data-card__title">Nhật ký truy cập</h2>
+            <p class="data-card__subtitle">Collection riêng theo dõi truy cập hệ thống nội bộ.</p>
         </div>
     </div>
     <div class="table-responsive">
@@ -89,12 +85,12 @@
             <thead class="table-light">
                 <tr>
                     <th class="table-stt-col">STT</th>
-                    <th>Thoi gian</th>
+                    <th>Thời gian</th>
                     <th>Username</th>
                     <th>Display name</th>
                     <th>Role</th>
-                    <th>Su kien</th>
-                    <th>Mo ta</th>
+                    <th>Sự kiện</th>
+                    <th>Mô tả</th>
                     <th>Method</th>
                     <th>Endpoint</th>
                     <th>IP</th>
@@ -119,7 +115,7 @@
                 @if (!Model.Logs.Items.Any())
                 {
                     <tr>
-                        <td colspan="10" class="text-center text-secondary py-4">Khong co du lieu lich su truy cap trong pham vi loc.</td>
+                        <td colspan="10" class="text-center text-secondary py-4">Không có dữ liệu lịch sử truy cập trong phạm vi lọc.</td>
                     </tr>
                 }
             </tbody>
@@ -128,7 +124,7 @@
     @if (Model.Logs.TotalPages > 1)
     {
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
-            <div class="text-secondary small">Trang @Model.Logs.Page / @Model.Logs.TotalPages - Tong @Model.Logs.TotalCount ban ghi</div>
+            <div class="text-secondary small">Trang @Model.Logs.Page / @Model.Logs.TotalPages - Tổng @Model.Logs.TotalCount bản ghi</div>
             <div class="pagination-toolbar">
                 <form method="get" class="page-size-form" data-auto-submit-selects>
                     <input type="hidden" name="searchTerm" value="@Model.Filter.SearchTerm" />
@@ -137,19 +133,19 @@
                     <input type="hidden" name="to" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" />
                     <input type="hidden" name="page" value="1" />
 
-                    <label class="page-size-form__label" for="systemAccessPageSize">Hien thi</label>
+                    <label class="page-size-form__label" for="systemAccessPageSize">Hiển thị</label>
                     <select id="systemAccessPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="10">
                         <option value="10" selected="@(Model.Filter.PageSize == 10)">10</option>
                         <option value="20" selected="@(Model.Filter.PageSize == 20)">20</option>
                         <option value="50" selected="@(Model.Filter.PageSize == 50)">50</option>
                     </select>
-                    <span class="page-size-form__suffix">ban ghi</span>
+                    <span class="page-size-form__suffix">bản ghi</span>
                 </form>
 
                 <nav>
                     <ul class="pagination mb-0">
                         <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
-                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Truoc</a>
+                            <a class="page-link" href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
 
                         @if (startPage > 1)

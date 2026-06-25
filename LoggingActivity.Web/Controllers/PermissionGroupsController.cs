@@ -10,10 +10,14 @@ namespace LoggingActivity.Web.Controllers;
 public sealed class PermissionGroupsController : AppController
 {
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly SystemAccessAuditService _systemAccessAuditService;
 
-    public PermissionGroupsController(PermissionGroupService permissionGroupService)
+    public PermissionGroupsController(
+        PermissionGroupService permissionGroupService,
+        SystemAccessAuditService systemAccessAuditService)
     {
         _permissionGroupService = permissionGroupService;
+        _systemAccessAuditService = systemAccessAuditService;
     }
 
     [HttpGet]
@@ -118,6 +122,11 @@ public sealed class PermissionGroupsController : AppController
         }
 
         TempData["StatusMessage"] = "Tạo nhóm quyền thành công.";
+        await _systemAccessAuditService.RecordSecurityActionAsync(
+            HttpContext,
+            SystemAccessEventTypes.PermissionChanged,
+            $"Tạo nhóm quyền {model.Name} với {model.SelectedPermissions.Count} quyền.",
+            cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -177,6 +186,11 @@ public sealed class PermissionGroupsController : AppController
         }
 
         TempData["StatusMessage"] = "Cập nhật nhóm quyền thành công.";
+        await _systemAccessAuditService.RecordSecurityActionAsync(
+            HttpContext,
+            SystemAccessEventTypes.PermissionChanged,
+            $"Cập nhật nhóm quyền {model.Name} với {model.SelectedPermissions.Count} quyền.",
+            cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 

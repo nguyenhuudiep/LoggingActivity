@@ -1,5 +1,4 @@
 using LoggingActivity.Web.Data;
-using LoggingActivity.Web.Middleware;
 using LoggingActivity.Web.Options;
 using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Services;
@@ -186,7 +185,6 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseMiddleware<SystemAccessAuditMiddleware>();
 
 app.MapControllerRoute(
     name: "default",

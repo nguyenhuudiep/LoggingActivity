@@ -11,11 +11,16 @@ public sealed class UsersController : AppController
 {
     private readonly UserService _userService;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly SystemAccessAuditService _systemAccessAuditService;
 
-    public UsersController(UserService userService, PermissionGroupService permissionGroupService)
+    public UsersController(
+        UserService userService,
+        PermissionGroupService permissionGroupService,
+        SystemAccessAuditService systemAccessAuditService)
     {
         _userService = userService;
         _permissionGroupService = permissionGroupService;
+        _systemAccessAuditService = systemAccessAuditService;
     }
 
     [HttpGet]
@@ -161,6 +166,11 @@ public sealed class UsersController : AppController
         }
 
         TempData["StatusMessage"] = "Tạo tài khoản thành công.";
+        await _systemAccessAuditService.RecordSecurityActionAsync(
+            HttpContext,
+            SystemAccessEventTypes.UserCreated,
+            $"Tạo tài khoản {model.UserName.Trim()} với vai trò {model.Role}.",
+            cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -233,6 +243,11 @@ public sealed class UsersController : AppController
         }
 
         TempData["StatusMessage"] = "Cập nhật tài khoản thành công.";
+        await _systemAccessAuditService.RecordSecurityActionAsync(
+            HttpContext,
+            SystemAccessEventTypes.PermissionChanged,
+            $"Cập nhật tài khoản {model.UserName.Trim()} - vai trò {model.Role}, số nhóm quyền {model.SelectedPermissionGroupIds.Count}, số quyền riêng {model.SelectedPermissions.Count}.",
+            cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 

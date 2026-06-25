@@ -16,11 +16,11 @@
 
     string BuildPageUrl(int page)
     {
-        return Url.Action("Index", new
-        {
-            page,
-            pageSize = Model.Filter.PageSize
-        })!;
+        var query = Context.Request.Query.Keys
+            .ToDictionary(key => key, key => (string?)Context.Request.Query[key].ToString());
+        query["page"] = page.ToString();
+        query["pageSize"] = Model.Filter.PageSize.ToString();
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Url.Action("Index")!, query);
     }
 }
 

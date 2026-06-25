@@ -49,6 +49,17 @@ public static class AdminFunctionPermissions
 
 public static class UserPermissionExtensions
 {
+    private static bool IsPermissionAliasGranted(HashSet<string> grantedPermissions, string permission)
+    {
+        if (string.Equals(permission, AdminFunctionPermissions.SystemAccessHistory, StringComparison.OrdinalIgnoreCase)
+            && grantedPermissions.Contains(AdminFunctionPermissions.LogDashboard))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     public static bool HasAdminFunctionPermission(this ClaimsPrincipal user, string permission)
     {
         if (user.Identity?.IsAuthenticated != true || !user.IsInRole(SystemRoles.Admin))
@@ -61,7 +72,9 @@ public static class UserPermissionExtensions
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return grantedPermissions.Count == 0 || grantedPermissions.Contains(permission);
+        return grantedPermissions.Count == 0
+            || grantedPermissions.Contains(permission)
+            || IsPermissionAliasGranted(grantedPermissions, permission);
     }
 
     public static bool HasFeatureAccess(this ClaimsPrincipal user, string permission, bool allowAuditor = false)

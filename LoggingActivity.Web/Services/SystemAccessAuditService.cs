@@ -100,8 +100,8 @@ public sealed class SystemAccessAuditService
             SessionId = sessionId,
             EventType = replacedExistingSession ? SystemAccessEventTypes.SessionReplaced : SystemAccessEventTypes.Login,
             Description = replacedExistingSession
-                ? "Dang nhap thanh cong va thay the phien dang nhap truoc do cua cung tai khoan."
-                : "Dang nhap thanh cong.",
+                ? "Đăng nhập thành công và thay thế phiên đăng nhập trước đó của cùng tài khoản."
+                : "Đăng nhập thành công.",
             Endpoint = httpContext.Request.Path,
             HttpMethod = httpContext.Request.Method,
             IpAddress = GetIpAddress(httpContext),
@@ -112,15 +112,12 @@ public sealed class SystemAccessAuditService
 
     public Task RecordLogoutAsync(HttpContext httpContext, CancellationToken cancellationToken = default)
     {
-        return _systemAccessLogRepository.AddAsync(BuildCurrentUserLog(httpContext, SystemAccessEventTypes.Logout, "Dang xuat thanh cong."), cancellationToken);
+        return _systemAccessLogRepository.AddAsync(BuildCurrentUserLog(httpContext, SystemAccessEventTypes.Logout, "Đăng xuất thành công."), cancellationToken);
     }
 
-    public Task RecordAccessAsync(HttpContext httpContext, CancellationToken cancellationToken = default)
+    public Task RecordSecurityActionAsync(HttpContext httpContext, string eventType, string description, CancellationToken cancellationToken = default)
     {
-        var log = BuildCurrentUserLog(
-            httpContext,
-            SystemAccessEventTypes.Access,
-            $"Truy cap {httpContext.Request.Method} {httpContext.Request.Path}");
+        var log = BuildCurrentUserLog(httpContext, eventType, description);
         return _systemAccessLogRepository.AddAsync(log, cancellationToken);
     }
 
@@ -129,7 +126,7 @@ public sealed class SystemAccessAuditService
         var log = BuildCurrentUserLog(
             httpContext,
             SystemAccessEventTypes.SessionRejected,
-            "Phien dang nhap het hieu luc do tai khoan dang nhap o noi khac.");
+            "Phiên đăng nhập hết hiệu lực do tài khoản đăng nhập ở nơi khác.");
         return _systemAccessLogRepository.AddAsync(log, cancellationToken);
     }
 

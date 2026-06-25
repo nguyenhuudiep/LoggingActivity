@@ -20,7 +20,7 @@ public sealed class SystemAccessLog
 
     public string SessionId { get; set; } = string.Empty;
 
-    public string EventType { get; set; } = SystemAccessEventTypes.Access;
+    public string EventType { get; set; } = SystemAccessEventTypes.Login;
 
     public string Description { get; set; } = string.Empty;
 
@@ -39,7 +39,8 @@ public static class SystemAccessEventTypes
 {
     public const string Login = "LOGIN";
     public const string Logout = "LOGOUT";
-    public const string Access = "ACCESS";
+    public const string UserCreated = "USER_CREATED";
+    public const string PermissionChanged = "PERMISSION_CHANGED";
     public const string SessionReplaced = "SESSION_REPLACED";
     public const string SessionRejected = "SESSION_REJECTED";
 
@@ -47,7 +48,8 @@ public static class SystemAccessEventTypes
     [
         Login,
         Logout,
-        Access,
+        UserCreated,
+        PermissionChanged,
         SessionReplaced,
         SessionRejected
     ];
