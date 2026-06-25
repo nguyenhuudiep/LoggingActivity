@@ -427,6 +427,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         var uniqueUsersTask = GetUniqueUsersCountAsync(filter, cancellationToken);
         var topActionsTask = GetTopActionsAsync(filter, cancellationToken);
         var topActionsTodayTask = GetTopActionsTodayAsync(filter, cancellationToken);
+        var topUsersTodayTask = GetTopUsersTodayAsync(filter, cancellationToken);
         var dailyActivityTask = GetDailyActivityAsync(filter, chartDays, cancellationToken);
         var hourlyActivityTask = GetHourlyActivityAsync(filter, cancellationToken);
         var actionTrendSeriesTask = GetActionTrendSeriesAsync(filter, chartDays, cancellationToken);
@@ -438,6 +439,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             uniqueUsersTask,
             topActionsTask,
             topActionsTodayTask,
+            topUsersTodayTask,
             dailyActivityTask,
             hourlyActivityTask,
             actionTrendSeriesTask);
@@ -450,6 +452,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             IntegratedLogs = integratedLogsTask.Result,
             TopActions = topActionsTask.Result,
             TopActionsToday = topActionsTodayTask.Result,
+            TopUsersToday = topUsersTodayTask.Result,
             DailyActivity = dailyActivityTask.Result,
             HourlyActivity = hourlyActivityTask.Result,
             ActionDailySeries = actionTrendSeriesTask.Result
@@ -548,6 +551,66 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endUtc);
 
         return await GetTopActionsAsync(scopedFilter, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<BreakdownItem>> GetTopUsersTodayAsync(
+        FilterDefinition<ActivityLog> filter,
+        CancellationToken cancellationToken)
+    {
+        var todayVietnam = VietnamTimeExtensions.TodayInVietnamDate();
+        var startUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam);
+        var endUtc = VietnamTimeExtensions.VietnamDateToUtcStart(todayVietnam.AddDays(1));
+
+        var scopedFilter = filter
+            & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, startUtc)
+            & Builders<ActivityLog>.Filter.Lt(log => log.CreatedAtUtc, endUtc);
+
+        var pipeline = new[]
+        {
+            BuildMatchStage(scopedFilter),
+            new BsonDocument("$project", new BsonDocument
+            {
+                { "ActorIdentifier", BuildResolvedActorIdentifierExpression() },
+                { "UserName", BuildNormalizedTextExpression("UserName", "Anonymous") }
+            }),
+            new BsonDocument("$match", new BsonDocument
+            {
+                { "$nor", new BsonArray
+                {
+                    new BsonDocument("ActorIdentifier", BsonNull.Value),
+                    new BsonDocument("ActorIdentifier", string.Empty)
+                }}
+            }),
+            new BsonDocument("$addFields", new BsonDocument
+            {
+                { "NormalizedActorIdentifier", new BsonDocument("$toUpper", "$ActorIdentifier") }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$NormalizedActorIdentifier" },
+                { "ActorIdentifier", new BsonDocument("$first", "$ActorIdentifier") },
+                { "UserName", new BsonDocument("$first", "$UserName") },
+                { "Value", new BsonDocument("$sum", 1) }
+            }),
+            new BsonDocument("$sort", new BsonDocument("Value", -1L)),
+            new BsonDocument("$limit", 5)
+        };
+
+        var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
+        return docs.Select(doc =>
+        {
+            var actorIdentifier = GetTrimmedString(doc, "ActorIdentifier");
+            var userName = GetTrimmedString(doc, "UserName", "Anonymous");
+            var label = string.Equals(userName, "Anonymous", StringComparison.OrdinalIgnoreCase)
+                ? actorIdentifier
+                : $"{userName} ({actorIdentifier})";
+
+            return new BreakdownItem
+            {
+                Label = label,
+                Value = GetInt64(doc, "Value")
+            };
+        }).ToList();
     }
 
     private async Task<IReadOnlyList<ChartPoint>> GetDailyActivityAsync(

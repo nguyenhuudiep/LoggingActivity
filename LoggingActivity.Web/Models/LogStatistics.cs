@@ -18,6 +18,8 @@ public sealed class LogStatistics
 
     public IReadOnlyList<BreakdownItem> TopActionsToday { get; init; } = Array.Empty<BreakdownItem>();
 
+    public IReadOnlyList<BreakdownItem> TopUsersToday { get; init; } = Array.Empty<BreakdownItem>();
+
     public IReadOnlyList<ActionTrendSeries> ActionDailySeries { get; init; } = Array.Empty<ActionTrendSeries>();
 }
 

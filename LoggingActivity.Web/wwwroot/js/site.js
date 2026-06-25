@@ -215,6 +215,71 @@
 			}
 		}
 
+		var topUsersTodayHost = document.querySelector("[data-top-users-today-chart]");
+		if (topUsersTodayHost && typeof Chart !== "undefined") {
+			var topUsersCanvas = document.getElementById("topUsersTodayChart");
+			if (topUsersCanvas) {
+				var userLabels = JSON.parse(topUsersTodayHost.getAttribute("data-user-labels") || "[]");
+				var userValues = JSON.parse(topUsersTodayHost.getAttribute("data-user-values") || "[]");
+
+				if (userLabels.length > 0 && userValues.length > 0) {
+					new Chart(topUsersCanvas, {
+						type: "bar",
+						data: {
+							labels: userLabels,
+							datasets: [{
+								label: "Số action",
+								data: userValues,
+								backgroundColor: [
+									"rgba(185, 28, 28, 0.88)",
+									"rgba(220, 38, 38, 0.82)",
+									"rgba(239, 68, 68, 0.76)",
+									"rgba(248, 113, 113, 0.72)",
+									"rgba(252, 165, 165, 0.68)"
+								],
+								borderColor: "rgba(127, 29, 29, 0.9)",
+								borderWidth: 1,
+								borderRadius: 10,
+								borderSkipped: false
+							}]
+						},
+						options: {
+							indexAxis: "y",
+							plugins: {
+								legend: { display: false },
+								tooltip: {
+									backgroundColor: "rgba(17, 24, 39, 0.92)",
+									titleColor: "#f9fafb",
+									bodyColor: "#f9fafb",
+									cornerRadius: 12,
+									padding: 12,
+									callbacks: {
+										label: function (context) {
+											var value = typeof context.parsed.x === "number" ? context.parsed.x : 0;
+											return "Số action: " + numberFormatter.format(value);
+										}
+									}
+								}
+							},
+							maintainAspectRatio: false,
+							responsive: true,
+							scales: {
+								x: {
+									beginAtZero: true,
+									grid: { color: "rgba(148, 163, 184, 0.18)" },
+									ticks: { color: "#6a7280", precision: 0 }
+								},
+								y: {
+									grid: { display: false },
+									ticks: { color: "#6a7280", font: { weight: 600 } }
+								}
+							}
+						}
+					});
+				}
+			}
+		}
+
 		var chartHost = document.querySelector("[data-log-charts]");
 		if (!chartHost || typeof Chart === "undefined") {
 			return;

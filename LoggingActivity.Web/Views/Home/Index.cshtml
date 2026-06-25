@@ -223,6 +223,32 @@
     </div>
 
     <div class="col-12">
+        <div class="card shadow-sm border-0 surface-panel" data-top-users-today-chart
+             data-user-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.Label))'
+             data-user-values='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.Value))'>
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <span class="page-eyebrow">Giám sát bất thường</span>
+                        <h2 class="section-header__title">Top 5 user có số action cao nhất hôm nay</h2>
+                        <p class="section-header__subtitle">Dùng để phát hiện nhanh các tài khoản phát sinh số lượng action đột biến trong ngày hiện tại.</p>
+                    </div>
+                </div>
+                @if (Model.OverviewStatistics.TopUsersToday.Any())
+                {
+                    <div class="chart-stage" style="height: 320px;">
+                        <canvas id="topUsersTodayChart" aria-label="Biểu đồ top 5 user có số action cao nhất hôm nay"></canvas>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-secondary">Hôm nay chưa có dữ liệu action để thống kê theo user.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <div class="section-header">
