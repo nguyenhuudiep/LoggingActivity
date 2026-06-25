@@ -18,7 +18,7 @@ public sealed class LogStatistics
 
     public IReadOnlyList<BreakdownItem> TopActionsToday { get; init; } = Array.Empty<BreakdownItem>();
 
-    public IReadOnlyList<BreakdownItem> TopUsersToday { get; init; } = Array.Empty<BreakdownItem>();
+    public IReadOnlyList<TopUserActionSummary> TopUsersToday { get; init; } = Array.Empty<TopUserActionSummary>();
 
     public IReadOnlyList<ActionTrendSeries> ActionDailySeries { get; init; } = Array.Empty<ActionTrendSeries>();
 }
@@ -42,4 +42,21 @@ public sealed class ActionTrendSeries
     public string Action { get; init; } = string.Empty;
 
     public IReadOnlyList<long> Values { get; init; } = Array.Empty<long>();
+}
+
+public sealed class TopUserActionSummary
+{
+    public string ActorIdentifier { get; init; } = string.Empty;
+
+    public string UserName { get; init; } = "Anonymous";
+
+    public long TotalActions { get; init; }
+
+    public string TopAction { get; init; } = string.Empty;
+
+    public long TopActionCount { get; init; }
+
+    public string DisplayLabel => string.Equals(UserName, "Anonymous", StringComparison.OrdinalIgnoreCase)
+        ? ActorIdentifier
+        : $"{UserName} ({ActorIdentifier})";
 }

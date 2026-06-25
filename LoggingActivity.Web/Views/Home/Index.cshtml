@@ -14,6 +14,7 @@
     var hourlyAverage = Model.OverviewStatistics.HourlyActivity.Count == 0
         ? 0
         : Math.Round(Model.OverviewStatistics.HourlyActivity.Average(point => point.Value), 1);
+    var todayFilterDate = VietnamTimeExtensions.TodayInVietnamDate().ToString("yyyy-MM-dd");
 }
 
 <section class="page-hero">
@@ -224,20 +225,42 @@
 
     <div class="col-12">
         <div class="card shadow-sm border-0 surface-panel" data-top-users-today-chart
-             data-user-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.Label))'
-             data-user-values='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.Value))'>
+             data-user-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.DisplayLabel))'
+             data-user-values='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.TotalActions))'
+             data-user-top-actions='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => $"{item.TopAction} ({item.TopActionCount:N0})"))'>
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
                         <span class="page-eyebrow">Giám sát bất thường</span>
                         <h2 class="section-header__title">Top 5 user có số action cao nhất hôm nay</h2>
-                        <p class="section-header__subtitle">Dùng để phát hiện nhanh các tài khoản phát sinh số lượng action đột biến trong ngày hiện tại.</p>
+                        <p class="section-header__subtitle">Hiển thị tổng action theo user và action cao nhất của từng user để nhận diện bất thường nhanh hơn.</p>
                     </div>
                 </div>
                 @if (Model.OverviewStatistics.TopUsersToday.Any())
                 {
                     <div class="chart-stage" style="height: 320px;">
                         <canvas id="topUsersTodayChart" aria-label="Biểu đồ top 5 user có số action cao nhất hôm nay"></canvas>
+                    </div>
+                    <div class="mt-3 pt-2 border-top">
+                        <div class="metric-card__label mb-2">Tra cứu nhanh theo key và action cao nhất</div>
+                        @foreach (var item in Model.OverviewStatistics.TopUsersToday)
+                        {
+                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center py-2 gap-2">
+                                <div>
+                                    <div class="small fw-semibold text-secondary">@item.DisplayLabel</div>
+                                    <div class="small text-secondary">Action cao nhất: <span class="fw-semibold">@item.TopAction</span> (@item.TopActionCount.ToString("N0")) - Tổng action: @item.TotalActions.ToString("N0")</div>
+                                </div>
+                                <a class="btn btn-sm btn-outline-dark"
+                                   asp-controller="Logs"
+                                   asp-action="Index"
+                                   asp-route-searchTerm="@item.ActorIdentifier"
+                                   asp-route-action="@item.TopAction"
+                                   asp-route-from="@todayFilterDate"
+                                   asp-route-to="@todayFilterDate">
+                                    Xem log theo key
+                                </a>
+                            </div>
+                        }
                     </div>
                 }
                 else

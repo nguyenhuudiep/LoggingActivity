@@ -221,6 +221,7 @@
 			if (topUsersCanvas) {
 				var userLabels = JSON.parse(topUsersTodayHost.getAttribute("data-user-labels") || "[]");
 				var userValues = JSON.parse(topUsersTodayHost.getAttribute("data-user-values") || "[]");
+				var userTopActions = JSON.parse(topUsersTodayHost.getAttribute("data-user-top-actions") || "[]");
 
 				if (userLabels.length > 0 && userValues.length > 0) {
 					new Chart(topUsersCanvas, {
@@ -254,9 +255,21 @@
 									cornerRadius: 12,
 									padding: 12,
 									callbacks: {
+										title: function (items) {
+											if (!items || items.length === 0) {
+												return "";
+											}
+
+											var index = items[0].dataIndex;
+											return userLabels[index] || "User";
+										},
 										label: function (context) {
 											var value = typeof context.parsed.x === "number" ? context.parsed.x : 0;
 											return "Số action: " + numberFormatter.format(value);
+										},
+										afterLabel: function (context) {
+											var topAction = userTopActions[context.dataIndex] || "N/A";
+											return "Action cao nhất: " + topAction;
 										}
 									}
 								}

@@ -553,7 +553,7 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         return await GetTopActionsAsync(scopedFilter, cancellationToken);
     }
 
-    private async Task<IReadOnlyList<BreakdownItem>> GetTopUsersTodayAsync(
+    private async Task<IReadOnlyList<TopUserActionSummary>> GetTopUsersTodayAsync(
         FilterDefinition<ActivityLog> filter,
         CancellationToken cancellationToken)
     {
@@ -571,10 +571,12 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             new BsonDocument("$project", new BsonDocument
             {
                 { "ActorIdentifier", BuildResolvedActorIdentifierExpression() },
-                { "UserName", BuildNormalizedTextExpression("UserName", "Anonymous") }
+                { "UserName", BuildNormalizedTextExpression("UserName", "Anonymous") },
+                { "Action", BuildNormalizedTextExpression("Action", string.Empty) }
             }),
             new BsonDocument("$match", new BsonDocument
             {
+                { "Action", new BsonDocument("$ne", string.Empty) },
                 { "$nor", new BsonArray
                 {
                     new BsonDocument("ActorIdentifier", BsonNull.Value),
@@ -583,32 +585,53 @@ public sealed class ActivityLogRepository : IActivityLogRepository
             }),
             new BsonDocument("$addFields", new BsonDocument
             {
-                { "NormalizedActorIdentifier", new BsonDocument("$toUpper", "$ActorIdentifier") }
+                { "NormalizedActorIdentifier", new BsonDocument("$toUpper", "$ActorIdentifier") },
+                { "NormalizedAction", new BsonDocument("$toUpper", "$Action") }
             }),
             new BsonDocument("$group", new BsonDocument
             {
-                { "_id", "$NormalizedActorIdentifier" },
+                {
+                    "_id",
+                    new BsonDocument
+                    {
+                        { "actor", "$NormalizedActorIdentifier" },
+                        { "action", "$NormalizedAction" }
+                    }
+                },
                 { "ActorIdentifier", new BsonDocument("$first", "$ActorIdentifier") },
                 { "UserName", new BsonDocument("$first", "$UserName") },
-                { "Value", new BsonDocument("$sum", 1) }
+                { "Action", new BsonDocument("$first", "$Action") },
+                { "ActionCount", new BsonDocument("$sum", 1) }
             }),
-            new BsonDocument("$sort", new BsonDocument("Value", -1L)),
+            new BsonDocument("$sort", new BsonDocument
+            {
+                { "_id.actor", 1L },
+                { "ActionCount", -1L },
+                { "Action", 1L }
+            }),
+            new BsonDocument("$group", new BsonDocument
+            {
+                { "_id", "$_id.actor" },
+                { "ActorIdentifier", new BsonDocument("$first", "$ActorIdentifier") },
+                { "UserName", new BsonDocument("$first", "$UserName") },
+                { "TopAction", new BsonDocument("$first", "$Action") },
+                { "TopActionCount", new BsonDocument("$first", "$ActionCount") },
+                { "TotalActions", new BsonDocument("$sum", "$ActionCount") }
+            }),
+            new BsonDocument("$sort", new BsonDocument("TotalActions", -1L)),
             new BsonDocument("$limit", 5)
         };
 
         var docs = await _context.ActivityLogs.Aggregate<BsonDocument>(pipeline).ToListAsync(cancellationToken);
         return docs.Select(doc =>
         {
-            var actorIdentifier = GetTrimmedString(doc, "ActorIdentifier");
-            var userName = GetTrimmedString(doc, "UserName", "Anonymous");
-            var label = string.Equals(userName, "Anonymous", StringComparison.OrdinalIgnoreCase)
-                ? actorIdentifier
-                : $"{userName} ({actorIdentifier})";
-
-            return new BreakdownItem
+            return new TopUserActionSummary
             {
-                Label = label,
-                Value = GetInt64(doc, "Value")
+                ActorIdentifier = GetTrimmedString(doc, "ActorIdentifier"),
+                UserName = GetTrimmedString(doc, "UserName", "Anonymous"),
+                TotalActions = GetInt64(doc, "TotalActions"),
+                TopAction = GetTrimmedString(doc, "TopAction"),
+                TopActionCount = GetInt64(doc, "TopActionCount")
             };
         }).ToList();
     }
