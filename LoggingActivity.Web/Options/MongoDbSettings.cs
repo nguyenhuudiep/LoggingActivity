@@ -27,4 +27,6 @@ public sealed class MongoDbSettings
     public string SystemAccessLogsCollectionName { get; set; } = "system_access_logs";
 
     public string UserActiveSessionsCollectionName { get; set; } = "user_active_sessions";
+
+    public string PartnerUserActionLimitRulesCollectionName { get; set; } = "partner_user_action_limit_rules";
 }

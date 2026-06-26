@@ -4,6 +4,7 @@
     var isListPage = string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase)
         && (string.Equals(currentController, "Users", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "Partners", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentController, "PartnerActionLimitSettings", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "PermissionGroups", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "Logs", StringComparison.OrdinalIgnoreCase)
             || string.Equals(currentController, "SystemAccess", StringComparison.OrdinalIgnoreCase)
@@ -26,7 +27,8 @@
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
     var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
     var canManageAlertRules = User.HasAdminFunctionPermission(AdminFunctionPermissions.AlertRuleManagement);
-    var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules || canManagePermissionGroups;
+    var canManagePartnerActionLimits = canManagePartners;
+    var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules || canManagePermissionGroups || canManagePartnerActionLimits;
 
     string SidebarLinkClass(string controller, string? action = null)
     {
@@ -139,6 +141,13 @@
                             <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">P</span>
                                 <span class="sidebar-link__text">Partner</span>
+                            </a>
+                            }
+                            @if (canManagePartnerActionLimits)
+                            {
+                            <a class="@SidebarLinkClass("PartnerActionLimitSettings")" asp-controller="PartnerActionLimitSettings" asp-action="Index" data-show-loading-nav="true">
+                                <span class="sidebar-link__icon">U</span>
+                                <span class="sidebar-link__text">Hạn mức user-action</span>
                             </a>
                             }
                             @if (canManageAlertRules)

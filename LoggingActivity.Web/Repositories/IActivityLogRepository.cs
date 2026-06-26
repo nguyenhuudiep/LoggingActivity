@@ -24,5 +24,7 @@ public interface IActivityLogRepository
 
     Task<long> GetUserActionCountAsync(string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 
+    Task<long> GetPartnerUserActionCountAsync(string partnerId, string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default);
 }

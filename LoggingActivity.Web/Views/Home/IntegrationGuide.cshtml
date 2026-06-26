@@ -105,7 +105,56 @@
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
-                        <h2 class="section-header__title">2. Quy trình xử lý từ API tới lưu log thành công</h2>
+                        <h2 class="section-header__title">2. Check hạn mức user-action theo ngày</h2>
+                        <p class="section-header__subtitle">API check để đối tác chủ động kiểm tra hạn mức trước khi thực hiện nghiệp vụ gửi log. Hạn mức tính theo ngày và reset lúc 00:00 (GMT+7).</p>
+                    </div>
+                </div>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--get">GET</span>
+                    <span class="request-chip">/api/partner/action-limit/check?userId=260001&amp;userKeyType=user-id&amp;action=LOGIN</span>
+                </div>
+                <pre class="api-block mb-3"><code>curl "@baseUrl/api/partner/action-limit/check?userId=260001&amp;userKeyType=user-id&amp;action=LOGIN" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY"</code></pre>
+
+                <div class="integration-guide__chips mb-3 mt-4">
+                    <span class="request-chip request-chip--post">POST</span>
+                    <span class="request-chip">/api/partner/action-limit/check-by-key</span>
+                </div>
+                <pre class="api-block mb-3"><code>curl -X POST "@baseUrl/api/partner/action-limit/check-by-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partnerApiKey": "YOUR_PARTNER_API_KEY",
+    "userId": "260001",
+    "userKeyType": "user-id",
+    "action": "LOGIN"
+  }'</code></pre>
+
+                <pre class="api-block api-block--light mb-0"><code>{
+  "partnerId": "6a152cdb5e3857756e533609",
+  "actorIdentifier": "260001",
+  "actorIdentifierType": "user-id",
+  "action": "LOGIN",
+  "hasLimit": true,
+  "dailyLimit": 100,
+  "usedCount": 35,
+  "remainingCount": 65,
+  "isAllowed": true,
+  "message": "User còn 65 lượt cho action 'LOGIN' trong hôm nay."
+}</code></pre>
+
+                <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    <strong>Lưu ý:</strong> API check hạn mức chỉ trả trạng thái quota hiện tại. API nhận log <strong>POST /api/partner/activity</strong> vẫn tiếp nhận bình thường và không chặn theo hạn mức.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm surface-panel integration-guide-card">
+            <div class="card-body p-4 p-lg-5">
+                <div class="section-header mb-3">
+                    <div>
+                        <h2 class="section-header__title">3. Quy trình xử lý từ API tới lưu log thành công</h2>
                         <p class="section-header__subtitle">Phần này mô tả rõ từng bước nội bộ sau khi client gọi API thành công để phía tích hợp hiểu đúng ý nghĩa của phản hồi 202 Accepted.</p>
                     </div>
                 </div>
@@ -144,7 +193,7 @@
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
-                        <h2 class="section-header__title">3. Lấy danh sách log</h2>
+                        <h2 class="section-header__title">4. Lấy danh sách log</h2>
                         <p class="section-header__subtitle">API dùng để truy vấn log của chính partner đang gọi, có hỗ trợ phân trang, lọc ngày, action và từ khóa.</p>
                     </div>
                 </div>
@@ -188,7 +237,7 @@
             <div class="card-body p-4 p-lg-5">
                 <div class="section-header mb-3">
                     <div>
-                        <h2 class="section-header__title">4. Lấy thống kê log</h2>
+                        <h2 class="section-header__title">5. Lấy thống kê log</h2>
                         <p class="section-header__subtitle">API dùng để lấy số liệu tổng quan log của partner trong một khoảng thời gian, mặc định chỉ tính nguồn IntegratedApi.</p>
                     </div>
                 </div>

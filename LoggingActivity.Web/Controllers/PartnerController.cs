@@ -14,17 +14,20 @@ public sealed class PartnerController : ControllerBase
     private readonly ActivityLogService _activityLogService;
     private readonly ActivityLogIngestQueueService _activityLogIngestQueueService;
     private readonly LogActionDefinitionService _logActionDefinitionService;
+    private readonly PartnerUserActionLimitService _partnerUserActionLimitService;
 
     public PartnerController(
         PartnerService partnerService,
         ActivityLogService activityLogService,
         ActivityLogIngestQueueService activityLogIngestQueueService,
-        LogActionDefinitionService logActionDefinitionService)
+        LogActionDefinitionService logActionDefinitionService,
+        PartnerUserActionLimitService partnerUserActionLimitService)
     {
         _partnerService = partnerService;
         _activityLogService = activityLogService;
         _activityLogIngestQueueService = activityLogIngestQueueService;
         _logActionDefinitionService = logActionDefinitionService;
+        _partnerUserActionLimitService = partnerUserActionLimitService;
     }
 
     [HttpPost("activity")]
@@ -46,6 +49,56 @@ public sealed class PartnerController : ControllerBase
                 : "Yêu cầu ghi log với requestId này đã được tiếp nhận trước đó.",
             requestId = enqueueResult.RequestId
         });
+    }
+
+    [HttpGet("action-limit/check")]
+    public async Task<IActionResult> CheckActionLimit([FromQuery] PartnerActionLimitCheckRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var partner = await ValidatePartnerAsync(cancellationToken);
+        if (partner is null)
+        {
+            return Unauthorized(new { message = "API key không hợp lệ." });
+        }
+
+        var result = await _partnerUserActionLimitService.CheckAsync(
+            partner.Id!,
+            request.UserId,
+            request.UserKeyType,
+            request.Action,
+            cancellationToken);
+
+        SetPartnerContext(partner);
+        return Ok(result);
+    }
+
+    [HttpPost("action-limit/check-by-key")]
+    public async Task<IActionResult> CheckActionLimitByKey([FromBody] PartnerActionLimitCheckByKeyRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var partner = await _partnerService.GetByApiKeyAsync(request.PartnerApiKey, cancellationToken);
+        if (partner is null)
+        {
+            return Unauthorized(new { message = "API key không hợp lệ." });
+        }
+
+        var result = await _partnerUserActionLimitService.CheckAsync(
+            partner.Id!,
+            request.UserId,
+            request.UserKeyType,
+            request.Action,
+            cancellationToken);
+
+        SetPartnerContext(partner);
+        return Ok(result);
     }
 
     [HttpGet("activity")]

@@ -40,6 +40,7 @@ public sealed class MongoDbContext
         AlertHistories = _database.GetCollection<AlertHistory>(settings.AlertHistoriesCollectionName);
         SystemAccessLogs = _database.GetCollection<SystemAccessLog>(settings.SystemAccessLogsCollectionName);
         UserActiveSessions = _database.GetCollection<UserActiveSession>(settings.UserActiveSessionsCollectionName);
+        PartnerUserActionLimitRules = _database.GetCollection<PartnerUserActionLimitRule>(settings.PartnerUserActionLimitRulesCollectionName);
     }
 
     private static string BuildEffectiveConnectionString(string connectionString)
@@ -80,4 +81,6 @@ public sealed class MongoDbContext
     public IMongoCollection<SystemAccessLog> SystemAccessLogs { get; }
 
     public IMongoCollection<UserActiveSession> UserActiveSessions { get; }
+
+    public IMongoCollection<PartnerUserActionLimitRule> PartnerUserActionLimitRules { get; }
 }

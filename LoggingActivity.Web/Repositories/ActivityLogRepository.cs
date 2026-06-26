@@ -302,6 +302,36 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         return _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
     }
 
+    public Task<long> GetPartnerUserActionCountAsync(
+        string partnerId,
+        string actorIdentifier,
+        string? actorIdentifierType,
+        string action,
+        DateTime fromUtc,
+        DateTime toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = Builders<ActivityLog>.Filter;
+        var normalizedActorIdentifier = ActorIdentityHelper.NormalizeIdentifier(actorIdentifier);
+        var actorFilters = new List<FilterDefinition<ActivityLog>>
+        {
+            new BsonDocument("ActorIdentifier", normalizedActorIdentifier)
+        };
+
+        if (ActorIdentityHelper.TryGetLegacyExternalUserId(normalizedActorIdentifier, out var legacyUserId))
+        {
+            actorFilters.Add(new BsonDocument("ExternalUserId", legacyUserId));
+        }
+
+        var filter = builder.Eq(log => log.PartnerId, partnerId)
+            & builder.Or(actorFilters)
+            & builder.Regex(log => log.Action, new BsonRegularExpression($"^{System.Text.RegularExpressions.Regex.Escape(action)}$", "i"))
+            & builder.Gte(log => log.CreatedAtUtc, fromUtc)
+            & builder.Lt(log => log.CreatedAtUtc, toUtc);
+
+        return _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default)
     {
         var filter = Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);

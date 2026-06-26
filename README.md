@@ -54,11 +54,55 @@ Endpoint chính:
 
 ```http
 POST /api/partner/activity
+GET  /api/partner/action-limit/check?userId={userId}&userKeyType={userKeyType?}&action={action}
+POST /api/partner/action-limit/check-by-key
 GET  /api/partner/activity?page=1&pageSize=10
 GET  /api/partner/statistics
 ```
 
 Payload gửi log là JSON gồm `userId`, `userName`, `action`, `description`, `endpoint`; hệ thống sẽ chuẩn hóa và đưa vào queue để xử lý nền.
+
+### API check hạn mức theo ngày
+
+- Hạn mức được tính theo ngày (GMT+7) và tự reset lúc 00:00 mỗi ngày.
+- API nhận log `POST /api/partner/activity` không chặn theo hạn mức; đối tác chủ động gọi API check trước khi thực hiện nghiệp vụ nếu cần.
+
+Check theo header `X-Api-Key`:
+
+```powershell
+curl -X GET "http://localhost:5137/api/partner/action-limit/check?userId=260001&userKeyType=user-id&action=LOGIN" \
+	-H "X-Api-Key: YOUR_PARTNER_API_KEY"
+```
+
+Check bằng body có `partnerApiKey`:
+
+```powershell
+curl -X POST "http://localhost:5137/api/partner/action-limit/check-by-key" \
+	-H "Content-Type: application/json" \
+	-d '{
+		"partnerApiKey": "YOUR_PARTNER_API_KEY",
+		"userId": "260001",
+		"userKeyType": "user-id",
+		"action": "LOGIN"
+	}'
+```
+
+Ví dụ response:
+
+```json
+{
+	"partnerId": "6a152cdb5e3857756e533609",
+	"actorIdentifier": "260001",
+	"actorIdentifierType": "user-id",
+	"action": "LOGIN",
+	"hasLimit": true,
+	"dailyLimit": 100,
+	"usedCount": 35,
+	"remainingCount": 65,
+	"isAllowed": true,
+	"message": "User còn 65 lượt cho action 'LOGIN' trong hôm nay."
+}
+```
 
 ## Deploy
 
