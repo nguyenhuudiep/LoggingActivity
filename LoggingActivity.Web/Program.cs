@@ -133,6 +133,7 @@ builder.Services.AddScoped<AlertRuleService>();
 builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddScoped<PartnerUserActionLimitService>();
+builder.Services.AddScoped<CitizenIdDetectionService>();
 builder.Services.AddHttpClient<ThresholdNotificationService>();
 builder.Services.AddHostedService<ActivityLogInfrastructureHostedService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();

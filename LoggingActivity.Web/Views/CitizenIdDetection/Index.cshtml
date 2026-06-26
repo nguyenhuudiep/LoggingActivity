@@ -1,0 +1,344 @@
+@{
+    ViewData["Title"] = "Test nhận diện CCCD";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Vision tools</span>
+        <h1 class="page-title">Test nhận diện mặt trước/sau CCCD</h1>
+        <p class="page-subtitle">Upload ảnh CCCD để gọi trực tiếp API nhận diện side và xem confidence cùng các tín hiệu phân loại.</p>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm surface-panel">
+    <div class="card-body p-4">
+        <ul class="nav nav-tabs mb-4" id="citizenDetectTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="citizen-detect-test-tab" data-bs-toggle="tab" data-bs-target="#citizen-detect-test" type="button" role="tab" aria-controls="citizen-detect-test" aria-selected="true">Test nhận diện</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="citizen-detect-doc-tab" data-bs-toggle="tab" data-bs-target="#citizen-detect-doc" type="button" role="tab" aria-controls="citizen-detect-doc" aria-selected="false">Mô tả công nghệ</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="citizenDetectTabsContent">
+            <div class="tab-pane fade show active" id="citizen-detect-test" role="tabpanel" aria-labelledby="citizen-detect-test-tab" tabindex="0">
+                <form id="citizenIdDetectForm" class="row g-3 align-items-end mb-3">
+                    <div class="col-lg-5 col-md-12">
+                        <label class="form-label" for="citizenImage">Ảnh CCCD</label>
+                        <input id="citizenImage" name="image" type="file" class="form-control" accept="image/*" required />
+                    </div>
+                    <div class="col-lg-5 col-md-12">
+                        <label class="form-label" for="fileNameHint">File name hint (optional)</label>
+                        <input id="fileNameHint" name="fileNameHint" class="form-control" placeholder="vd: cccd_front_01.jpg" />
+                    </div>
+                    <div class="col-lg-2 col-md-12">
+                        <button type="submit" class="btn btn-dark w-100">Nhận diện</button>
+                    </div>
+                </form>
+                <div class="form-text mb-4">API test: <code>/api/admin/citizen-id/detect-side</code> (multipart/form-data).</div>
+
+                <div class="data-card__header px-0">
+                    <div>
+                        <h2 class="data-card__title">Kết quả</h2>
+                        <p class="data-card__subtitle">Kết quả raw JSON từ API để team dễ debug và tinh chỉnh rule.</p>
+                    </div>
+                </div>
+                <div id="detectStatus" class="text-secondary mb-3">Chưa có kết quả. Hãy upload ảnh và bấm Nhận diện.</div>
+                <pre class="api-block api-block--light mb-0"><code id="detectResult">{ }</code></pre>
+            </div>
+
+            <div class="tab-pane fade" id="citizen-detect-doc" role="tabpanel" aria-labelledby="citizen-detect-doc-tab" tabindex="0">
+                <div class="alert alert-light border mb-4" role="alert">
+                    <strong>Mục tiêu:</strong> API này giúp nhận biết ảnh đang là mặt trước hay mặt sau CCCD để định tuyến xử lý đúng bước tiếp theo.
+                </div>
+
+                <h2 class="h5 mb-3">Công nghệ sử dụng để phân tích thuật toán</h2>
+                <ul class="mb-4">
+                    <li><strong>Image processing engine:</strong> dùng <code>SixLabors.ImageSharp</code> để đọc ảnh, duyệt pixel và tính các chỉ số đặc trưng.</li>
+                    <li><strong>Feature engineering theo vùng:</strong> tách nhiều vùng cố định của thẻ (giữa trái, giữa phải, dải trên, dải đáy, nửa phải) để đo bố cục.</li>
+                    <li><strong>Heuristic scoring engine:</strong> không OCR full, mà chấm điểm <code>frontScore</code>/<code>backScore</code> theo luật nghiệp vụ.</li>
+                    <li><strong>Explainable output:</strong> trả về <code>reasons</code> + <code>signals</code> để phân tích vì sao model ra quyết định.</li>
+                </ul>
+
+                <h2 class="h5 mb-3">Pipeline nhận diện (chi tiết)</h2>
+                <ol class="mb-4">
+                    <li><strong>Bước 1 - Nạp ảnh:</strong> nhận ảnh multipart và chuẩn hóa thành ma trận pixel RGB.</li>
+                    <li><strong>Bước 2 - Tính ngưỡng mực động:</strong> lấy độ sáng trung bình toàn ảnh và nội suy ngưỡng mực để chịu được nhiều điều kiện ánh sáng.</li>
+                    <li><strong>Bước 3 - Trích xuất đặc trưng:</strong>
+                        <ul>
+                            <li>Skin ratio (left/center/right) theo không gian màu YCbCr để bắt tín hiệu chân dung.</li>
+                            <li>Ink density theo từng vùng để nhận dạng khu vực nhiều chữ.</li>
+                            <li>MRZ-like band strength ở dải đáy để nhận diện mặt sau.</li>
+                            <li>QR-like pattern ở nửa phải dưới dựa trên cân bằng đậm/nhạt + tần suất chuyển mức sáng.</li>
+                            <li>Các tín hiệu bố cục như <code>frontPhotoLayoutLike</code>, <code>textHeavyBothSides</code>, <code>uniformTextDistribution</code>.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Bước 4 - Chấm điểm luật:</strong> mỗi đặc trưng cộng/trừ trọng số cho front/back; tín hiệu mạnh như QR hoặc MRZ sẽ đẩy về back, tín hiệu chân dung rõ sẽ đẩy về front.</li>
+                    <li><strong>Bước 5 - Ra quyết định:</strong> so sánh chênh lệch điểm. Nếu sát nhau và độ mạnh chưa đủ thì trả <code>unknown</code> để tránh phân loại sai.</li>
+                    <li><strong>Bước 6 - Tính confidence:</strong> confidence tăng theo độ chênh điểm và độ mạnh tín hiệu tổng, sau đó chuẩn hóa về khoảng 0-1.</li>
+                </ol>
+
+                <h2 class="h5 mb-3">Nguyên tắc phân tích thuật toán</h2>
+                <ul class="mb-4">
+                    <li>Ưu tiên <strong>độ tin cậy</strong> hơn ép buộc dự đoán: tín hiệu yếu hoặc mâu thuẫn sẽ trả <code>unknown</code>.</li>
+                    <li>Dùng <strong>nhiều feature bổ trợ</strong> thay vì phụ thuộc một dấu hiệu đơn lẻ để giảm bias.</li>
+                    <li>Cho phép <strong>tuning trọng số</strong> nhanh thông qua signals và reasons từ dữ liệu thực tế.</li>
+                    <li>Thiết kế theo hướng <strong>giải thích được</strong>, phù hợp vận hành nội bộ và audit nghiệp vụ.</li>
+                </ul>
+
+                <h2 class="h5 mb-3">Sơ đồ quyết định (BA/QC)</h2>
+                <p class="text-secondary mb-2">Luồng quyết định rút gọn để kiểm thử nhanh theo từng nhóm tín hiệu:</p>
+                <pre class="api-block api-block--light mb-4"><code>Start
+  -> Trích xuất signals
+  -> Tính frontScore và backScore
+  -> maxScore đủ mạnh?
+      - Không: side = unknown
+      - Có: scoreGap đủ lớn?
+          - Không: side = unknown
+          - Có: side = score cao hơn (front/back)
+  -> Tính confidence + trả reasons/signals</code></pre>
+
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th style="min-width: 280px;">Điều kiện chính</th>
+                                <th style="min-width: 170px;">Tác động điểm</th>
+                                <th>Mục đích nghiệp vụ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>qrDetected = true</code></td>
+                                <td>Tăng mạnh <code>backScore</code></td>
+                                <td>Ưu tiên mặt sau khi có tín hiệu QR-like rõ ràng.</td>
+                            </tr>
+                            <tr>
+                                <td><code>mrzBandStrength</code> cao</td>
+                                <td>Tăng <code>backScore</code></td>
+                                <td>Mặt sau thường có dải text đáy đậm và liên tục.</td>
+                            </tr>
+                            <tr>
+                                <td><code>portraitLikeDetected = true</code></td>
+                                <td>Tăng <code>frontScore</code></td>
+                                <td>Mặt trước có vùng chân dung dễ nhận diện hơn.</td>
+                            </tr>
+                            <tr>
+                                <td><code>frontPhotoLayoutLike = true</code></td>
+                                <td>Tăng <code>frontScore</code></td>
+                                <td>Bố cục trái-phải giống ảnh chân dung + text mặt trước.</td>
+                            </tr>
+                            <tr>
+                                <td><code>textHeavyBothSides = true</code> và <code>uniformTextDistribution = true</code></td>
+                                <td>Tăng <code>backScore</code></td>
+                                <td>Khi chữ dày và đều hai bên, nghiêng về mặt sau.</td>
+                            </tr>
+                            <tr>
+                                <td>Không có chân dung rõ nhưng có MRZ/text đáy</td>
+                                <td>Giảm thiên lệch <code>frontScore</code></td>
+                                <td>Chống nhận nhầm front trong trường hợp ảnh sau nhiều chữ.</td>
+                            </tr>
+                            <tr>
+                                <td><code>maxScore</code> thấp hoặc <code>scoreGap</code> nhỏ</td>
+                                <td>Trả <code>unknown</code></td>
+                                <td>Tránh quyết định sai khi tín hiệu chưa đủ chắc chắn.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 class="h5 mb-3">Lưu ý khi dùng ảnh test</h2>
+                <ul class="mb-4">
+                    <li>Ảnh nên rõ nét, không rung, không che mất nội dung chính của thẻ.</li>
+                    <li>Giữ thẻ nằm ngang, đủ sáng và hạn chế lóa.</li>
+                    <li>Nếu kết quả là <code>unknown</code>, nên thử lại bằng ảnh rõ hơn.</li>
+                </ul>
+
+                <h2 class="h5 mb-3">Mô tả response (chi tiết)</h2>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th style="min-width: 220px;">Trường</th>
+                                <th style="min-width: 140px;">Kiểu dữ liệu</th>
+                                <th>Mô tả</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>side</code></td>
+                                <td>string</td>
+                                <td>Kết quả phân loại: <code>front</code>, <code>back</code> hoặc <code>unknown</code>.</td>
+                            </tr>
+                            <tr>
+                                <td><code>confidence</code></td>
+                                <td>number</td>
+                                <td>Mức độ tự tin của kết quả, giá trị từ 0 đến 1.</td>
+                            </tr>
+                            <tr>
+                                <td><code>reasons</code></td>
+                                <td>string[]</td>
+                                <td>Danh sách giải thích các rule đã kích hoạt trong lần phân loại.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.qrDetected</code></td>
+                                <td>boolean</td>
+                                <td>Phát hiện vùng QR-like trong nửa phải/dưới ảnh.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.barcodeDetected</code></td>
+                                <td>boolean</td>
+                                <td>Hiện tại dùng chung với QR-like detector để thể hiện tín hiệu mã vạch.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.portraitLikeDetected</code></td>
+                                <td>boolean</td>
+                                <td>Ước lượng có vùng chân dung (da người) rõ theo bố cục mặt trước.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.frontPhotoLayoutLike</code></td>
+                                <td>boolean</td>
+                                <td>Tín hiệu bố cục trái thưa/phải dày phù hợp ảnh chân dung + text mặt trước.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.textHeavyBothSides</code></td>
+                                <td>boolean</td>
+                                <td>Cả hai nửa trái/phải đều có mật độ text cao, thường nghiêng về mặt sau.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.uniformTextDistribution</code></td>
+                                <td>boolean</td>
+                                <td>Mật độ text giữa hai nửa trái/phải khá đồng đều.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.centerSkinRatio</code>, <code>leftSkinRatio</code>, <code>rightSkinRatio</code></td>
+                                <td>number</td>
+                                <td>Tỷ lệ vùng màu da ước lượng theo từng khu vực ảnh (0 đến 1).</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.mrzBandStrength</code></td>
+                                <td>number</td>
+                                <td>Độ mạnh dải text đáy kiểu MRZ-like, càng cao càng nghiêng về mặt sau.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.backRegionInkDensity</code></td>
+                                <td>number</td>
+                                <td>Mật độ mực ở vùng phải/dưới phục vụ nhận diện back layout.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.midLeftInkDensity</code>, <code>midRightInkDensity</code>, <code>topBandInkDensity</code></td>
+                                <td>number</td>
+                                <td>Mật độ mực ở các dải giữa trái, giữa phải và dải trên của thẻ.</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.imageHintMatched</code></td>
+                                <td>string | null</td>
+                                <td>Giá trị hint tên file đã gửi lên để hỗ trợ scoring (nếu có).</td>
+                            </tr>
+                            <tr>
+                                <td><code>signals.width</code>, <code>signals.height</code></td>
+                                <td>number</td>
+                                <td>Kích thước ảnh sau khi API nhận vào để tham chiếu debug.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 class="h5 mb-3">Ví dụ response</h2>
+                <pre class="api-block api-block--light mb-0"><code>{
+  "side": "back",
+  "confidence": 0.872,
+  "reasons": [
+    "Vùng đáy có cấu trúc dải ký tự dày (MRZ-like), ưu tiên mặt sau.",
+    "Không có dấu hiệu chân dung và mật độ text đồng đều ở vùng giữa, tăng ưu tiên mặt sau."
+  ],
+  "signals": {
+    "qrDetected": false,
+    "barcodeDetected": false,
+    "portraitLikeDetected": false,
+    "frontPhotoLayoutLike": false,
+    "textHeavyBothSides": true,
+    "uniformTextDistribution": true,
+    "centerSkinRatio": 0.0211,
+    "leftSkinRatio": 0.0123,
+    "rightSkinRatio": 0.0108,
+    "mrzBandStrength": 0.4125,
+    "backRegionInkDensity": 0.311,
+    "midLeftInkDensity": 0.2284,
+    "midRightInkDensity": 0.2416,
+    "topBandInkDensity": 0.1922,
+    "imageHintMatched": "cccd_back_01.jpg",
+    "width": 1280,
+    "height": 800
+  }
+}</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById("citizenIdDetectForm");
+            if (!form) {
+                return;
+            }
+
+            var status = document.getElementById("detectStatus");
+            var output = document.getElementById("detectResult");
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                var imageInput = document.getElementById("citizenImage");
+                if (!imageInput || !imageInput.files || imageInput.files.length === 0) {
+                    status.textContent = "Vui lòng chọn ảnh CCCD trước khi gửi.";
+                    return;
+                }
+
+                var formData = new FormData(form);
+                status.textContent = "Đang gọi API nhận diện...";
+
+                fetch("/api/admin/citizen-id/detect-side", {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin"
+                })
+                    .then(function (response) {
+                        return response.text().then(function (raw) {
+                            var body;
+                            try {
+                                body = raw ? JSON.parse(raw) : {};
+                            }
+                            catch {
+                                body = { raw: raw };
+                            }
+
+                            if (!response.ok) {
+                                throw {
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    body: body
+                                };
+                            }
+
+                            return body;
+                        });
+                    })
+                    .then(function (result) {
+                        status.textContent = "Nhận diện thành công.";
+                        output.textContent = JSON.stringify(result, null, 2);
+                    })
+                    .catch(function (error) {
+                        var statusPrefix = error && error.status
+                            ? ("Gọi API thất bại (HTTP " + error.status + ").")
+                            : "Gọi API thất bại.";
+                        status.textContent = statusPrefix;
+                        output.textContent = JSON.stringify(error, null, 2);
+                    });
+            });
+        })();
+    </script>
+}

@@ -56,6 +56,7 @@ Endpoint chính:
 POST /api/partner/activity
 GET  /api/partner/action-limit/check?userId={userId}&userKeyType={userKeyType?}&action={action}
 POST /api/partner/action-limit/check-by-key
+POST /api/admin/citizen-id/detect-side
 GET  /api/partner/activity?page=1&pageSize=10
 GET  /api/partner/statistics
 ```
@@ -103,6 +104,46 @@ Ví dụ response:
 	"message": "User còn 65 lượt cho action 'LOGIN' trong hôm nay."
 }
 ```
+
+### API nhận diện mặt trước/mặt sau CCCD (admin tool)
+
+- Endpoint: `POST /api/admin/citizen-id/detect-side`
+- Auth: cookie phiên đăng nhập admin/auditor.
+- Content-Type: `multipart/form-data`
+- Field bắt buộc: `image`
+- Field tùy chọn: `fileNameHint`
+
+Ví dụ:
+
+```powershell
+curl -X POST "http://localhost:5137/api/admin/citizen-id/detect-side" \
+	-H "Cookie: .AspNetCore.Cookies=YOUR_ADMIN_SESSION_COOKIE" \
+	-F "image=@cccd.jpg" \
+	-F "fileNameHint=cccd_front_01.jpg"
+```
+
+Response mẫu:
+
+```json
+{
+	"side": "front",
+	"confidence": 0.873,
+	"reasons": [
+		"Tỷ lệ vùng da ở trung tâm cao, có khả năng là ảnh mặt trước.",
+		"Tỷ lệ ảnh gần với kích thước thẻ CCCD."
+	],
+	"signals": {
+		"qrDetected": false,
+		"barcodeDetected": false,
+		"centerSkinRatio": 0.096,
+		"imageHintMatched": "cccd_front_01.jpg",
+		"width": 1280,
+		"height": 800
+	}
+}
+```
+
+Test trực tiếp trên UI: đăng nhập admin và mở menu `Test nhận diện CCCD`.
 
 ## Deploy
 
