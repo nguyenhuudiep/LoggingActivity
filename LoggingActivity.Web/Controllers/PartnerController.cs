@@ -106,6 +106,8 @@ public sealed class PartnerController : ControllerBase
 
     [HttpPost("citizen-id/detect-side")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
     public async Task<IActionResult> DetectCitizenIdSide([FromForm] CitizenIdSideDetectRequest request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
