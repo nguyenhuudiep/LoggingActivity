@@ -1,4 +1,3 @@
-using System.Globalization;
 using LoggingActivity.Web.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -8,10 +7,7 @@ namespace LoggingActivity.Web.Services;
 
 public sealed class CitizenIdDetectionService
 {
-    private static readonly string[] FrontHints = ["front", "truoc", "mat-truoc", "mattruoc"];
-    private static readonly string[] BackHints = ["back", "sau", "mat-sau", "matsau"];
-
-    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, string? fileNameHint, CancellationToken cancellationToken = default)
+    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, CancellationToken cancellationToken = default)
     {
         using var sourceImage = await Image.LoadAsync<Rgba32>(imageStream, cancellationToken);
 
@@ -68,19 +64,8 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Phát hiện barcode nhưng không phải QR, ưu tiên mặt sau.");
         }
 
-        var hint = (fileNameHint ?? string.Empty).Trim().ToLowerInvariant();
-        var frontHintMatched = FrontHints.Any(token => hint.Contains(token, StringComparison.OrdinalIgnoreCase));
-        var backHintMatched = BackHints.Any(token => hint.Contains(token, StringComparison.OrdinalIgnoreCase));
-        if (frontHintMatched)
-        {
-            frontScore += 0.35;
-            reasons.Add("Tên file gợi ý ảnh mặt trước.");
-        }
-        else if (backHintMatched)
-        {
-            backScore += 0.35;
-            reasons.Add("Tên file gợi ý ảnh mặt sau.");
-        }
+        var frontHintMatched = false;
+        var backHintMatched = false;
 
         if (portraitLikeDetected)
         {
@@ -446,7 +431,6 @@ public sealed class CitizenIdDetectionService
                 MidLeftInkDensity = Math.Round(midLeftInkDensity, 4, MidpointRounding.AwayFromZero),
                 MidRightInkDensity = Math.Round(midRightInkDensity, 4, MidpointRounding.AwayFromZero),
                 TopBandInkDensity = Math.Round(topBandInkDensity, 4, MidpointRounding.AwayFromZero),
-                ImageHintMatched = string.IsNullOrWhiteSpace(hint) ? null : hint,
                 Width = image.Width,
                 Height = image.Height
             }

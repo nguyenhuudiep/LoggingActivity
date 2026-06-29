@@ -44,10 +44,7 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
         try
         {
             await using var stream = request.Image.OpenReadStream();
-            var result = await _detectionService.DetectSideAsync(
-                stream,
-                string.IsNullOrWhiteSpace(request.FileNameHint) ? request.Image.FileName : request.FileNameHint,
-                cancellationToken);
+            var result = await _detectionService.DetectSideAsync(stream, cancellationToken);
 
             return Ok(result);
         }

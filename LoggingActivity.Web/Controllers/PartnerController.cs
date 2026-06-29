@@ -15,19 +15,22 @@ public sealed class PartnerController : ControllerBase
     private readonly ActivityLogIngestQueueService _activityLogIngestQueueService;
     private readonly LogActionDefinitionService _logActionDefinitionService;
     private readonly PartnerUserActionLimitService _partnerUserActionLimitService;
+    private readonly CitizenIdDetectionService _citizenIdDetectionService;
 
     public PartnerController(
         PartnerService partnerService,
         ActivityLogService activityLogService,
         ActivityLogIngestQueueService activityLogIngestQueueService,
         LogActionDefinitionService logActionDefinitionService,
-        PartnerUserActionLimitService partnerUserActionLimitService)
+        PartnerUserActionLimitService partnerUserActionLimitService,
+        CitizenIdDetectionService citizenIdDetectionService)
     {
         _partnerService = partnerService;
         _activityLogService = activityLogService;
         _activityLogIngestQueueService = activityLogIngestQueueService;
         _logActionDefinitionService = logActionDefinitionService;
         _partnerUserActionLimitService = partnerUserActionLimitService;
+        _citizenIdDetectionService = citizenIdDetectionService;
     }
 
     [HttpPost("activity")]
@@ -96,6 +99,38 @@ public sealed class PartnerController : ControllerBase
             request.UserKeyType,
             request.Action,
             cancellationToken);
+
+        SetPartnerContext(partner);
+        return Ok(result);
+    }
+
+    [HttpPost("citizen-id/detect-side")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> DetectCitizenIdSide([FromForm] CitizenIdSideDetectRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var partner = await ValidatePartnerAsync(cancellationToken);
+        if (partner is null)
+        {
+            return Unauthorized(new { message = "API key không hợp lệ." });
+        }
+
+        if (request.Image is null || request.Image.Length == 0)
+        {
+            return BadRequest(new { message = "Thiếu file ảnh CCCD." });
+        }
+
+        if (request.Image.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "Kích thước ảnh vượt quá 10MB." });
+        }
+
+        await using var stream = request.Image.OpenReadStream();
+        var result = await _citizenIdDetectionService.DetectSideAsync(stream, cancellationToken);
 
         SetPartnerContext(partner);
         return Ok(result);

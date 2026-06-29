@@ -274,8 +274,12 @@
                 <div class="section-header mb-3">
                     <div>
                         <h2 class="section-header__title">6. API nhận diện mặt trước/sau CCCD (admin tool)</h2>
-                        <p class="section-header__subtitle">API upload ảnh để nhận diện front/back và trả confidence theo heuristic (QR/barcode/face-like region/tên file gợi ý).</p>
+                        <p class="section-header__subtitle">API upload ảnh để nhận diện front/back và trả confidence theo heuristic (QR/barcode/face-like region).</p>
                     </div>
+                </div>
+                <div class="alert alert-info mb-3" role="alert">
+                    <strong>Auth cho mục này:</strong> endpoint admin dùng <strong>cookie phiên đăng nhập</strong>, không dùng <strong>X-Api-Key</strong>.
+                    Nếu đối tác tích hợp qua API key, dùng endpoint partner ở ngay bên dưới.
                 </div>
                 <div class="integration-guide__chips mb-3">
                     <span class="request-chip request-chip--post">POST</span>
@@ -283,8 +287,7 @@
                 </div>
                 <pre class="api-block mb-3"><code>curl -X POST "@baseUrl/api/admin/citizen-id/detect-side" \
   -H "Cookie: .AspNetCore.Cookies=YOUR_ADMIN_SESSION_COOKIE" \
-    -F "image=@@cccd.jpg" \
-  -F "fileNameHint=cccd_front_01.jpg"</code></pre>
+        -F "image=@@cccd.jpg"</code></pre>
                 <pre class="api-block api-block--light mb-0"><code>{
   "side": "front",
   "confidence": 0.873,
@@ -296,7 +299,6 @@
     "qrDetected": false,
     "barcodeDetected": false,
     "centerSkinRatio": 0.096,
-    "imageHintMatched": "cccd_front_01.jpg",
     "width": 1280,
     "height": 800
   }
@@ -304,6 +306,15 @@
                 <div class="alert alert-warning mt-3 mb-0" role="alert">
                     <strong>Lưu ý:</strong> Đây là API công cụ nội bộ (admin/auditor) để test nhanh. Kết quả có confidence và có thể trả <strong>unknown</strong> khi ảnh mờ/chói hoặc thiếu tín hiệu.
                 </div>
+
+                <div class="integration-guide__chips mb-3 mt-4">
+                    <span class="request-chip request-chip--post">POST</span>
+                    <span class="request-chip">/api/partner/citizen-id/detect-side</span>
+                </div>
+                <pre class="api-block mb-0"><code>curl -X POST "@baseUrl/api/partner/citizen-id/detect-side" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
+  -F "image=@@cccd.jpg"</code></pre>
+                <p class="text-secondary mt-3 mb-0">Endpoint partner dành cho tích hợp đối tác và bắt buộc header <strong>X-Api-Key</strong>.</p>
             </div>
         </div>
     </div>

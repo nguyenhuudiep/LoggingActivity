@@ -24,13 +24,9 @@
         <div class="tab-content" id="citizenDetectTabsContent">
             <div class="tab-pane fade show active" id="citizen-detect-test" role="tabpanel" aria-labelledby="citizen-detect-test-tab" tabindex="0">
                 <form id="citizenIdDetectForm" class="row g-3 align-items-end mb-3">
-                    <div class="col-lg-5 col-md-12">
+                    <div class="col-lg-10 col-md-12">
                         <label class="form-label" for="citizenImage">Ảnh CCCD</label>
                         <input id="citizenImage" name="image" type="file" class="form-control" accept="image/*" required />
-                    </div>
-                    <div class="col-lg-5 col-md-12">
-                        <label class="form-label" for="fileNameHint">File name hint (optional)</label>
-                        <input id="fileNameHint" name="fileNameHint" class="form-control" placeholder="vd: cccd_front_01.jpg" />
                     </div>
                     <div class="col-lg-2 col-md-12">
                         <button type="submit" class="btn btn-dark w-100">Nhận diện</button>
@@ -232,11 +228,6 @@
                                 <td>Mật độ mực ở các dải giữa trái, giữa phải và dải trên của thẻ.</td>
                             </tr>
                             <tr>
-                                <td><code>signals.imageHintMatched</code></td>
-                                <td>string | null</td>
-                                <td>Giá trị hint tên file đã gửi lên để hỗ trợ scoring (nếu có).</td>
-                            </tr>
-                            <tr>
                                 <td><code>signals.width</code>, <code>signals.height</code></td>
                                 <td>number</td>
                                 <td>Kích thước ảnh sau khi API nhận vào để tham chiếu debug.</td>
@@ -267,8 +258,7 @@
     "backRegionInkDensity": 0.311,
     "midLeftInkDensity": 0.2284,
     "midRightInkDensity": 0.2416,
-    "topBandInkDensity": 0.1922,
-    "imageHintMatched": "cccd_back_01.jpg",
+        "topBandInkDensity": 0.1922,
     "width": 1280,
     "height": 800
   }

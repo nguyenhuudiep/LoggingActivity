@@ -56,6 +56,7 @@ Endpoint chính:
 POST /api/partner/activity
 GET  /api/partner/action-limit/check?userId={userId}&userKeyType={userKeyType?}&action={action}
 POST /api/partner/action-limit/check-by-key
+POST /api/partner/citizen-id/detect-side
 POST /api/admin/citizen-id/detect-side
 GET  /api/partner/activity?page=1&pageSize=10
 GET  /api/partner/statistics
@@ -111,15 +112,13 @@ Ví dụ response:
 - Auth: cookie phiên đăng nhập admin/auditor.
 - Content-Type: `multipart/form-data`
 - Field bắt buộc: `image`
-- Field tùy chọn: `fileNameHint`
 
 Ví dụ:
 
 ```powershell
 curl -X POST "http://localhost:5137/api/admin/citizen-id/detect-side" \
 	-H "Cookie: .AspNetCore.Cookies=YOUR_ADMIN_SESSION_COOKIE" \
-	-F "image=@cccd.jpg" \
-	-F "fileNameHint=cccd_front_01.jpg"
+	-F "image=@cccd.jpg"
 ```
 
 Response mẫu:
@@ -136,7 +135,6 @@ Response mẫu:
 		"qrDetected": false,
 		"barcodeDetected": false,
 		"centerSkinRatio": 0.096,
-		"imageHintMatched": "cccd_front_01.jpg",
 		"width": 1280,
 		"height": 800
 	}
@@ -144,6 +142,26 @@ Response mẫu:
 ```
 
 Test trực tiếp trên UI: đăng nhập admin và mở menu `Test nhận diện CCCD`.
+
+### API nhận diện mặt trước/mặt sau CCCD (partner)
+
+- Endpoint: `POST /api/partner/citizen-id/detect-side`
+- Auth: header `X-Api-Key` của partner.
+- Content-Type: `multipart/form-data`
+- Field bắt buộc: `image`
+
+Ví dụ:
+
+```powershell
+curl -X POST "http://localhost:5137/api/partner/citizen-id/detect-side" \
+	-H "X-Api-Key: YOUR_PARTNER_API_KEY" \
+	-F "image=@cccd.jpg"
+```
+
+Lưu ý:
+
+- Endpoint này dành cho tích hợp đối tác, không cần cookie admin.
+- Endpoint `POST /api/admin/citizen-id/detect-side` vẫn giữ cho tool nội bộ (admin/auditor).
 
 ## Deploy
 

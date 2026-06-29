@@ -7,8 +7,6 @@ public sealed class CitizenIdSideDetectRequest
 {
     [Required]
     public IFormFile? Image { get; set; }
-
-    public string? FileNameHint { get; set; }
 }
 
 public sealed class CitizenIdSideDetectResponse
@@ -67,8 +65,6 @@ public sealed class CitizenIdSideDetectSignals
     public double MidRightInkDensity { get; init; }
 
     public double TopBandInkDensity { get; init; }
-
-    public string? ImageHintMatched { get; init; }
 
     public int Width { get; init; }
 
