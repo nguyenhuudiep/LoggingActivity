@@ -40,6 +40,11 @@ public sealed class CitizenIdDetectionService
         var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
             && Math.Max(midLeftInkDensity, midRightInkDensity) > 0.22
             && Math.Min(midLeftInkDensity, midRightInkDensity) < 0.08;
+        var structuralBackLayoutLike = backRegionInkDensity >= 0.3
+            && asymmetricTextLayout
+            && centerSkinRatio < 0.12
+            && !frontPhotoLayoutLike
+            && !emblemLikeDetected;
         var qrReliable = qrDetected && (backRegionInkDensity >= 0.2 || midRightInkDensity >= 0.16);
         var mrzReliable = mrzBandStrength >= 0.28
             && (backRegionInkDensity >= 0.2 || textHeavyBothSides || uniformTextDistribution || midRightInkDensity >= 0.16);
@@ -167,6 +172,12 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Bố cục chữ lệch mạnh một phía và không giống bố cục ảnh chân dung mặt trước, tăng ưu tiên mặt sau.");
         }
 
+        if (structuralBackLayoutLike)
+        {
+            backScore += 0.26;
+            reasons.Add("Bố cục vùng phải + phân bố chữ lệch phù hợp mẫu mặt sau không QR/MRZ.");
+        }
+
         if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
             backScore += 0.16;
@@ -279,6 +290,11 @@ public sealed class CitizenIdDetectionService
             backSignalCount++;
         }
 
+        if (structuralBackLayoutLike)
+        {
+            backSignalCount++;
+        }
+
         var strongFrontSignalCount = 0;
         if (portraitLikeDetected)
         {
@@ -302,6 +318,11 @@ public sealed class CitizenIdDetectionService
         }
 
         if (mrzReliable && mrzBandStrength >= 0.32 && topBandInkDensity >= 0.06)
+        {
+            strongBackSignalCount++;
+        }
+
+        if (structuralBackLayoutLike)
         {
             strongBackSignalCount++;
         }
@@ -336,6 +357,7 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
+                || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
                 || (mrzReliable && backRegionInkDensity >= 0.22)
             ))
@@ -416,6 +438,7 @@ public sealed class CitizenIdDetectionService
                 FrontPhotoLayoutLike = frontPhotoLayoutLike,
                 TextHeavyBothSides = textHeavyBothSides,
                 UniformTextDistribution = uniformTextDistribution,
+                StructuralBackLayoutLike = structuralBackLayoutLike,
                 QrReliable = qrReliable,
                 MrzReliable = mrzReliable,
                 LikelyCitizenId = likelyCitizenId,

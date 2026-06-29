@@ -36,6 +36,8 @@ public sealed class CitizenIdSideDetectSignals
 
     public bool UniformTextDistribution { get; init; }
 
+    public bool StructuralBackLayoutLike { get; init; }
+
     public bool QrReliable { get; init; }
 
     public bool MrzReliable { get; init; }
