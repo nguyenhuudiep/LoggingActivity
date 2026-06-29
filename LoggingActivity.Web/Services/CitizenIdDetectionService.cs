@@ -40,6 +40,12 @@ public sealed class CitizenIdDetectionService
         var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
             && Math.Max(midLeftInkDensity, midRightInkDensity) > 0.22
             && Math.Min(midLeftInkDensity, midRightInkDensity) < 0.08;
+        var likelyWarmColorCast = centerSkinRatio >= 0.4 || (centerSkinRatio >= 0.3 && topBandInkDensity >= 0.28);
+        var trustedCenterSkin = centerSkinRatio >= 0.16 && centerSkinRatio < 0.42 && topBandInkDensity < 0.45;
+        var trustedEmblemLike = emblemLikeDetected && centerSkinRatio < 0.4 && topBandInkDensity < 0.35;
+        var denseUniformTextBackLike = uniformTextDistribution
+            && topBandInkDensity >= 0.35
+            && backRegionInkDensity >= 0.3;
         var structuralBackLayoutLike = backRegionInkDensity >= 0.3
             && asymmetricTextLayout
             && centerSkinRatio < 0.12
@@ -78,16 +84,24 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Phát hiện vùng da lệch trái giống vùng chân dung, ưu tiên mặt trước.");
         }
 
-        if (centerSkinRatio >= 0.16)
+        if (trustedCenterSkin)
         {
             frontScore += 0.34;
             reasons.Add("Vùng da trung tâm cao, nghiêng về bố cục mặt trước có ảnh chân dung.");
         }
+        else if (centerSkinRatio >= 0.16)
+        {
+            reasons.Add("Bỏ qua tín hiệu da trung tâm do nghi ngờ ảnh ám màu/nền gây dương tính giả.");
+        }
 
-        if (emblemLikeDetected)
+        if (trustedEmblemLike)
         {
             frontScore += 0.46;
             reasons.Add("Phát hiện cụm màu nóng vùng góc trái trên giống quốc huy, ưu tiên mặt trước.");
+        }
+        else if (emblemLikeDetected)
+        {
+            reasons.Add("Bỏ qua tín hiệu quốc huy do vùng trên quá đậm/màu lệch, dễ nhận nhầm mặt trước.");
         }
 
         if (frontPhotoLayoutLike)
@@ -99,7 +113,8 @@ public sealed class CitizenIdDetectionService
         var allowSkinBoost = (!qrDetected || emblemLikeDetected)
             && mrzBandStrength < 0.25
             && !textHeavyBothSides
-            && midLeftInkDensity < 0.2;
+            && midLeftInkDensity < 0.2
+            && !likelyWarmColorCast;
         if (allowSkinBoost && centerSkinRatio >= 0.09)
         {
             frontScore += 0.3;
@@ -166,6 +181,13 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Mật độ da trung tâm cao nhưng thiếu tín hiệu back đặc thù (QR/MRZ đáng tin), giảm ưu tiên mặt sau.");
         }
 
+        if (likelyWarmColorCast && denseUniformTextBackLike)
+        {
+            frontScore -= 0.3;
+            backScore += 0.22;
+            reasons.Add("Hiệu chỉnh ám màu: ưu tiên bố cục text mặt sau thay vì tín hiệu da giả.");
+        }
+
         if (asymmetricTextLayout && !frontPhotoLayoutLike && !emblemLikeDetected)
         {
             backScore += 0.3;
@@ -182,6 +204,12 @@ public sealed class CitizenIdDetectionService
         {
             backScore += 0.16;
             reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+        }
+
+        if (denseUniformTextBackLike)
+        {
+            backScore += 0.42;
+            reasons.Add("Text dày/đều trên dải trên và nửa phải, nghiêng mạnh về bố cục mặt sau.");
         }
 
         if (!portraitLikeDetected && mrzBandStrength >= 0.22 && midLeftInkDensity >= 0.16 && midRightInkDensity >= 0.16)
@@ -249,7 +277,7 @@ public sealed class CitizenIdDetectionService
             frontSignalCount++;
         }
 
-        if (emblemLikeDetected)
+        if (trustedEmblemLike)
         {
             frontSignalCount++;
         }
@@ -259,7 +287,7 @@ public sealed class CitizenIdDetectionService
             frontSignalCount++;
         }
 
-        if (centerSkinRatio >= 0.12)
+        if (centerSkinRatio >= 0.12 && !likelyWarmColorCast)
         {
             frontSignalCount++;
         }
@@ -295,13 +323,18 @@ public sealed class CitizenIdDetectionService
             backSignalCount++;
         }
 
+        if (denseUniformTextBackLike)
+        {
+            backSignalCount++;
+        }
+
         var strongFrontSignalCount = 0;
         if (portraitLikeDetected)
         {
             strongFrontSignalCount++;
         }
 
-        if (emblemLikeDetected)
+        if (trustedEmblemLike)
         {
             strongFrontSignalCount++;
         }
@@ -327,6 +360,11 @@ public sealed class CitizenIdDetectionService
             strongBackSignalCount++;
         }
 
+        if (denseUniformTextBackLike)
+        {
+            strongBackSignalCount++;
+        }
+
         if (textHeavyBothSides && topBandInkDensity >= 0.18 && (qrReliable || mrzReliable || backHintMatched))
         {
             strongBackSignalCount++;
@@ -348,8 +386,13 @@ public sealed class CitizenIdDetectionService
             weakBackSignalCount++;
         }
 
+        if (denseUniformTextBackLike)
+        {
+            weakBackSignalCount++;
+        }
+
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || emblemLikeDetected || centerSkinRatio >= 0.2 || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
