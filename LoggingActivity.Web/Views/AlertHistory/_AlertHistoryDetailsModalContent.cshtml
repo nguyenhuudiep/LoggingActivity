@@ -102,14 +102,14 @@
                     else
                     {
                         <li class="page-item">
-                            <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(currentPage - 1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">Trước</a>
+                            <a class="page-link" data-alert-history-modal-link href="@BuildPageUrl(currentPage - 1)">Trước</a>
                         </li>
                     }
 
                 @if (startPage > 1)
                 {
                     <li class="page-item">
-                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">1</a>
+                        <a class="page-link" data-alert-history-modal-link href="@BuildPageUrl(1)">1</a>
                     </li>
 
                     @if (startPage > 2)
@@ -123,7 +123,7 @@
                 @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
                 {
                     <li class="page-item @(pageNumber == currentPage ? "active" : null)">
-                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(pageNumber)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">@pageNumber</a>
+                        <a class="page-link" data-alert-history-modal-link href="@BuildPageUrl(pageNumber)">@pageNumber</a>
                     </li>
                 }
 
@@ -137,7 +137,7 @@
                     }
 
                     <li class="page-item">
-                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(totalPages)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">@totalPages</a>
+                        <a class="page-link" data-alert-history-modal-link href="@BuildPageUrl(totalPages)">@totalPages</a>
                     </li>
                 }
 
@@ -150,7 +150,7 @@
                 else
                 {
                     <li class="page-item">
-                        <a class="page-link" data-alert-history-modal-link data-url="@BuildPageUrl(currentPage + 1)" href="#" onclick="return window.alertHistoryDetailsNavigate(event, this);">Sau</a>
+                        <a class="page-link" data-alert-history-modal-link href="@BuildPageUrl(currentPage + 1)">Sau</a>
                     </li>
                 }
             </ul>

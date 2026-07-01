@@ -236,6 +236,16 @@
 <div class="modal fade" id="alertHistoryDetailsModal" tabindex="-1" role="dialog" aria-labelledby="alertHistoryDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content" id="alertHistoryDetailsHost">
+            <div class="modal-header">
+                <div>
+                    <div class="danger-modal__eyebrow">Chi tiết cảnh báo</div>
+                    <h2 class="modal-title fs-5 fw-bold mb-0" id="alertHistoryDetailsModalLabel">Đang tải dữ liệu</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body py-5 text-center text-secondary">
+                Đang tải bản ghi cảnh báo...
+            </div>
         </div>
     </div>
 </div>
@@ -244,11 +254,60 @@
     <script>
         (function () {
             var modal = null;
-            var paginationHandlerBound = false;
+            var detailsRequestVersion = 0;
+            var detailsRequestAbortController = null;
 
-            function loadAlertHistoryDetails(url) {
+            var loadingMarkup = [
+                '<div class="modal-header">',
+                '  <div>',
+                '    <div class="danger-modal__eyebrow">Chi tiết cảnh báo</div>',
+                '    <h2 class="modal-title fs-5 fw-bold mb-0" id="alertHistoryDetailsModalLabel">Đang tải dữ liệu</h2>',
+                '  </div>',
+                '  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>',
+                '</div>',
+                '<div class="modal-body py-5 text-center text-secondary">Đang tải bản ghi cảnh báo...</div>'
+            ].join('');
+
+            function isSimpleLeftClick(event) {
+                if (!event) {
+                    return true;
+                }
+
+                return !event.defaultPrevented
+                    && event.button === 0
+                    && !event.metaKey
+                    && !event.ctrlKey
+                    && !event.shiftKey
+                    && !event.altKey;
+            }
+
+            function setLoadingState() {
+                var host = document.getElementById('alertHistoryDetailsHost');
+                if (host) {
+                    host.innerHTML = loadingMarkup;
+                }
+            }
+
+            function loadAlertHistoryDetails(url, shouldOpen) {
+                var host = document.getElementById('alertHistoryDetailsHost');
+                if (!host) {
+                    return Promise.resolve();
+                }
+
+                if (detailsRequestAbortController && typeof detailsRequestAbortController.abort === 'function') {
+                    detailsRequestAbortController.abort();
+                }
+
+                detailsRequestAbortController = typeof AbortController === 'function'
+                    ? new AbortController()
+                    : null;
+
+                var requestVersion = ++detailsRequestVersion;
+                setLoadingState();
+
                 return fetch(url, {
                     cache: 'no-store',
+                    signal: detailsRequestAbortController ? detailsRequestAbortController.signal : undefined,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
@@ -260,23 +319,39 @@
                         return response.text();
                     })
                     .then(function (html) {
-                        var host = document.getElementById('alertHistoryDetailsHost');
-                        if (host) {
-                            host.innerHTML = html;
+                        if (requestVersion !== detailsRequestVersion) {
+                            return;
                         }
 
-                        if (modal) {
+                        host.innerHTML = html;
+
+                        if (modal && shouldOpen) {
                             modal.show();
                         }
+                    })
+                    .catch(function (error) {
+                        if (error && error.name === 'AbortError') {
+                            return;
+                        }
+
+                        throw error;
                     });
             }
 
-            function initAlertHistoryDetails() {
-                var triggers = document.querySelectorAll('.alert-history-detail-trigger');
-                if (!triggers.length) {
-                    return;
+            function buildDetailsUrlFromTrigger(trigger) {
+                if (!trigger) {
+                    return null;
                 }
 
+                return '@Url.Action("Details", "AlertHistory")'
+                    + '?actorIdentifier=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier') || '')
+                    + '&actorIdentifierType=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier-type') || '')
+                    + '&action=' + encodeURIComponent(trigger.getAttribute('data-action') || '')
+                    + '&alertDate=' + encodeURIComponent(trigger.getAttribute('data-alert-date') || '')
+                    + '&partnerId=' + encodeURIComponent(trigger.getAttribute('data-partner-id') || '');
+            }
+
+            function initAlertHistoryDetails() {
                 if (!modal) {
                     var modalElement = document.getElementById('alertHistoryDetailsModal');
                     if (modalElement && typeof bootstrap !== 'undefined') {
@@ -284,68 +359,44 @@
                     }
                 }
 
-                if (!paginationHandlerBound) {
-                    var host = document.getElementById('alertHistoryDetailsHost');
-                    if (host) {
-                        host.addEventListener('click', function (event) {
-                            var link = event.target.closest('[data-alert-history-modal-link]');
-                            if (!link) {
-                                return;
-                            }
+                document.addEventListener('click', function (event) {
+                    var paginationLink = event.target.closest('[data-alert-history-modal-link]');
+                    if (paginationLink) {
+                        if (!isSimpleLeftClick(event) || paginationLink.closest('.page-item.disabled')) {
+                            return;
+                        }
 
-                            event.preventDefault();
-                            var href = link.getAttribute('data-url') || link.getAttribute('href');
-                            if (!href || href === '#') {
-                                return;
-                            }
+                        var href = paginationLink.getAttribute('href');
+                        if (!href || href === '#') {
+                            return;
+                        }
 
-                            loadAlertHistoryDetails(href).catch(function (error) {
-                                console.error('Error loading alert details pagination:', error);
-                                alert('Lỗi: ' + error.message);
-                            });
+                        event.preventDefault();
+                        loadAlertHistoryDetails(href, false).catch(function (error) {
+                            console.error('Error loading alert details pagination:', error);
+                            alert('Lỗi: ' + error.message);
                         });
-
-                        paginationHandlerBound = true;
+                        return;
                     }
-                }
 
-                window.alertHistoryDetailsNavigate = function (event, link) {
-                    if (event) {
+                    var trigger = event.target.closest('.alert-history-detail-trigger');
+                    if (trigger) {
+                        if (!isSimpleLeftClick(event)) {
+                            return;
+                        }
+
                         event.preventDefault();
-                    }
+                        var url = buildDetailsUrlFromTrigger(trigger);
+                        if (!url) {
+                            return;
+                        }
 
-                    var href = link && typeof link.getAttribute === 'function'
-                        ? (link.getAttribute('data-url') || link.getAttribute('href'))
-                        : null;
-                    if (!href || href === '#') {
-                        return false;
-                    }
-
-                    loadAlertHistoryDetails(href).catch(function (error) {
-                        console.error('Error loading alert details pagination (fallback):', error);
-                        alert('Lỗi: ' + error.message);
-                    });
-
-                    return false;
-                };
-
-                triggers.forEach(function (trigger) {
-                    trigger.addEventListener('click', function (event) {
-                        event.preventDefault();
-
-                        var url = '@Url.Action("Details", "AlertHistory")'
-                            + '?actorIdentifier=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier') || '')
-                            + '&actorIdentifierType=' + encodeURIComponent(trigger.getAttribute('data-actor-identifier-type') || '')
-                            + '&action=' + encodeURIComponent(trigger.getAttribute('data-action') || '')
-                            + '&alertDate=' + encodeURIComponent(trigger.getAttribute('data-alert-date') || '')
-                            + '&partnerId=' + encodeURIComponent(trigger.getAttribute('data-partner-id') || '');
-
-                        loadAlertHistoryDetails(url)
+                        loadAlertHistoryDetails(url, true)
                             .catch(function (error) {
                                 console.error('Error loading alert details:', error);
                                 alert('Lỗi: ' + error.message);
                             });
-                    });
+                    }
                 });
             }
 
