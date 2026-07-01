@@ -54,14 +54,14 @@
 </div>
 <div class="modal-body p-0">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 alert-history-details-table">
             <thead class="table-light">
                 <tr>
                     <th class="table-stt-col">STT</th>
                     <th>Thời gian</th>
                     <th>Partner</th>
                     <th>Username</th>
-                    <th>Mô tả</th>
+                    <th class="alert-history-details-table__description">Mô tả</th>
                     <th>Endpoint</th>
                 </tr>
             </thead>
@@ -73,7 +73,7 @@
                         <td>@log.CreatedAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@(string.IsNullOrWhiteSpace(log.PartnerName) ? "N/A" : log.PartnerName)</td>
                         <td>@log.UserName</td>
-                        <td>@BuildDescription(log)</td>
+                        <td class="alert-history-details-table__description">@BuildDescription(log)</td>
                         <td><code>@log.Endpoint</code></td>
                     </tr>
                 }

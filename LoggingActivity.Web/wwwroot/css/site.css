@@ -1065,6 +1065,19 @@ pre {
   gap: 1rem;
 }
 
+.alert-history-details-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.alert-history-details-table__description {
+  width: 38%;
+  min-width: 32rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .api-block {
   padding: 1.2rem 1.3rem;
   border-radius: 1rem;
