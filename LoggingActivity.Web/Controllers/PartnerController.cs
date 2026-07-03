@@ -132,7 +132,41 @@ public sealed class PartnerController : ControllerBase
         }
 
         await using var stream = request.Image.OpenReadStream();
-        var result = await _citizenIdDetectionService.DetectSideAsync(stream, cancellationToken);
+        var result = await _citizenIdDetectionService.DetectSideAsync(stream, request.IncludeOcr, cancellationToken);
+
+        SetPartnerContext(partner);
+        return Ok(result);
+    }
+
+    [HttpPost("citizen-id/extract-ocr")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
+    public async Task<IActionResult> ExtractCitizenIdOcr([FromForm] CitizenIdSideDetectRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var partner = await ValidatePartnerAsync(cancellationToken);
+        if (partner is null)
+        {
+            return Unauthorized(new { message = "API key không hợp lệ." });
+        }
+
+        if (request.Image is null || request.Image.Length == 0)
+        {
+            return BadRequest(new { message = "Thiếu file ảnh CCCD." });
+        }
+
+        if (request.Image.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "Kích thước ảnh vượt quá 10MB." });
+        }
+
+        await using var stream = request.Image.OpenReadStream();
+        var result = await _citizenIdDetectionService.ExtractOcrAsync(stream, cancellationToken);
 
         SetPartnerContext(partner);
         return Ok(result);

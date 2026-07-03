@@ -207,6 +207,10 @@ Thiết lập trong GitHub repo:
 	- `PROD_APP_SEEDADMIN_USERNAME` (tuỳ chọn)
 	- `PROD_APP_SEEDADMIN_EMAIL` (tuỳ chọn)
 	- `PROD_APP_SEEDADMIN_PASSWORD` (tuỳ chọn)
+	- `CITIZEN_ID_HYBRID_MODEL_ENDPOINT` (tuỳ chọn)
+	- `CITIZEN_ID_HYBRID_MODEL_API_KEY` (tuỳ chọn)
+	- `CITIZEN_ID_OCR_ENDPOINT` (tuỳ chọn)
+	- `CITIZEN_ID_OCR_API_KEY` (tuỳ chọn)
 5. Tạo secrets cho staging nếu cần deploy staging:
 	- `STAGING_VPS_HOST`
 	- `STAGING_VPS_PORT`
@@ -216,6 +220,10 @@ Thiết lập trong GitHub repo:
 	- `STAGING_VPS_APP_ROOT`
 	- `STAGING_VPS_SERVICE_NAME`
 	- `STAGING_VPS_HEALTHCHECK_URL`
+	- `CITIZEN_ID_HYBRID_MODEL_ENDPOINT` (tuỳ chọn)
+	- `CITIZEN_ID_HYBRID_MODEL_API_KEY` (tuỳ chọn)
+	- `CITIZEN_ID_OCR_ENDPOINT` (tuỳ chọn)
+	- `CITIZEN_ID_OCR_API_KEY` (tuỳ chọn)
 
 Luồng chạy:
 
@@ -278,6 +286,12 @@ MongoDb__DatabaseName=<db>
 SeedAdmin__UserName=admin
 SeedAdmin__Email=admin@example.com
 SeedAdmin__Password=<strong-password>
+CitizenIdHybridModel__Enabled=true
+CitizenIdHybridModel__Endpoint=https://<hybrid-model-endpoint>
+CitizenIdHybridModel__ApiKey=<hybrid-model-api-key>
+CitizenIdOcr__Enabled=true
+CitizenIdOcr__Endpoint=https://<ocr-endpoint>
+CitizenIdOcr__ApiKey=<ocr-api-key>
 ```
 
 Tạo nhanh trên server:

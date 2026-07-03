@@ -7,9 +7,52 @@ namespace LoggingActivity.Web.Services;
 
 public sealed class CitizenIdDetectionService
 {
-    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, CancellationToken cancellationToken = default)
+    private readonly CitizenIdHybridModelClient _hybridModelClient;
+    private readonly CitizenIdOcrClient _ocrClient;
+    private readonly ILogger<CitizenIdDetectionService> _logger;
+
+    public CitizenIdDetectionService(
+        CitizenIdHybridModelClient hybridModelClient,
+        CitizenIdOcrClient ocrClient,
+        ILogger<CitizenIdDetectionService> logger)
     {
-        using var sourceImage = await Image.LoadAsync<Rgba32>(imageStream, cancellationToken);
+        _hybridModelClient = hybridModelClient;
+        _ocrClient = ocrClient;
+        _logger = logger;
+    }
+
+    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, bool includeOcr = true, CancellationToken cancellationToken = default)
+    {
+        await using var bufferedImageStream = new MemoryStream();
+        await imageStream.CopyToAsync(bufferedImageStream, cancellationToken);
+        var imageBytes = bufferedImageStream.ToArray();
+
+        CitizenIdHybridPrediction? hybridPrediction = null;
+        CitizenIdOcrExecutionResult ocrResult = CitizenIdOcrExecutionResult.Disabled("OCR chưa được yêu cầu.");
+        try
+        {
+            hybridPrediction = await _hybridModelClient.TryPredictAsync(imageBytes, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hybrid model prediction failed; fallback to heuristic detection.");
+        }
+
+        if (includeOcr)
+        {
+            try
+            {
+                ocrResult = await _ocrClient.TryExtractAsync(imageBytes, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "OCR extraction failed; returning side-detection result only.");
+                ocrResult = CitizenIdOcrExecutionResult.Failed("OCR extraction failed unexpectedly.");
+            }
+        }
+
+        await using var decodingStream = new MemoryStream(imageBytes);
+        using var sourceImage = await Image.LoadAsync<Rgba32>(decodingStream, cancellationToken);
 
         var reasons = new List<string>();
         using var image = CreateWorkingImage(sourceImage, reasons);
@@ -36,6 +79,7 @@ public sealed class CitizenIdDetectionService
         var frontPhotoLayoutLike = midLeftInkDensity < 0.17 && midRightInkDensity > (midLeftInkDensity + 0.04);
         var textHeavyBothSides = midLeftInkDensity > 0.2 && midRightInkDensity > 0.2;
         var uniformTextDistribution = Math.Abs(midLeftInkDensity - midRightInkDensity) < 0.055;
+        var lowResolutionOrTightCrop = image.Width < 700 || image.Height < 520;
         var lowDocumentTextDensity = topBandInkDensity < 0.045 && midLeftInkDensity < 0.14 && midRightInkDensity < 0.14;
         var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
             && Math.Max(midLeftInkDensity, midRightInkDensity) > 0.22
@@ -58,6 +102,13 @@ public sealed class CitizenIdDetectionService
         var qrReliable = qrDetected && (backRegionInkDensity >= 0.2 || midRightInkDensity >= 0.16);
         var mrzReliable = mrzBandStrength >= 0.28
             && (backRegionInkDensity >= 0.2 || textHeavyBothSides || uniformTextDistribution || midRightInkDensity >= 0.16);
+        var extremeCenterSkinFrontLike = centerSkinRatio >= 0.55
+            && leftSkinRatio >= 0.3
+            && leftSkinRatio > (rightSkinRatio * 1.35)
+            && mrzBandStrength < 0.18
+            && !qrReliable
+            && !mrzReliable
+            && (topBandInkDensity >= 0.75 || lowResolutionOrTightCrop);
         var frontLayoutWithoutReliableBack = frontPhotoLayoutLike
             && (trustedEmblemLike || warmCastFriendlyEmblemLike)
             && !qrReliable
@@ -86,7 +137,7 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Phát hiện barcode nhưng không phải QR, ưu tiên mặt sau.");
         }
 
-        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike;
+        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike;
         var backHintMatched = qrReliable || mrzReliable || structuralBackLayoutLike || denseUniformTextBackLike;
 
         if (portraitLikeDetected)
@@ -103,6 +154,12 @@ public sealed class CitizenIdDetectionService
         else if (centerSkinRatio >= 0.16)
         {
             reasons.Add("Bỏ qua tín hiệu da trung tâm do nghi ngờ ảnh ám màu/nền gây dương tính giả.");
+        }
+
+        if (extremeCenterSkinFrontLike)
+        {
+            frontScore += 0.44;
+            reasons.Add("Vùng da trung tâm rất cao, lệch trái rõ và thiếu tín hiệu back tin cậy; tăng ưu tiên mặt trước cho ảnh crop sát.");
         }
 
         if (trustedEmblemLike)
@@ -130,6 +187,12 @@ public sealed class CitizenIdDetectionService
         {
             frontScore += 0.26;
             reasons.Add("Bố cục mặt trước rõ và thiếu tín hiệu mặt sau tin cậy (QR/MRZ), tăng ưu tiên mặt trước.");
+        }
+
+        if (emblemLikeDetected && topBandInkDensity >= 0.75 && extremeCenterSkinFrontLike)
+        {
+            frontScore += 0.18;
+            reasons.Add("Giữ tín hiệu quốc huy trong ảnh tối dải trên nhờ cụm tín hiệu front mạnh, tránh loại nhầm về unknown.");
         }
 
         var allowSkinBoost = (!qrDetected || emblemLikeDetected)
@@ -224,8 +287,16 @@ public sealed class CitizenIdDetectionService
 
         if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
-            backScore += 0.16;
-            reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+            if (extremeCenterSkinFrontLike)
+            {
+                backScore += 0.05;
+                reasons.Add("Phân bố text khá đều nhưng ảnh crop sát/chân dung trung tâm mạnh nên chỉ cộng nhẹ về mặt sau.");
+            }
+            else
+            {
+                backScore += 0.16;
+                reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+            }
         }
 
         if (denseUniformTextBackLike)
@@ -314,6 +385,11 @@ public sealed class CitizenIdDetectionService
             frontSignalCount++;
         }
 
+        if (extremeCenterSkinFrontLike)
+        {
+            frontSignalCount++;
+        }
+
         if (centerSkinRatio >= 0.12 && !likelyWarmColorCast)
         {
             frontSignalCount++;
@@ -371,6 +447,11 @@ public sealed class CitizenIdDetectionService
             strongFrontSignalCount++;
         }
 
+        if (extremeCenterSkinFrontLike)
+        {
+            strongFrontSignalCount++;
+        }
+
         var strongBackSignalCount = 0;
         if (qrReliable)
         {
@@ -408,7 +489,7 @@ public sealed class CitizenIdDetectionService
             weakBackSignalCount++;
         }
 
-        if (uniformTextDistribution && topBandInkDensity > 0.18)
+        if (uniformTextDistribution && topBandInkDensity > 0.18 && !extremeCenterSkinFrontLike)
         {
             weakBackSignalCount++;
         }
@@ -419,7 +500,7 @@ public sealed class CitizenIdDetectionService
         }
 
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
@@ -427,6 +508,7 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
+                || extremeCenterSkinFrontLike
                 || frontLayoutWithoutReliableBack
                 || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
@@ -434,6 +516,7 @@ public sealed class CitizenIdDetectionService
             ))
             || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
             || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
+            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
             || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
 
@@ -496,11 +579,46 @@ public sealed class CitizenIdDetectionService
             }
         }
 
+        var finalSide = side;
+        var finalConfidence = confidence;
+        if (hybridPrediction is not null)
+        {
+            var shouldUseHybrid = string.Equals(finalSide, CitizenIdDetectedSides.Unknown, StringComparison.Ordinal)
+                || hybridPrediction.Confidence >= (finalConfidence + 0.05);
+
+            if (shouldUseHybrid)
+            {
+                finalSide = hybridPrediction.Side;
+                finalConfidence = Math.Max(finalConfidence, hybridPrediction.Confidence);
+                reasons.Insert(0, "Kết quả ưu tiên từ hybrid model classifier do độ tin cậy cao hơn heuristic.");
+            }
+            else
+            {
+                reasons.Insert(0, "Hybrid model classifier đã được tham chiếu; giữ kết quả heuristic do độ tin cậy tương đương.");
+            }
+
+            foreach (var modelReason in hybridPrediction.Reasons.Reverse())
+            {
+                reasons.Insert(1, $"Model: {modelReason}");
+            }
+        }
+
         return new CitizenIdSideDetectResponse
         {
-            Side = side,
-            Confidence = Math.Round(confidence, 4, MidpointRounding.AwayFromZero),
+            Side = finalSide,
+            Confidence = Math.Round(finalConfidence, 4, MidpointRounding.AwayFromZero),
             Reasons = reasons,
+            Ocr = new CitizenIdOcrResult
+            {
+                Requested = includeOcr,
+                Applied = includeOcr && ocrResult.Prediction is not null,
+                Status = includeOcr ? ocrResult.Status : "disabled",
+                Message = includeOcr ? ocrResult.Message : "OCR không được yêu cầu trong request.",
+                RawText = ocrResult.Prediction?.RawText ?? string.Empty,
+                Confidence = Math.Round(ocrResult.Prediction?.Confidence ?? 0, 4, MidpointRounding.AwayFromZero),
+                Fields = ocrResult.Prediction?.Fields ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Lines = ocrResult.Prediction?.Lines ?? Array.Empty<string>()
+            },
             Signals = new CitizenIdSideDetectSignals
             {
                 QrDetected = qrDetected,
@@ -529,6 +647,36 @@ public sealed class CitizenIdDetectionService
                 Width = image.Width,
                 Height = image.Height
             }
+        };
+    }
+
+    public async Task<CitizenIdOcrResult> ExtractOcrAsync(Stream imageStream, CancellationToken cancellationToken = default)
+    {
+        await using var bufferedImageStream = new MemoryStream();
+        await imageStream.CopyToAsync(bufferedImageStream, cancellationToken);
+        var imageBytes = bufferedImageStream.ToArray();
+
+        CitizenIdOcrExecutionResult ocrResult;
+        try
+        {
+            ocrResult = await _ocrClient.TryExtractAsync(imageBytes, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OCR extraction failed in standalone OCR endpoint.");
+            ocrResult = CitizenIdOcrExecutionResult.Failed("OCR extraction failed unexpectedly.");
+        }
+
+        return new CitizenIdOcrResult
+        {
+            Requested = true,
+            Applied = ocrResult.Prediction is not null,
+            Status = ocrResult.Status,
+            Message = ocrResult.Message,
+            RawText = ocrResult.Prediction?.RawText ?? string.Empty,
+            Confidence = Math.Round(ocrResult.Prediction?.Confidence ?? 0, 4, MidpointRounding.AwayFromZero),
+            Fields = ocrResult.Prediction?.Fields ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            Lines = ocrResult.Prediction?.Lines ?? Array.Empty<string>()
         };
     }
 
@@ -562,6 +710,7 @@ public sealed class CitizenIdDetectionService
 
         var frontScore = 0.0;
         var backScore = 0.0;
+        var lowResolutionOrTightCrop = width < 700 || height < 520;
 
         var lowDocumentTextDensity = topBandInkDensity < 0.045 && midLeftInkDensity < 0.14 && midRightInkDensity < 0.14;
         var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
@@ -580,6 +729,13 @@ public sealed class CitizenIdDetectionService
         var qrReliable = qrDetected && (backRegionInkDensity >= 0.2 || midRightInkDensity >= 0.16);
         var mrzReliable = mrzBandStrength >= 0.28
             && (backRegionInkDensity >= 0.2 || textHeavyBothSides || uniformTextDistribution || midRightInkDensity >= 0.16);
+        var extremeCenterSkinFrontLike = centerSkinRatio >= 0.55
+            && leftSkinRatio >= 0.3
+            && leftSkinRatio > (rightSkinRatio * 1.35)
+            && mrzBandStrength < 0.18
+            && !qrReliable
+            && !mrzReliable
+            && (topBandInkDensity >= 0.75 || lowResolutionOrTightCrop);
         var frontLayoutWithoutReliableBack = frontPhotoLayoutLike
             && (trustedEmblemLike || warmCastFriendlyEmblemLike)
             && !qrReliable
@@ -608,7 +764,7 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Phát hiện barcode nhưng không phải QR, ưu tiên mặt sau.");
         }
 
-        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike;
+        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike;
         var backHintMatched = qrReliable || mrzReliable || structuralBackLayoutLike || denseUniformTextBackLike;
 
         if (portraitLikeDetected)
@@ -625,6 +781,12 @@ public sealed class CitizenIdDetectionService
         else if (centerSkinRatio >= 0.16)
         {
             reasons.Add("Bỏ qua tín hiệu da trung tâm do nghi ngờ ảnh ám màu/nền gây dương tính giả.");
+        }
+
+        if (extremeCenterSkinFrontLike)
+        {
+            frontScore += 0.44;
+            reasons.Add("Vùng da trung tâm rất cao, lệch trái rõ và thiếu tín hiệu back tin cậy; tăng ưu tiên mặt trước cho ảnh crop sát.");
         }
 
         if (trustedEmblemLike)
@@ -652,6 +814,12 @@ public sealed class CitizenIdDetectionService
         {
             frontScore += 0.26;
             reasons.Add("Bố cục mặt trước rõ và thiếu tín hiệu mặt sau tin cậy (QR/MRZ), tăng ưu tiên mặt trước.");
+        }
+
+        if (emblemLikeDetected && topBandInkDensity >= 0.75 && extremeCenterSkinFrontLike)
+        {
+            frontScore += 0.18;
+            reasons.Add("Giữ tín hiệu quốc huy trong ảnh tối dải trên nhờ cụm tín hiệu front mạnh, tránh loại nhầm về unknown.");
         }
 
         var allowSkinBoost = (!qrDetected || emblemLikeDetected)
@@ -746,8 +914,16 @@ public sealed class CitizenIdDetectionService
 
         if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
-            backScore += 0.16;
-            reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+            if (extremeCenterSkinFrontLike)
+            {
+                backScore += 0.05;
+                reasons.Add("Phân bố text khá đều nhưng ảnh crop sát/chân dung trung tâm mạnh nên chỉ cộng nhẹ về mặt sau.");
+            }
+            else
+            {
+                backScore += 0.16;
+                reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+            }
         }
 
         if (denseUniformTextBackLike)
@@ -836,6 +1012,11 @@ public sealed class CitizenIdDetectionService
             frontSignalCount++;
         }
 
+        if (extremeCenterSkinFrontLike)
+        {
+            frontSignalCount++;
+        }
+
         if (centerSkinRatio >= 0.12 && !likelyWarmColorCast)
         {
             frontSignalCount++;
@@ -893,6 +1074,11 @@ public sealed class CitizenIdDetectionService
             strongFrontSignalCount++;
         }
 
+        if (extremeCenterSkinFrontLike)
+        {
+            strongFrontSignalCount++;
+        }
+
         var strongBackSignalCount = 0;
         if (qrReliable)
         {
@@ -930,7 +1116,7 @@ public sealed class CitizenIdDetectionService
             weakBackSignalCount++;
         }
 
-        if (uniformTextDistribution && topBandInkDensity > 0.18)
+        if (uniformTextDistribution && topBandInkDensity > 0.18 && !extremeCenterSkinFrontLike)
         {
             weakBackSignalCount++;
         }
@@ -941,7 +1127,7 @@ public sealed class CitizenIdDetectionService
         }
 
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
@@ -949,6 +1135,7 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
+                || extremeCenterSkinFrontLike
                 || frontLayoutWithoutReliableBack
                 || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
@@ -956,6 +1143,7 @@ public sealed class CitizenIdDetectionService
             ))
             || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
             || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
+            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
             || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
 

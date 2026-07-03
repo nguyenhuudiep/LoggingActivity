@@ -108,6 +108,45 @@ builder.Services
 builder.Services
     .AddOptions<ThresholdNotificationOptions>()
     .Bind(builder.Configuration.GetSection(ThresholdNotificationOptions.SectionName));
+builder.Services
+    .AddOptions<CitizenIdHybridModelOptions>()
+    .Bind(builder.Configuration.GetSection(CitizenIdHybridModelOptions.SectionName))
+    .PostConfigure(settings =>
+    {
+        settings.Endpoint = ResolveSetting(
+            settings.Endpoint,
+            builder.Configuration["CITIZEN_ID_HYBRID_MODEL_ENDPOINT"]);
+        settings.ApiKey = ResolveSetting(
+            settings.ApiKey,
+            builder.Configuration["CITIZEN_ID_HYBRID_MODEL_API_KEY"]);
+
+        if (string.IsNullOrWhiteSpace(settings.Endpoint))
+        {
+            settings.Enabled = false;
+        }
+
+        settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 1, 30);
+        settings.MinConfidence = Math.Clamp(settings.MinConfidence, 0.5, 0.99);
+    });
+builder.Services
+    .AddOptions<CitizenIdOcrOptions>()
+    .Bind(builder.Configuration.GetSection(CitizenIdOcrOptions.SectionName))
+    .PostConfigure(settings =>
+    {
+        settings.Endpoint = ResolveSetting(
+            settings.Endpoint,
+            builder.Configuration["CITIZEN_ID_OCR_ENDPOINT"]);
+        settings.ApiKey = ResolveSetting(
+            settings.ApiKey,
+            builder.Configuration["CITIZEN_ID_OCR_API_KEY"]);
+
+        if (string.IsNullOrWhiteSpace(settings.Endpoint))
+        {
+            settings.Enabled = false;
+        }
+
+        settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 1, 30);
+    });
 
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -134,6 +173,8 @@ builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddScoped<PartnerUserActionLimitService>();
 builder.Services.AddScoped<CitizenIdDetectionService>();
+builder.Services.AddHttpClient<CitizenIdHybridModelClient>();
+builder.Services.AddHttpClient<CitizenIdOcrClient>();
 builder.Services.AddHttpClient<ThresholdNotificationService>();
 builder.Services.AddHostedService<ActivityLogInfrastructureHostedService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();

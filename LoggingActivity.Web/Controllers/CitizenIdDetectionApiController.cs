@@ -46,7 +46,7 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
         try
         {
             await using var stream = request.Image.OpenReadStream();
-            var result = await _detectionService.DetectSideAsync(stream, cancellationToken);
+            var result = await _detectionService.DetectSideAsync(stream, request.IncludeOcr, cancellationToken);
 
             return Ok(result);
         }
@@ -56,6 +56,43 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 message = "Không thể xử lý ảnh CCCD. Vui lòng thử lại với ảnh rõ hơn."
+            });
+        }
+    }
+
+    [HttpPost("extract-ocr")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
+    public async Task<IActionResult> ExtractOcr([FromForm] CitizenIdSideDetectRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        if (request.Image is null || request.Image.Length == 0)
+        {
+            return BadRequest(new { message = "Thiếu file ảnh CCCD." });
+        }
+
+        if (request.Image.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "Kích thước ảnh vượt quá 10MB." });
+        }
+
+        try
+        {
+            await using var stream = request.Image.OpenReadStream();
+            var result = await _detectionService.ExtractOcrAsync(stream, cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Khong the OCR CCCD.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                message = "Không thể OCR ảnh CCCD. Vui lòng thử lại với ảnh rõ hơn."
             });
         }
     }
