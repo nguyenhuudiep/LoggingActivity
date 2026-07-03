@@ -59,4 +59,28 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
             });
         }
     }
+
+    [HttpPost("debug/replay-signals")]
+    [Consumes("application/json")]
+    public IActionResult ReplaySignals([FromBody] CitizenIdSideDetectSignals signals)
+    {
+        if (signals.Width <= 0 || signals.Height <= 0)
+        {
+            return BadRequest(new { message = "Width/Height trong signals phải lớn hơn 0." });
+        }
+
+        try
+        {
+            var result = _detectionService.ReplayFromSignals(signals);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Khong the replay nhan dien CCCD tu signals.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                message = "Không thể replay nhận diện từ signals. Vui lòng kiểm tra dữ liệu đầu vào."
+            });
+        }
+    }
 }

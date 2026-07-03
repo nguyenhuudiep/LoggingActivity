@@ -43,6 +43,10 @@ public sealed class CitizenIdDetectionService
         var likelyWarmColorCast = centerSkinRatio >= 0.4 || (centerSkinRatio >= 0.3 && topBandInkDensity >= 0.28);
         var trustedCenterSkin = centerSkinRatio >= 0.16 && centerSkinRatio < 0.42 && topBandInkDensity < 0.45;
         var trustedEmblemLike = emblemLikeDetected && centerSkinRatio < 0.4 && topBandInkDensity < 0.35;
+        var warmCastFriendlyEmblemLike = emblemLikeDetected
+            && topBandInkDensity < 0.16
+            && mrzBandStrength < 0.2
+            && midLeftInkDensity < 0.2;
         var denseUniformTextBackLike = uniformTextDistribution
             && topBandInkDensity >= 0.35
             && backRegionInkDensity >= 0.3;
@@ -54,6 +58,13 @@ public sealed class CitizenIdDetectionService
         var qrReliable = qrDetected && (backRegionInkDensity >= 0.2 || midRightInkDensity >= 0.16);
         var mrzReliable = mrzBandStrength >= 0.28
             && (backRegionInkDensity >= 0.2 || textHeavyBothSides || uniformTextDistribution || midRightInkDensity >= 0.16);
+        var frontLayoutWithoutReliableBack = frontPhotoLayoutLike
+            && (trustedEmblemLike || warmCastFriendlyEmblemLike)
+            && !qrReliable
+            && !mrzReliable
+            && !structuralBackLayoutLike
+            && !denseUniformTextBackLike
+            && !textHeavyBothSides;
 
         if (qrDetected)
         {
@@ -75,8 +86,8 @@ public sealed class CitizenIdDetectionService
             reasons.Add("Phát hiện barcode nhưng không phải QR, ưu tiên mặt sau.");
         }
 
-        var frontHintMatched = false;
-        var backHintMatched = false;
+        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike;
+        var backHintMatched = qrReliable || mrzReliable || structuralBackLayoutLike || denseUniformTextBackLike;
 
         if (portraitLikeDetected)
         {
@@ -99,6 +110,11 @@ public sealed class CitizenIdDetectionService
             frontScore += 0.46;
             reasons.Add("Phát hiện cụm màu nóng vùng góc trái trên giống quốc huy, ưu tiên mặt trước.");
         }
+        else if (warmCastFriendlyEmblemLike)
+        {
+            frontScore += 0.34;
+            reasons.Add("Quốc huy mức tin cậy trung bình (đã hiệu chỉnh ám màu), tăng ưu tiên mặt trước.");
+        }
         else if (emblemLikeDetected)
         {
             reasons.Add("Bỏ qua tín hiệu quốc huy do vùng trên quá đậm/màu lệch, dễ nhận nhầm mặt trước.");
@@ -108,6 +124,12 @@ public sealed class CitizenIdDetectionService
         {
             frontScore += 0.62;
             reasons.Add("Bố cục trái-thưa/phải-dày giống vùng ảnh chân dung + vùng text mặt trước.");
+        }
+
+        if (frontLayoutWithoutReliableBack)
+        {
+            frontScore += 0.26;
+            reasons.Add("Bố cục mặt trước rõ và thiếu tín hiệu mặt sau tin cậy (QR/MRZ), tăng ưu tiên mặt trước.");
         }
 
         var allowSkinBoost = (!qrDetected || emblemLikeDetected)
@@ -277,12 +299,17 @@ public sealed class CitizenIdDetectionService
             frontSignalCount++;
         }
 
-        if (trustedEmblemLike)
+        if (trustedEmblemLike || warmCastFriendlyEmblemLike)
         {
             frontSignalCount++;
         }
 
         if (frontPhotoLayoutLike)
+        {
+            frontSignalCount++;
+        }
+
+        if (frontLayoutWithoutReliableBack)
         {
             frontSignalCount++;
         }
@@ -334,7 +361,7 @@ public sealed class CitizenIdDetectionService
             strongFrontSignalCount++;
         }
 
-        if (trustedEmblemLike)
+        if (trustedEmblemLike || warmCastFriendlyEmblemLike)
         {
             strongFrontSignalCount++;
         }
@@ -392,7 +419,7 @@ public sealed class CitizenIdDetectionService
         }
 
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || trustedEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
@@ -400,12 +427,14 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
+                || frontLayoutWithoutReliableBack
                 || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
                 || (mrzReliable && backRegionInkDensity >= 0.22)
             ))
             || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
             || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
+            || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
             || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
 
         if (!likelyCitizenId)
@@ -499,6 +528,528 @@ public sealed class CitizenIdDetectionService
                 TopBandInkDensity = Math.Round(topBandInkDensity, 4, MidpointRounding.AwayFromZero),
                 Width = image.Width,
                 Height = image.Height
+            }
+        };
+    }
+
+    public CitizenIdSideDetectResponse ReplayFromSignals(CitizenIdSideDetectSignals inputSignals)
+    {
+        var reasons = new List<string>
+        {
+            "Replay từ signals đầu vào, không cần ảnh gốc."
+        };
+
+        var width = inputSignals.Width > 0 ? inputSignals.Width : 1;
+        var height = inputSignals.Height > 0 ? inputSignals.Height : 1;
+
+        var qrDetected = inputSignals.QrDetected;
+        var barcodeDetected = inputSignals.BarcodeDetected || qrDetected;
+        var portraitLikeDetected = inputSignals.PortraitLikeDetected;
+        var emblemLikeDetected = inputSignals.EmblemLikeDetected;
+        var frontPhotoLayoutLike = inputSignals.FrontPhotoLayoutLike;
+        var textHeavyBothSides = inputSignals.TextHeavyBothSides;
+        var uniformTextDistribution = inputSignals.UniformTextDistribution;
+        var structuralBackLayoutLike = inputSignals.StructuralBackLayoutLike;
+
+        var centerSkinRatio = Math.Clamp(inputSignals.CenterSkinRatio, 0, 1);
+        var leftSkinRatio = Math.Clamp(inputSignals.LeftSkinRatio, 0, 1);
+        var rightSkinRatio = Math.Clamp(inputSignals.RightSkinRatio, 0, 1);
+        var mrzBandStrength = Math.Clamp(inputSignals.MrzBandStrength, 0, 1);
+        var backRegionInkDensity = Math.Clamp(inputSignals.BackRegionInkDensity, 0, 1);
+        var midLeftInkDensity = Math.Clamp(inputSignals.MidLeftInkDensity, 0, 1);
+        var midRightInkDensity = Math.Clamp(inputSignals.MidRightInkDensity, 0, 1);
+        var topBandInkDensity = Math.Clamp(inputSignals.TopBandInkDensity, 0, 1);
+
+        var frontScore = 0.0;
+        var backScore = 0.0;
+
+        var lowDocumentTextDensity = topBandInkDensity < 0.045 && midLeftInkDensity < 0.14 && midRightInkDensity < 0.14;
+        var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
+            && Math.Max(midLeftInkDensity, midRightInkDensity) > 0.22
+            && Math.Min(midLeftInkDensity, midRightInkDensity) < 0.08;
+        var likelyWarmColorCast = centerSkinRatio >= 0.4 || (centerSkinRatio >= 0.3 && topBandInkDensity >= 0.28);
+        var trustedCenterSkin = centerSkinRatio >= 0.16 && centerSkinRatio < 0.42 && topBandInkDensity < 0.45;
+        var trustedEmblemLike = emblemLikeDetected && centerSkinRatio < 0.4 && topBandInkDensity < 0.35;
+        var warmCastFriendlyEmblemLike = emblemLikeDetected
+            && topBandInkDensity < 0.16
+            && mrzBandStrength < 0.2
+            && midLeftInkDensity < 0.2;
+        var denseUniformTextBackLike = uniformTextDistribution
+            && topBandInkDensity >= 0.35
+            && backRegionInkDensity >= 0.3;
+        var qrReliable = qrDetected && (backRegionInkDensity >= 0.2 || midRightInkDensity >= 0.16);
+        var mrzReliable = mrzBandStrength >= 0.28
+            && (backRegionInkDensity >= 0.2 || textHeavyBothSides || uniformTextDistribution || midRightInkDensity >= 0.16);
+        var frontLayoutWithoutReliableBack = frontPhotoLayoutLike
+            && (trustedEmblemLike || warmCastFriendlyEmblemLike)
+            && !qrReliable
+            && !mrzReliable
+            && !structuralBackLayoutLike
+            && !denseUniformTextBackLike
+            && !textHeavyBothSides;
+
+        if (qrDetected)
+        {
+            if (qrReliable)
+            {
+                backScore += 0.45;
+                reasons.Add("Phát hiện QR code đáng tin cậy, thường xuất hiện ở mặt sau CCCD.");
+            }
+            else
+            {
+                backScore += 0.08;
+                reasons.Add("Có tín hiệu QR nhưng chưa đủ chỉ dấu phụ để kết luận mạnh mặt sau.");
+            }
+        }
+
+        if (barcodeDetected && !qrDetected)
+        {
+            backScore += 0.2;
+            reasons.Add("Phát hiện barcode nhưng không phải QR, ưu tiên mặt sau.");
+        }
+
+        var frontHintMatched = frontLayoutWithoutReliableBack || warmCastFriendlyEmblemLike;
+        var backHintMatched = qrReliable || mrzReliable || structuralBackLayoutLike || denseUniformTextBackLike;
+
+        if (portraitLikeDetected)
+        {
+            frontScore += 0.65;
+            reasons.Add("Phát hiện vùng da lệch trái giống vùng chân dung, ưu tiên mặt trước.");
+        }
+
+        if (trustedCenterSkin)
+        {
+            frontScore += 0.34;
+            reasons.Add("Vùng da trung tâm cao, nghiêng về bố cục mặt trước có ảnh chân dung.");
+        }
+        else if (centerSkinRatio >= 0.16)
+        {
+            reasons.Add("Bỏ qua tín hiệu da trung tâm do nghi ngờ ảnh ám màu/nền gây dương tính giả.");
+        }
+
+        if (trustedEmblemLike)
+        {
+            frontScore += 0.46;
+            reasons.Add("Phát hiện cụm màu nóng vùng góc trái trên giống quốc huy, ưu tiên mặt trước.");
+        }
+        else if (warmCastFriendlyEmblemLike)
+        {
+            frontScore += 0.34;
+            reasons.Add("Quốc huy mức tin cậy trung bình (đã hiệu chỉnh ám màu), tăng ưu tiên mặt trước.");
+        }
+        else if (emblemLikeDetected)
+        {
+            reasons.Add("Bỏ qua tín hiệu quốc huy do vùng trên quá đậm/màu lệch, dễ nhận nhầm mặt trước.");
+        }
+
+        if (frontPhotoLayoutLike)
+        {
+            frontScore += 0.62;
+            reasons.Add("Bố cục trái-thưa/phải-dày giống vùng ảnh chân dung + vùng text mặt trước.");
+        }
+
+        if (frontLayoutWithoutReliableBack)
+        {
+            frontScore += 0.26;
+            reasons.Add("Bố cục mặt trước rõ và thiếu tín hiệu mặt sau tin cậy (QR/MRZ), tăng ưu tiên mặt trước.");
+        }
+
+        var allowSkinBoost = (!qrDetected || emblemLikeDetected)
+            && mrzBandStrength < 0.25
+            && !textHeavyBothSides
+            && midLeftInkDensity < 0.2
+            && !likelyWarmColorCast;
+        if (allowSkinBoost && centerSkinRatio >= 0.09)
+        {
+            frontScore += 0.3;
+            reasons.Add("Tỷ lệ vùng da ở trung tâm cao, có khả năng là ảnh mặt trước.");
+        }
+        else if (allowSkinBoost && centerSkinRatio >= 0.05)
+        {
+            frontScore += 0.12;
+            reasons.Add("Có tín hiệu vùng da mức trung bình ở trung tâm ảnh.");
+        }
+
+        if (mrzBandStrength >= 0.34)
+        {
+            if (!mrzReliable)
+            {
+                backScore += 0.08;
+                reasons.Add("Có tín hiệu MRZ-like nhưng thiếu chỉ dấu phụ, giảm trọng số để tránh false positive.");
+            }
+            else if (lowDocumentTextDensity)
+            {
+                backScore += 0.2;
+                reasons.Add("Có tín hiệu MRZ-like nhưng mật độ chữ tổng thể thấp, giảm ưu tiên mặt sau để tránh nhiễu nền.");
+            }
+            else
+            {
+                backScore += 0.65;
+                reasons.Add("Vùng đáy có cấu trúc dải ký tự dày (MRZ-like), ưu tiên mặt sau.");
+            }
+        }
+        else if (mrzBandStrength >= 0.25)
+        {
+            if (!mrzReliable)
+            {
+                backScore += 0.04;
+                reasons.Add("Tín hiệu MRZ-like mức trung bình nhưng chưa đủ độ tin cậy.");
+            }
+            else if (lowDocumentTextDensity)
+            {
+                backScore += 0.1;
+                reasons.Add("Vùng đáy có tín hiệu ký tự mức trung bình nhưng tổng thể ít chữ, giảm ưu tiên mặt sau.");
+            }
+            else
+            {
+                backScore += 0.35;
+                reasons.Add("Vùng đáy có mật độ ký tự tương đối cao, nghiêng về mặt sau.");
+            }
+        }
+
+        if (backRegionInkDensity >= 0.3)
+        {
+            backScore += 0.2;
+            reasons.Add("Nửa phải ảnh có mật độ text/ink cao, phù hợp bố cục mặt sau.");
+        }
+
+        if (textHeavyBothSides)
+        {
+            backScore += 0.33;
+            reasons.Add("Cả hai nửa trái/phải đều có mật độ text cao, nghiêng về mặt sau.");
+        }
+
+        if (!qrReliable && !mrzReliable && centerSkinRatio >= 0.28)
+        {
+            backScore -= 0.28;
+            reasons.Add("Mật độ da trung tâm cao nhưng thiếu tín hiệu back đặc thù (QR/MRZ đáng tin), giảm ưu tiên mặt sau.");
+        }
+
+        if (likelyWarmColorCast && denseUniformTextBackLike)
+        {
+            frontScore -= 0.3;
+            backScore += 0.22;
+            reasons.Add("Hiệu chỉnh ám màu: ưu tiên bố cục text mặt sau thay vì tín hiệu da giả.");
+        }
+
+        if (asymmetricTextLayout && !frontPhotoLayoutLike && !emblemLikeDetected)
+        {
+            backScore += 0.3;
+            reasons.Add("Bố cục chữ lệch mạnh một phía và không giống bố cục ảnh chân dung mặt trước, tăng ưu tiên mặt sau.");
+        }
+
+        if (structuralBackLayoutLike)
+        {
+            backScore += 0.26;
+            reasons.Add("Bố cục vùng phải + phân bố chữ lệch phù hợp mẫu mặt sau không QR/MRZ.");
+        }
+
+        if (uniformTextDistribution && topBandInkDensity > 0.18)
+        {
+            backScore += 0.16;
+            reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
+        }
+
+        if (denseUniformTextBackLike)
+        {
+            backScore += 0.42;
+            reasons.Add("Text dày/đều trên dải trên và nửa phải, nghiêng mạnh về bố cục mặt sau.");
+        }
+
+        if (!portraitLikeDetected && mrzBandStrength >= 0.22 && midLeftInkDensity >= 0.16 && midRightInkDensity >= 0.16)
+        {
+            backScore += 0.24;
+            reasons.Add("Không có dấu hiệu chân dung và mật độ text đồng đều ở vùng giữa, tăng ưu tiên mặt sau.");
+        }
+
+        if (qrDetected && (portraitLikeDetected || emblemLikeDetected))
+        {
+            backScore -= 0.26;
+            reasons.Add("Tín hiệu QR xung đột với dấu hiệu mặt trước rõ, giảm trọng số QR để tránh nhận sai.");
+        }
+
+        if (mrzBandStrength >= 0.3 && centerSkinRatio < 0.05)
+        {
+            backScore += 0.12;
+        }
+
+        if (mrzBandStrength >= 0.3 && centerSkinRatio >= 0.16 && lowDocumentTextDensity)
+        {
+            backScore -= 0.24;
+            reasons.Add("MRZ-like xung đột với tín hiệu chân dung trung tâm và ảnh ít chữ, giảm thiên lệch mặt sau.");
+        }
+
+        if (portraitLikeDetected && mrzBandStrength < 0.2)
+        {
+            frontScore += 0.1;
+        }
+
+        if (leftSkinRatio > 0.27 && centerSkinRatio < 0.12 && midLeftInkDensity > 0.24)
+        {
+            frontScore -= 0.45;
+            backScore += 0.16;
+            reasons.Add("Vùng da lệch trái bất thường nhưng mật độ chữ vùng trái cao, khả năng dương tính giả chân dung trên mặt sau.");
+        }
+
+        if (frontScore > backScore && !portraitLikeDetected && !frontPhotoLayoutLike && mrzBandStrength >= 0.2)
+        {
+            frontScore -= 0.18;
+            reasons.Add("Thiếu tín hiệu chân dung rõ trong khi dải text đáy hiện diện, giảm độ tin cậy mặt trước.");
+        }
+
+        var aspectRatio = width / (double)height;
+        if (aspectRatio is > 1.45 and < 1.8)
+        {
+            frontScore += 0.05;
+            backScore += 0.05;
+            reasons.Add("Tỷ lệ ảnh gần với kích thước thẻ CCCD.");
+        }
+
+        var side = CitizenIdDetectedSides.Unknown;
+        var confidence = 0.0;
+
+        var maxScore = Math.Max(frontScore, backScore);
+        var scoreGap = Math.Abs(frontScore - backScore);
+        var isCardAspect = aspectRatio is > 1.08 and < 2.15;
+        var weakCardAspect = aspectRatio is > 0.95 and < 2.4;
+        var verticalPhotoAspect = aspectRatio is > 0.5 and < 0.95;
+        var hintSuggestsCitizenId = frontHintMatched || backHintMatched;
+
+        var frontSignalCount = 0;
+        if (portraitLikeDetected)
+        {
+            frontSignalCount++;
+        }
+
+        if (trustedEmblemLike || warmCastFriendlyEmblemLike)
+        {
+            frontSignalCount++;
+        }
+
+        if (frontPhotoLayoutLike)
+        {
+            frontSignalCount++;
+        }
+
+        if (frontLayoutWithoutReliableBack)
+        {
+            frontSignalCount++;
+        }
+
+        if (centerSkinRatio >= 0.12 && !likelyWarmColorCast)
+        {
+            frontSignalCount++;
+        }
+
+        var backSignalCount = 0;
+        if (qrReliable)
+        {
+            backSignalCount++;
+        }
+
+        if (mrzReliable)
+        {
+            backSignalCount++;
+        }
+
+        if (backRegionInkDensity >= 0.3)
+        {
+            backSignalCount++;
+        }
+
+        if (textHeavyBothSides)
+        {
+            backSignalCount++;
+        }
+
+        if (asymmetricTextLayout)
+        {
+            backSignalCount++;
+        }
+
+        if (structuralBackLayoutLike)
+        {
+            backSignalCount++;
+        }
+
+        if (denseUniformTextBackLike)
+        {
+            backSignalCount++;
+        }
+
+        var strongFrontSignalCount = 0;
+        if (portraitLikeDetected)
+        {
+            strongFrontSignalCount++;
+        }
+
+        if (trustedEmblemLike || warmCastFriendlyEmblemLike)
+        {
+            strongFrontSignalCount++;
+        }
+
+        if (frontPhotoLayoutLike)
+        {
+            strongFrontSignalCount++;
+        }
+
+        var strongBackSignalCount = 0;
+        if (qrReliable)
+        {
+            strongBackSignalCount++;
+        }
+
+        if (mrzReliable && mrzBandStrength >= 0.32 && topBandInkDensity >= 0.06)
+        {
+            strongBackSignalCount++;
+        }
+
+        if (structuralBackLayoutLike)
+        {
+            strongBackSignalCount++;
+        }
+
+        if (denseUniformTextBackLike)
+        {
+            strongBackSignalCount++;
+        }
+
+        if (textHeavyBothSides && topBandInkDensity >= 0.18 && (qrReliable || mrzReliable || backHintMatched))
+        {
+            strongBackSignalCount++;
+        }
+
+        var weakBackSignalCount = 0;
+        if (backRegionInkDensity >= 0.3)
+        {
+            weakBackSignalCount++;
+        }
+
+        if (asymmetricTextLayout)
+        {
+            weakBackSignalCount++;
+        }
+
+        if (uniformTextDistribution && topBandInkDensity > 0.18)
+        {
+            weakBackSignalCount++;
+        }
+
+        if (denseUniformTextBackLike)
+        {
+            weakBackSignalCount++;
+        }
+
+        var strongFrontEvidence = frontSignalCount >= 2
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+        var strongBackEvidence = strongBackSignalCount >= 1
+            && (backSignalCount >= 2 || backHintMatched);
+
+        var likelyCitizenId = (isCardAspect
+            && (
+                strongFrontEvidence
+                || strongBackEvidence
+                || frontLayoutWithoutReliableBack
+                || structuralBackLayoutLike
+                || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
+                || (mrzReliable && backRegionInkDensity >= 0.22)
+            ))
+            || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
+            || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
+            || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
+            || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
+
+        if (!likelyCitizenId)
+        {
+            side = CitizenIdDetectedSides.Unknown;
+            confidence = 0.3;
+            reasons.Add("Ảnh chưa có đủ tín hiệu cấu trúc CCCD; hệ thống trả unknown để tránh nhận diện sai.");
+        }
+        else if (!hintSuggestsCitizenId && strongFrontSignalCount == 0 && strongBackSignalCount == 0)
+        {
+            side = CitizenIdDetectedSides.Unknown;
+            confidence = 0.3;
+            reasons.Add("Không có tín hiệu mạnh đặc trưng CCCD (front/back), trả unknown để tránh mặc định nhầm sang back.");
+        }
+        else
+        {
+            if (maxScore >= 0.3)
+            {
+                if (scoreGap < 0.12 && maxScore < 0.62)
+                {
+                    side = CitizenIdDetectedSides.Unknown;
+                    confidence = 0.45;
+                    reasons.Add("Tín hiệu front/back quá sát nhau, chưa đủ chắc chắn để kết luận.");
+                }
+                else
+                {
+                    side = frontScore >= backScore ? CitizenIdDetectedSides.Front : CitizenIdDetectedSides.Back;
+
+                    if (side == CitizenIdDetectedSides.Back)
+                    {
+                        var hasReliableBackEvidence = strongBackSignalCount >= 1
+                            || (backHintMatched && weakBackSignalCount >= 2 && backSignalCount >= 2);
+
+                        if (!hasReliableBackEvidence)
+                        {
+                            side = CitizenIdDetectedSides.Unknown;
+                            confidence = 0.4;
+                            reasons.Add("Thiếu tín hiệu back mạnh (QR/MRZ/text-band), trả unknown để tránh false positive trên ảnh không phải CCCD.");
+                        }
+                    }
+
+                    if (side == CitizenIdDetectedSides.Front && strongFrontSignalCount == 0)
+                    {
+                        side = CitizenIdDetectedSides.Unknown;
+                        confidence = 0.4;
+                        reasons.Add("Thiếu tín hiệu mặt trước mạnh, trả unknown để tránh false positive.");
+                    }
+
+                    if (side != CitizenIdDetectedSides.Unknown)
+                    {
+                        confidence = Math.Clamp(0.52 + scoreGap * 0.45 + maxScore * 0.18, 0.52, 0.985);
+                    }
+                }
+            }
+            else
+            {
+                reasons.Add("Không đủ tín hiệu chắc chắn để phân loại front/back.");
+                confidence = 0.35;
+            }
+        }
+
+        return new CitizenIdSideDetectResponse
+        {
+            Side = side,
+            Confidence = Math.Round(confidence, 4, MidpointRounding.AwayFromZero),
+            Reasons = reasons,
+            Signals = new CitizenIdSideDetectSignals
+            {
+                QrDetected = qrDetected,
+                BarcodeDetected = barcodeDetected,
+                PortraitLikeDetected = portraitLikeDetected,
+                EmblemLikeDetected = emblemLikeDetected,
+                FrontPhotoLayoutLike = frontPhotoLayoutLike,
+                TextHeavyBothSides = textHeavyBothSides,
+                UniformTextDistribution = uniformTextDistribution,
+                StructuralBackLayoutLike = structuralBackLayoutLike,
+                QrReliable = qrReliable,
+                MrzReliable = mrzReliable,
+                LikelyCitizenId = likelyCitizenId,
+                FrontSignalCount = frontSignalCount,
+                BackSignalCount = backSignalCount,
+                StrongFrontSignalCount = strongFrontSignalCount,
+                StrongBackSignalCount = strongBackSignalCount,
+                CenterSkinRatio = Math.Round(centerSkinRatio, 4, MidpointRounding.AwayFromZero),
+                LeftSkinRatio = Math.Round(leftSkinRatio, 4, MidpointRounding.AwayFromZero),
+                RightSkinRatio = Math.Round(rightSkinRatio, 4, MidpointRounding.AwayFromZero),
+                MrzBandStrength = Math.Round(mrzBandStrength, 4, MidpointRounding.AwayFromZero),
+                BackRegionInkDensity = Math.Round(backRegionInkDensity, 4, MidpointRounding.AwayFromZero),
+                MidLeftInkDensity = Math.Round(midLeftInkDensity, 4, MidpointRounding.AwayFromZero),
+                MidRightInkDensity = Math.Round(midRightInkDensity, 4, MidpointRounding.AwayFromZero),
+                TopBandInkDensity = Math.Round(topBandInkDensity, 4, MidpointRounding.AwayFromZero),
+                Width = width,
+                Height = height
             }
         };
     }
