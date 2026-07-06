@@ -43,6 +43,8 @@ on:
         required: false
       APP_SEEDADMIN_PASSWORD:
         required: false
+      APP_VEHICLE_REG_OCR_OPENAI_API_KEY:
+        required: false
 
 concurrency:
   group: deploy-${{ inputs.environment_name }}-${{ github.ref }}
@@ -169,6 +171,7 @@ jobs:
             APP_SEEDADMIN_USERNAME="${{ secrets.APP_SEEDADMIN_USERNAME }}"
             APP_SEEDADMIN_EMAIL="${{ secrets.APP_SEEDADMIN_EMAIL }}"
             APP_SEEDADMIN_PASSWORD="${{ secrets.APP_SEEDADMIN_PASSWORD }}"
+            APP_VEHICLE_REG_OCR_OPENAI_API_KEY="${{ secrets.APP_VEHICLE_REG_OCR_OPENAI_API_KEY }}"
             KEEP_RELEASES=${{ inputs.keep_releases }}
             RELEASE_ID="${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}"
 
@@ -204,6 +207,7 @@ jobs:
               "SeedAdmin__UserName=${APP_SEEDADMIN_USERNAME}" \
               "SeedAdmin__Email=${APP_SEEDADMIN_EMAIL}" \
               "SeedAdmin__Password=${APP_SEEDADMIN_PASSWORD}" \
+              "VEHICLE_REG_OCR_OPENAI_API_KEY=${APP_VEHICLE_REG_OCR_OPENAI_API_KEY}" \
               > "$APP_ROOT/shared/runtime.env"
             chmod 600 "$APP_ROOT/shared/runtime.env"
 
@@ -241,6 +245,7 @@ jobs:
               export SeedAdmin__UserName="$APP_SEEDADMIN_USERNAME"
               export SeedAdmin__Email="$APP_SEEDADMIN_EMAIL"
               export SeedAdmin__Password="$APP_SEEDADMIN_PASSWORD"
+              export VEHICLE_REG_OCR_OPENAI_API_KEY="$APP_VEHICLE_REG_OCR_OPENAI_API_KEY"
 
               [ -n "${MongoDb__ConnectionString:-}" ] || (echo "Missing runtime value: MongoDb__ConnectionString" && exit 1)
 
