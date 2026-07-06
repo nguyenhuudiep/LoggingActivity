@@ -100,7 +100,12 @@ public sealed class CitizenIdOcrClient
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Citizen-id OCR request failed.");
-            return CitizenIdOcrExecutionResult.Failed("OCR request failed.");
+            var rootMessage = ex.GetBaseException().Message;
+            var endpoint = options.Endpoint.Trim();
+            var details = string.IsNullOrWhiteSpace(rootMessage)
+                ? $"Không thể gọi OCR endpoint: {endpoint}."
+                : $"Không thể gọi OCR endpoint: {endpoint}. Chi tiết: {rootMessage}";
+            return CitizenIdOcrExecutionResult.Failed(details);
         }
     }
 

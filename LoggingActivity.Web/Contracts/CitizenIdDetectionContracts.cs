@@ -7,8 +7,6 @@ public sealed class CitizenIdSideDetectRequest
 {
     [Required]
     public IFormFile? Image { get; set; }
-
-    public bool IncludeOcr { get; set; } = true;
 }
 
 public sealed class CitizenIdSideDetectResponse
@@ -20,17 +18,13 @@ public sealed class CitizenIdSideDetectResponse
     public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
 
     public CitizenIdSideDetectSignals Signals { get; init; } = new();
-
-    public CitizenIdOcrResult Ocr { get; init; } = new();
 }
 
 public sealed class CitizenIdOcrResult
 {
-    public bool Requested { get; init; }
-
     public bool Applied { get; init; }
 
-    public string Status { get; init; } = "disabled";
+    public string Status { get; init; } = "no_data";
 
     public string Message { get; init; } = string.Empty;
 

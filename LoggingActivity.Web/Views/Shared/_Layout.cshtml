@@ -25,6 +25,7 @@
     var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
     var canAccessCitizenIdDetection = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
+    var canAccessVehicleRegistrationOcr = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
     var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
     var canManageAlertRules = User.HasAdminFunctionPermission(AdminFunctionPermissions.AlertRuleManagement);
@@ -120,6 +121,13 @@
                             <a class="@SidebarLinkClass("CitizenIdDetection")" asp-controller="CitizenIdDetection" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">I</span>
                                 <span class="sidebar-link__text">Test nhận diện CCCD</span>
+                            </a>
+                        }
+                        @if (canAccessVehicleRegistrationOcr)
+                        {
+                            <a class="@SidebarLinkClass("VehicleRegistrationOcr")" asp-controller="VehicleRegistrationOcr" asp-action="Index" data-show-loading-nav="true">
+                                <span class="sidebar-link__icon">V</span>
+                                <span class="sidebar-link__text">OCR đăng ký xe</span>
                             </a>
                         }
                     </nav>

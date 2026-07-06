@@ -38,13 +38,21 @@ builder.Configuration
 var useLocalSettings = string.Equals(
     builder.Configuration["APP_USE_LOCAL_SETTINGS"],
     "true",
-    StringComparison.OrdinalIgnoreCase);
+    StringComparison.OrdinalIgnoreCase)
+    || builder.Environment.IsDevelopment()
+    || builder.Environment.IsEnvironment("Local");
 
 if (useLocalSettings)
 {
     builder.Configuration
         .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.local.json", optional: true, reloadOnChange: true);
+}
+
+// Re-apply user-secrets so local json defaults do not override developer-specific secrets.
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Local"))
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
 }
 
 var disableMongoBackgroundWorkers =
@@ -147,6 +155,85 @@ builder.Services
 
         settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 1, 30);
     });
+builder.Services
+    .AddOptions<VehicleRegistrationOcrOptions>()
+    .Bind(builder.Configuration.GetSection(VehicleRegistrationOcrOptions.SectionName))
+    .PostConfigure(settings =>
+    {
+        var openAiApiKeyFromEnv = builder.Configuration["VEHICLE_REG_OCR_OPENAI_API_KEY"];
+        var openAiEndpointFromEnv = builder.Configuration["VEHICLE_REG_OCR_OPENAI_ENDPOINT"];
+        var openAiModelFromEnv = builder.Configuration["VEHICLE_REG_OCR_OPENAI_MODEL"];
+
+        settings.Provider = ResolveSetting(
+            settings.Provider,
+            builder.Configuration["VEHICLE_REG_OCR_PROVIDER"]);
+        settings.OpenAiEndpoint = ResolveSetting(
+            settings.OpenAiEndpoint,
+            openAiEndpointFromEnv);
+        settings.OpenAiApiKey = ResolveSetting(
+            settings.OpenAiApiKey,
+            openAiApiKeyFromEnv,
+            settings.ApiKey,
+            builder.Configuration["VEHICLE_REG_OCR_API_KEY"]);
+        settings.OpenAiModel = ResolveSetting(
+            settings.OpenAiModel,
+            openAiModelFromEnv);
+        settings.CustomEndpoint = ResolveSetting(
+            settings.CustomEndpoint,
+            builder.Configuration["VEHICLE_REG_OCR_CUSTOM_ENDPOINT"]);
+        settings.CustomApiKey = ResolveSetting(
+            settings.CustomApiKey,
+            builder.Configuration["VEHICLE_REG_OCR_CUSTOM_API_KEY"]);
+        settings.CustomApiKeyHeaderName = ResolveSetting(
+            settings.CustomApiKeyHeaderName,
+            builder.Configuration["VEHICLE_REG_OCR_CUSTOM_API_KEY_HEADER"]);
+        settings.Endpoint = ResolveSetting(
+            settings.Endpoint,
+            builder.Configuration["VEHICLE_REG_OCR_ENDPOINT"]);
+        settings.ApiKey = ResolveSetting(
+            settings.ApiKey,
+            builder.Configuration["VEHICLE_REG_OCR_API_KEY"]);
+        settings.Model = ResolveSetting(
+            settings.Model,
+            builder.Configuration["VEHICLE_REG_OCR_MODEL"]);
+
+        settings.Provider = string.IsNullOrWhiteSpace(settings.Provider)
+            ? "openai"
+            : settings.Provider.Trim().ToLowerInvariant();
+        if (settings.Provider is not "openai" and not "custom")
+        {
+            settings.Provider = "openai";
+        }
+
+        // Minimal production setup: when only VEHICLE_REG_OCR_OPENAI_API_KEY is provided,
+        // auto-enable OCR and use OpenAI defaults without requiring extra config.
+        if (!string.IsNullOrWhiteSpace(openAiApiKeyFromEnv))
+        {
+            settings.Enabled = true;
+            settings.Provider = "openai";
+        }
+
+        if (string.Equals(settings.Provider, "openai", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.OpenAiEndpoint = ResolveSetting(settings.OpenAiEndpoint, "https://api.openai.com/v1/responses");
+            settings.OpenAiModel = ResolveSetting(settings.OpenAiModel, "gpt-4.1");
+
+            // Keep backward-compatible fields synchronized for components that still read base properties.
+            settings.Endpoint = ResolveSetting(settings.Endpoint, settings.OpenAiEndpoint);
+            settings.Model = ResolveSetting(settings.Model, settings.OpenAiModel);
+            settings.ApiKey = ResolveSetting(settings.ApiKey, settings.OpenAiApiKey);
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.Endpoint))
+        {
+            settings.Endpoint = settings.Provider == "openai"
+                ? "https://api.openai.com/v1/responses"
+                : string.Empty;
+        }
+
+        settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 3, 45);
+        settings.MinConfidence = Math.Clamp(settings.MinConfidence, 0.5, 0.99);
+    });
 
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -173,6 +260,7 @@ builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddScoped<PartnerUserActionLimitService>();
 builder.Services.AddScoped<CitizenIdDetectionService>();
+builder.Services.AddHttpClient<VehicleRegistrationOcrService>();
 builder.Services.AddHttpClient<CitizenIdHybridModelClient>();
 builder.Services.AddHttpClient<CitizenIdOcrClient>();
 builder.Services.AddHttpClient<ThresholdNotificationService>();

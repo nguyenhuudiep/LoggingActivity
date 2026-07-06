@@ -46,7 +46,7 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
         try
         {
             await using var stream = request.Image.OpenReadStream();
-            var result = await _detectionService.DetectSideAsync(stream, request.IncludeOcr, cancellationToken);
+            var result = await _detectionService.DetectSideAsync(stream, cancellationToken);
 
             return Ok(result);
         }

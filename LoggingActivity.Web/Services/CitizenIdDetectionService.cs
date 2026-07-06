@@ -2,57 +2,16 @@ using LoggingActivity.Web.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using ZXing;
+using ZXing.Common;
 
 namespace LoggingActivity.Web.Services;
 
 public sealed class CitizenIdDetectionService
 {
-    private readonly CitizenIdHybridModelClient _hybridModelClient;
-    private readonly CitizenIdOcrClient _ocrClient;
-    private readonly ILogger<CitizenIdDetectionService> _logger;
-
-    public CitizenIdDetectionService(
-        CitizenIdHybridModelClient hybridModelClient,
-        CitizenIdOcrClient ocrClient,
-        ILogger<CitizenIdDetectionService> logger)
+    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, CancellationToken cancellationToken = default)
     {
-        _hybridModelClient = hybridModelClient;
-        _ocrClient = ocrClient;
-        _logger = logger;
-    }
-
-    public async Task<CitizenIdSideDetectResponse> DetectSideAsync(Stream imageStream, bool includeOcr = true, CancellationToken cancellationToken = default)
-    {
-        await using var bufferedImageStream = new MemoryStream();
-        await imageStream.CopyToAsync(bufferedImageStream, cancellationToken);
-        var imageBytes = bufferedImageStream.ToArray();
-
-        CitizenIdHybridPrediction? hybridPrediction = null;
-        CitizenIdOcrExecutionResult ocrResult = CitizenIdOcrExecutionResult.Disabled("OCR chưa được yêu cầu.");
-        try
-        {
-            hybridPrediction = await _hybridModelClient.TryPredictAsync(imageBytes, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Hybrid model prediction failed; fallback to heuristic detection.");
-        }
-
-        if (includeOcr)
-        {
-            try
-            {
-                ocrResult = await _ocrClient.TryExtractAsync(imageBytes, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "OCR extraction failed; returning side-detection result only.");
-                ocrResult = CitizenIdOcrExecutionResult.Failed("OCR extraction failed unexpectedly.");
-            }
-        }
-
-        await using var decodingStream = new MemoryStream(imageBytes);
-        using var sourceImage = await Image.LoadAsync<Rgba32>(decodingStream, cancellationToken);
+        using var sourceImage = await Image.LoadAsync<Rgba32>(imageStream, cancellationToken);
 
         var reasons = new List<string>();
         using var image = CreateWorkingImage(sourceImage, reasons);
@@ -287,16 +246,8 @@ public sealed class CitizenIdDetectionService
 
         if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
-            if (extremeCenterSkinFrontLike)
-            {
-                backScore += 0.05;
-                reasons.Add("Phân bố text khá đều nhưng ảnh crop sát/chân dung trung tâm mạnh nên chỉ cộng nhẹ về mặt sau.");
-            }
-            else
-            {
-                backScore += 0.16;
-                reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
-            }
+            backScore += 0.16;
+            reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
         }
 
         if (denseUniformTextBackLike)
@@ -489,7 +440,7 @@ public sealed class CitizenIdDetectionService
             weakBackSignalCount++;
         }
 
-        if (uniformTextDistribution && topBandInkDensity > 0.18 && !extremeCenterSkinFrontLike)
+        if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
             weakBackSignalCount++;
         }
@@ -500,7 +451,7 @@ public sealed class CitizenIdDetectionService
         }
 
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
@@ -508,7 +459,6 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
-                || extremeCenterSkinFrontLike
                 || frontLayoutWithoutReliableBack
                 || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
@@ -516,8 +466,8 @@ public sealed class CitizenIdDetectionService
             ))
             || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
             || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
-            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
+            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
 
         if (!likelyCitizenId)
@@ -579,46 +529,11 @@ public sealed class CitizenIdDetectionService
             }
         }
 
-        var finalSide = side;
-        var finalConfidence = confidence;
-        if (hybridPrediction is not null)
-        {
-            var shouldUseHybrid = string.Equals(finalSide, CitizenIdDetectedSides.Unknown, StringComparison.Ordinal)
-                || hybridPrediction.Confidence >= (finalConfidence + 0.05);
-
-            if (shouldUseHybrid)
-            {
-                finalSide = hybridPrediction.Side;
-                finalConfidence = Math.Max(finalConfidence, hybridPrediction.Confidence);
-                reasons.Insert(0, "Kết quả ưu tiên từ hybrid model classifier do độ tin cậy cao hơn heuristic.");
-            }
-            else
-            {
-                reasons.Insert(0, "Hybrid model classifier đã được tham chiếu; giữ kết quả heuristic do độ tin cậy tương đương.");
-            }
-
-            foreach (var modelReason in hybridPrediction.Reasons.Reverse())
-            {
-                reasons.Insert(1, $"Model: {modelReason}");
-            }
-        }
-
         return new CitizenIdSideDetectResponse
         {
-            Side = finalSide,
-            Confidence = Math.Round(finalConfidence, 4, MidpointRounding.AwayFromZero),
+            Side = side,
+            Confidence = Math.Round(confidence, 4, MidpointRounding.AwayFromZero),
             Reasons = reasons,
-            Ocr = new CitizenIdOcrResult
-            {
-                Requested = includeOcr,
-                Applied = includeOcr && ocrResult.Prediction is not null,
-                Status = includeOcr ? ocrResult.Status : "disabled",
-                Message = includeOcr ? ocrResult.Message : "OCR không được yêu cầu trong request.",
-                RawText = ocrResult.Prediction?.RawText ?? string.Empty,
-                Confidence = Math.Round(ocrResult.Prediction?.Confidence ?? 0, 4, MidpointRounding.AwayFromZero),
-                Fields = ocrResult.Prediction?.Fields ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-                Lines = ocrResult.Prediction?.Lines ?? Array.Empty<string>()
-            },
             Signals = new CitizenIdSideDetectSignals
             {
                 QrDetected = qrDetected,
@@ -650,36 +565,6 @@ public sealed class CitizenIdDetectionService
         };
     }
 
-    public async Task<CitizenIdOcrResult> ExtractOcrAsync(Stream imageStream, CancellationToken cancellationToken = default)
-    {
-        await using var bufferedImageStream = new MemoryStream();
-        await imageStream.CopyToAsync(bufferedImageStream, cancellationToken);
-        var imageBytes = bufferedImageStream.ToArray();
-
-        CitizenIdOcrExecutionResult ocrResult;
-        try
-        {
-            ocrResult = await _ocrClient.TryExtractAsync(imageBytes, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "OCR extraction failed in standalone OCR endpoint.");
-            ocrResult = CitizenIdOcrExecutionResult.Failed("OCR extraction failed unexpectedly.");
-        }
-
-        return new CitizenIdOcrResult
-        {
-            Requested = true,
-            Applied = ocrResult.Prediction is not null,
-            Status = ocrResult.Status,
-            Message = ocrResult.Message,
-            RawText = ocrResult.Prediction?.RawText ?? string.Empty,
-            Confidence = Math.Round(ocrResult.Prediction?.Confidence ?? 0, 4, MidpointRounding.AwayFromZero),
-            Fields = ocrResult.Prediction?.Fields ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            Lines = ocrResult.Prediction?.Lines ?? Array.Empty<string>()
-        };
-    }
-
     public CitizenIdSideDetectResponse ReplayFromSignals(CitizenIdSideDetectSignals inputSignals)
     {
         var reasons = new List<string>
@@ -698,6 +583,7 @@ public sealed class CitizenIdDetectionService
         var textHeavyBothSides = inputSignals.TextHeavyBothSides;
         var uniformTextDistribution = inputSignals.UniformTextDistribution;
         var structuralBackLayoutLike = inputSignals.StructuralBackLayoutLike;
+        var lowResolutionOrTightCrop = width < 700 || height < 520;
 
         var centerSkinRatio = Math.Clamp(inputSignals.CenterSkinRatio, 0, 1);
         var leftSkinRatio = Math.Clamp(inputSignals.LeftSkinRatio, 0, 1);
@@ -710,7 +596,6 @@ public sealed class CitizenIdDetectionService
 
         var frontScore = 0.0;
         var backScore = 0.0;
-        var lowResolutionOrTightCrop = width < 700 || height < 520;
 
         var lowDocumentTextDensity = topBandInkDensity < 0.045 && midLeftInkDensity < 0.14 && midRightInkDensity < 0.14;
         var asymmetricTextLayout = Math.Abs(midLeftInkDensity - midRightInkDensity) > 0.22
@@ -914,16 +799,8 @@ public sealed class CitizenIdDetectionService
 
         if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
-            if (extremeCenterSkinFrontLike)
-            {
-                backScore += 0.05;
-                reasons.Add("Phân bố text khá đều nhưng ảnh crop sát/chân dung trung tâm mạnh nên chỉ cộng nhẹ về mặt sau.");
-            }
-            else
-            {
-                backScore += 0.16;
-                reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
-            }
+            backScore += 0.16;
+            reasons.Add("Phân bố text khá đều toàn thẻ, phù hợp mặt sau nhiều trường thông tin.");
         }
 
         if (denseUniformTextBackLike)
@@ -1116,7 +993,7 @@ public sealed class CitizenIdDetectionService
             weakBackSignalCount++;
         }
 
-        if (uniformTextDistribution && topBandInkDensity > 0.18 && !extremeCenterSkinFrontLike)
+        if (uniformTextDistribution && topBandInkDensity > 0.18)
         {
             weakBackSignalCount++;
         }
@@ -1127,7 +1004,7 @@ public sealed class CitizenIdDetectionService
         }
 
         var strongFrontEvidence = frontSignalCount >= 2
-            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || extremeCenterSkinFrontLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
+            && (frontPhotoLayoutLike || trustedEmblemLike || warmCastFriendlyEmblemLike || (centerSkinRatio >= 0.2 && !likelyWarmColorCast) || frontHintMatched);
         var strongBackEvidence = strongBackSignalCount >= 1
             && (backSignalCount >= 2 || backHintMatched);
 
@@ -1135,7 +1012,6 @@ public sealed class CitizenIdDetectionService
             && (
                 strongFrontEvidence
                 || strongBackEvidence
-                || extremeCenterSkinFrontLike
                 || frontLayoutWithoutReliableBack
                 || structuralBackLayoutLike
                 || (hintSuggestsCitizenId && (frontSignalCount + backSignalCount) >= 2)
@@ -1143,8 +1019,8 @@ public sealed class CitizenIdDetectionService
             ))
             || (weakCardAspect && hintSuggestsCitizenId && backSignalCount >= 2)
             || (weakCardAspect && hintSuggestsCitizenId && frontSignalCount >= 1 && centerSkinRatio >= 0.08)
-            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (weakCardAspect && frontLayoutWithoutReliableBack && strongBackSignalCount == 0)
+            || (weakCardAspect && extremeCenterSkinFrontLike && strongBackSignalCount == 0)
             || (verticalPhotoAspect && (strongFrontEvidence || strongBackEvidence));
 
         if (!likelyCitizenId)
@@ -1240,6 +1116,173 @@ public sealed class CitizenIdDetectionService
                 Height = height
             }
         };
+    }
+
+    public async Task<CitizenIdOcrResult> ExtractOcrAsync(Stream imageStream, CancellationToken cancellationToken = default)
+    {
+        using var sourceImage = await Image.LoadAsync<Rgba32>(imageStream, cancellationToken);
+
+        var rawText = TryDecodeQrText(sourceImage);
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return new CitizenIdOcrResult
+            {
+                Applied = false,
+                Status = "no_data",
+                Message = "Không trích xuất được dữ liệu QR từ ảnh CCCD.",
+                RawText = string.Empty,
+                Confidence = 0,
+                Fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Lines = Array.Empty<string>()
+            };
+        }
+
+        var fields = ParseCitizenIdFields(rawText);
+        var lines = rawText
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+
+        if (lines.Length == 0)
+        {
+            lines = new[] { rawText };
+        }
+
+        return new CitizenIdOcrResult
+        {
+            Applied = true,
+            Status = "success",
+            Message = fields.Count > 0
+                ? "OCR nội bộ thành công (trích xuất từ QR CCCD)."
+                : "Đọc được QR CCCD nhưng chưa bóc tách đủ trường dữ liệu chuẩn.",
+            RawText = rawText,
+            Confidence = fields.Count > 0 ? 0.93 : 0.8,
+            Fields = fields,
+            Lines = lines
+        };
+    }
+
+    private static string? TryDecodeQrText(Image<Rgba32> sourceImage)
+    {
+        var candidates = new List<Image<Rgba32>>
+        {
+            sourceImage.Clone(),
+            sourceImage.Clone(ctx => ctx.Grayscale()),
+            sourceImage.Clone(ctx => ctx.Grayscale().Contrast(1.2f)),
+            sourceImage.Clone(ctx => ctx.AutoOrient())
+        };
+
+        try
+        {
+            foreach (var candidate in candidates)
+            {
+                using (candidate)
+                {
+                    var text = DecodeQr(candidate);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        return text.Trim();
+                    }
+
+                    var rotated = candidate.Clone(ctx => ctx.Rotate(90));
+                    using (rotated)
+                    {
+                        text = DecodeQr(rotated);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            return text.Trim();
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static string? DecodeQr(Image<Rgba32> image)
+    {
+        var width = image.Width;
+        var height = image.Height;
+        if (width <= 0 || height <= 0)
+        {
+            return null;
+        }
+
+        var gray = new byte[width * height];
+        var index = 0;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var pixel = image[x, y];
+                gray[index++] = (byte)Math.Clamp((int)Math.Round((pixel.R * 0.299) + (pixel.G * 0.587) + (pixel.B * 0.114)), 0, 255);
+            }
+        }
+
+        var source = new RGBLuminanceSource(gray, width, height, RGBLuminanceSource.BitmapFormat.Gray8);
+        var reader = new BarcodeReaderGeneric
+        {
+            AutoRotate = true,
+            Options = new DecodingOptions
+            {
+                TryHarder = true,
+                PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE }
+            }
+        };
+
+        var result = reader.Decode(source);
+        return result?.Text;
+    }
+
+    private static Dictionary<string, string> ParseCitizenIdFields(string rawText)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var tokens = rawText
+            .Split(new[] { '|', ';', '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(token => !string.IsNullOrWhiteSpace(token))
+            .ToArray();
+
+        if (tokens.Length == 0)
+        {
+            return fields;
+        }
+
+        var idNumber = tokens.FirstOrDefault(token => token.Length is >= 9 and <= 12 && token.All(char.IsDigit));
+        if (!string.IsNullOrWhiteSpace(idNumber))
+        {
+            fields["idNumber"] = idNumber;
+        }
+
+        var dateOfBirth = tokens.FirstOrDefault(token => token.Length == 8 && token.All(char.IsDigit));
+        if (!string.IsNullOrWhiteSpace(dateOfBirth))
+        {
+            fields["dateOfBirth"] = dateOfBirth;
+        }
+
+        var gender = tokens.FirstOrDefault(token =>
+            token.Equals("Nam", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("Nu", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("Nữ", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("Male", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("Female", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(gender))
+        {
+            fields["gender"] = gender;
+        }
+
+        var fullName = tokens.FirstOrDefault(token => token.Length >= 4 && token.Any(char.IsLetter) && !token.Any(char.IsDigit));
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            fields["fullName"] = fullName;
+        }
+
+        fields["tokenCount"] = tokens.Length.ToString();
+        return fields;
     }
 
     private static Image<Rgba32> CreateWorkingImage(Image<Rgba32> sourceImage, ICollection<string> reasons)

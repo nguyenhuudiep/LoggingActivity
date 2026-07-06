@@ -17,6 +17,9 @@
                 <button class="nav-link active" id="citizen-detect-test-tab" data-bs-toggle="tab" data-bs-target="#citizen-detect-test" type="button" role="tab" aria-controls="citizen-detect-test" aria-selected="true">Test nhận diện</button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link" id="citizen-ocr-test-tab" data-bs-toggle="tab" data-bs-target="#citizen-ocr-test" type="button" role="tab" aria-controls="citizen-ocr-test" aria-selected="false">Test OCR</button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="citizen-detect-doc-tab" data-bs-toggle="tab" data-bs-target="#citizen-detect-doc" type="button" role="tab" aria-controls="citizen-detect-doc" aria-selected="false">Mô tả công nghệ</button>
             </li>
         </ul>
@@ -42,6 +45,28 @@
                 </div>
                 <div id="detectStatus" class="text-secondary mb-3">Chưa có kết quả. Hãy upload ảnh và bấm Nhận diện.</div>
                 <pre class="api-block api-block--light mb-0"><code id="detectResult">{ }</code></pre>
+            </div>
+
+            <div class="tab-pane fade" id="citizen-ocr-test" role="tabpanel" aria-labelledby="citizen-ocr-test-tab" tabindex="0">
+                <form id="citizenIdOcrForm" class="row g-3 align-items-end mb-3">
+                    <div class="col-lg-10 col-md-12">
+                        <label class="form-label" for="citizenOcrImage">Ảnh CCCD</label>
+                        <input id="citizenOcrImage" name="image" type="file" class="form-control" accept="image/*" required />
+                    </div>
+                    <div class="col-lg-2 col-md-12">
+                        <button type="submit" class="btn btn-outline-dark w-100">OCR</button>
+                    </div>
+                </form>
+                <div class="form-text mb-4">API test: <code>/api/admin/citizen-id/extract-ocr</code> (multipart/form-data).</div>
+
+                <div class="data-card__header px-0">
+                    <div>
+                        <h2 class="data-card__title">Kết quả OCR</h2>
+                        <p class="data-card__subtitle">OCR nội bộ đọc dữ liệu QR trong ảnh CCCD, không cần thêm cấu hình môi trường.</p>
+                    </div>
+                </div>
+                <div id="ocrStatus" class="text-secondary mb-3">Chưa có kết quả. Hãy upload ảnh và bấm OCR.</div>
+                <pre class="api-block api-block--light mb-0"><code id="ocrResult">{ }</code></pre>
             </div>
 
             <div class="tab-pane fade" id="citizen-detect-doc" role="tabpanel" aria-labelledby="citizen-detect-doc-tab" tabindex="0">
@@ -271,64 +296,84 @@
 @section Scripts {
     <script>
         (function () {
-            var form = document.getElementById("citizenIdDetectForm");
-            if (!form) {
-                return;
-            }
-
-            var status = document.getElementById("detectStatus");
-            var output = document.getElementById("detectResult");
-
-            form.addEventListener("submit", function (event) {
-                event.preventDefault();
-
-                var imageInput = document.getElementById("citizenImage");
-                if (!imageInput || !imageInput.files || imageInput.files.length === 0) {
-                    status.textContent = "Vui lòng chọn ảnh CCCD trước khi gửi.";
+            function bindForm(formId, imageId, statusId, outputId, endpoint, pendingText, successText) {
+                var form = document.getElementById(formId);
+                if (!form) {
                     return;
                 }
 
-                var formData = new FormData(form);
-                status.textContent = "Đang gọi API nhận diện...";
+                var status = document.getElementById(statusId);
+                var output = document.getElementById(outputId);
 
-                fetch("/api/admin/citizen-id/detect-side", {
-                    method: "POST",
-                    body: formData,
-                    credentials: "same-origin"
-                })
-                    .then(function (response) {
-                        return response.text().then(function (raw) {
-                            var body;
-                            try {
-                                body = raw ? JSON.parse(raw) : {};
-                            }
-                            catch {
-                                body = { raw: raw };
-                            }
+                form.addEventListener("submit", function (event) {
+                    event.preventDefault();
 
-                            if (!response.ok) {
-                                throw {
-                                    status: response.status,
-                                    statusText: response.statusText,
-                                    body: body
-                                };
-                            }
+                    var imageInput = document.getElementById(imageId);
+                    if (!imageInput || !imageInput.files || imageInput.files.length === 0) {
+                        status.textContent = "Vui lòng chọn ảnh CCCD trước khi gửi.";
+                        return;
+                    }
 
-                            return body;
+                    var formData = new FormData(form);
+                    status.textContent = pendingText;
+
+                    fetch(endpoint, {
+                        method: "POST",
+                        body: formData,
+                        credentials: "same-origin"
+                    })
+                        .then(function (response) {
+                            return response.text().then(function (raw) {
+                                var body;
+                                try {
+                                    body = raw ? JSON.parse(raw) : {};
+                                }
+                                catch {
+                                    body = { raw: raw };
+                                }
+
+                                if (!response.ok) {
+                                    throw {
+                                        status: response.status,
+                                        statusText: response.statusText,
+                                        body: body
+                                    };
+                                }
+
+                                return body;
+                            });
+                        })
+                        .then(function (result) {
+                            status.textContent = successText;
+                            output.textContent = JSON.stringify(result, null, 2);
+                        })
+                        .catch(function (error) {
+                            var statusPrefix = error && error.status
+                                ? ("Gọi API thất bại (HTTP " + error.status + ").")
+                                : "Gọi API thất bại.";
+                            status.textContent = statusPrefix;
+                            output.textContent = JSON.stringify(error, null, 2);
                         });
-                    })
-                    .then(function (result) {
-                        status.textContent = "Nhận diện thành công.";
-                        output.textContent = JSON.stringify(result, null, 2);
-                    })
-                    .catch(function (error) {
-                        var statusPrefix = error && error.status
-                            ? ("Gọi API thất bại (HTTP " + error.status + ").")
-                            : "Gọi API thất bại.";
-                        status.textContent = statusPrefix;
-                        output.textContent = JSON.stringify(error, null, 2);
-                    });
-            });
+                });
+            }
+
+            bindForm(
+                "citizenIdDetectForm",
+                "citizenImage",
+                "detectStatus",
+                "detectResult",
+                "/api/admin/citizen-id/detect-side",
+                "Đang gọi API nhận diện...",
+                "Nhận diện thành công.");
+
+            bindForm(
+                "citizenIdOcrForm",
+                "citizenOcrImage",
+                "ocrStatus",
+                "ocrResult",
+                "/api/admin/citizen-id/extract-ocr",
+                "Đang gọi API OCR...",
+                "OCR thành công.");
         })();
     </script>
 }

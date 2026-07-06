@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using MongoDB.Driver;
 
 namespace LoggingActivity.Web.Services;
 
@@ -29,10 +30,28 @@ public sealed class SingleSessionCookieEvents : CookieAuthenticationEvents
         var sessionId = principal.FindFirst(SystemAccessAuditService.SessionClaimType)?.Value;
         var cancellationToken = context.HttpContext.RequestAborted;
 
-        var isActive = await _systemAccessAuditService.IsSessionActiveAsync(userName, sessionId, cancellationToken);
+        bool isActive;
+        try
+        {
+            isActive = await _systemAccessAuditService.IsSessionActiveAsync(userName, sessionId, cancellationToken);
+        }
+        catch (Exception ex) when (IsMongoUnavailable(ex))
+        {
+            _logger.LogWarning(ex, "MongoDB unavailable while validating session for user {UserName}. Skip single-session enforcement.", userName);
+            return;
+        }
+
         if (isActive)
         {
-            await _systemAccessAuditService.TouchSessionAsync(userName, sessionId, cancellationToken);
+            try
+            {
+                await _systemAccessAuditService.TouchSessionAsync(userName, sessionId, cancellationToken);
+            }
+            catch (Exception ex) when (IsMongoUnavailable(ex))
+            {
+                _logger.LogWarning(ex, "MongoDB unavailable while touching session for user {UserName}.", userName);
+            }
+
             return;
         }
 
@@ -47,5 +66,15 @@ public sealed class SingleSessionCookieEvents : CookieAuthenticationEvents
 
         context.RejectPrincipal();
         await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    }
+
+    private static bool IsMongoUnavailable(Exception exception)
+    {
+        if (exception is TimeoutException or MongoConnectionException or MongoException)
+        {
+            return true;
+        }
+
+        return exception.InnerException is not null && IsMongoUnavailable(exception.InnerException);
     }
 }

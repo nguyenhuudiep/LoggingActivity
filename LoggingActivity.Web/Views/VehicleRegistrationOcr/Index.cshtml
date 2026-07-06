@@ -1,0 +1,274 @@
+@{
+    ViewData["Title"] = "OCR đăng ký xe";
+    var baseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
+}
+
+<section class="page-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Vehicle OCR</span>
+        <h1 class="page-title">OCR giấy đăng ký xe ô tô</h1>
+        <p class="page-subtitle">Menu riêng cho test OCR trực tiếp, mô tả công nghệ và tài liệu tích hợp API.</p>
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm surface-panel">
+    <div class="card-body p-4">
+        <ul class="nav nav-tabs mb-4" id="vehicleOcrTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="vehicle-ocr-test-tab" data-bs-toggle="tab" data-bs-target="#vehicle-ocr-test" type="button" role="tab" aria-controls="vehicle-ocr-test" aria-selected="true">Test trực tiếp</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vehicle-ocr-tech-tab" data-bs-toggle="tab" data-bs-target="#vehicle-ocr-tech" type="button" role="tab" aria-controls="vehicle-ocr-tech" aria-selected="false">Mô tả công nghệ</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vehicle-ocr-api-tab" data-bs-toggle="tab" data-bs-target="#vehicle-ocr-api" type="button" role="tab" aria-controls="vehicle-ocr-api" aria-selected="false">Thông tin tích hợp API</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="vehicleOcrTabsContent">
+            <div class="tab-pane fade show active" id="vehicle-ocr-test" role="tabpanel" aria-labelledby="vehicle-ocr-test-tab" tabindex="0">
+                <form id="vehicleOcrForm" class="row g-3 align-items-end mb-3">
+                    <div class="col-lg-10 col-md-12">
+                        <label class="form-label" for="vehicleOcrImage">Ảnh giấy đăng ký xe</label>
+                        <input id="vehicleOcrImage" name="image" type="file" class="form-control" accept="image/*" required />
+                    </div>
+                    <div class="col-lg-2 col-md-12">
+                        <button type="submit" class="btn btn-dark w-100">OCR ngay</button>
+                    </div>
+                </form>
+                <div class="form-text mb-4">
+                    Luồng test mặc định dùng OpenAI. API key OpenAI được lấy từ cấu hình server, không cần nhập trên giao diện.
+                </div>
+
+                <div class="data-card__header px-0">
+                    <div>
+                        <h2 class="data-card__title">Kết quả OCR</h2>
+                        <p class="data-card__subtitle">Trả về JSON raw để kiểm thử độ chính xác và tune rule hậu kiểm.</p>
+                    </div>
+                </div>
+                <div id="vehicleOcrStatus" class="text-secondary mb-3">Chưa có kết quả. Hãy chọn ảnh và bấm OCR ngay.</div>
+                <pre class="api-block api-block--light mb-0"><code id="vehicleOcrResult">{ }</code></pre>
+
+            </div>
+
+            <div class="tab-pane fade" id="vehicle-ocr-tech" role="tabpanel" aria-labelledby="vehicle-ocr-tech-tab" tabindex="0">
+                <div class="alert alert-light border mb-4" role="alert">
+                    <strong>Mục tiêu:</strong> Trích xuất chính xác thông tin chính từ giấy đăng ký xe bằng OpenAI Vision để đưa vào luồng kiểm tra tự động và giảm nhập tay.
+                </div>
+
+                <h2 class="h5 mb-3">Kiến trúc công nghệ hiện tại (OpenAI)</h2>
+                <ul class="mb-4">
+                    <li><strong>Chuẩn hóa ảnh đầu vào:</strong> service tự resize ảnh về chiều rộng mục tiêu và tự động nén JPEG để tăng ổn định OCR.</li>
+                    <li><strong>OpenAI Responses API:</strong> backend gửi ảnh đã chuẩn hóa lên endpoint <code>/v1/responses</code> để trích xuất text và key-value từ giấy đăng ký xe.</li>
+                    <li><strong>Model mặc định:</strong> dùng <code>gpt-4.1</code> (có thể thay đổi ở cấu hình server khi cần nâng cấp model).</li>
+                    <li><strong>Schema output cố định:</strong> bắt buộc map về các trường chuẩn như biển số, số máy, số khung, chủ xe.</li>
+                    <li><strong>Fused confidence:</strong> kết hợp confidence từ OCR engine và mức đủ dữ liệu trường bắt buộc.</li>
+                    <li><strong>Cờ kiểm duyệt nghiệp vụ:</strong> tự bật <code>needs_review</code> khi confidence thấp hoặc thiếu trường bắt buộc.</li>
+                </ul>
+
+                <h2 class="h5 mb-3">Pipeline xử lý</h2>
+                <ol class="mb-4">
+                    <li>Nhận ảnh từ form-data và kiểm tra kích thước tối đa 10MB.</li>
+                    <li>Chuẩn hóa ảnh để tăng khả năng đọc chữ nhỏ, giảm nhiễu.</li>
+                    <li>Gọi OpenAI Responses API bằng API key cấu hình trên server (<code>VEHICLE_REG_OCR_OPENAI_API_KEY</code>).</li>
+                    <li>Normalize dữ liệu về bộ key chuẩn nội bộ.</li>
+                    <li>Tính confidence tổng hợp và quyết định trạng thái <code>success</code> hoặc <code>needs_review</code>.</li>
+                </ol>
+
+                <h2 class="h5 mb-3">Khuyến nghị để đạt độ chính xác cao</h2>
+                <ul class="mb-0">
+                    <li>Ảnh chụp thẳng, đủ sáng, không lóa, không cắt mất góc giấy.</li>
+                    <li>Luôn hậu kiểm khi <code>needs_review = true</code> trước khi dùng cho nghiệp vụ ràng buộc pháp lý.</li>
+                    <li>Log lại mẫu sai để fine-tune prompt/rule mapping theo dữ liệu thực tế của từng partner.</li>
+                    <li>Thiết lập và xoay vòng API key OpenAI định kỳ, không hard-code key trong file cấu hình commit lên git.</li>
+                </ul>
+            </div>
+
+            <div class="tab-pane fade" id="vehicle-ocr-api" role="tabpanel" aria-labelledby="vehicle-ocr-api-tab" tabindex="0">
+                <h2 class="h5 mb-3">1. API admin test nội bộ</h2>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--post">POST</span>
+                    <span class="request-chip">/api/admin/vehicle-registration/extract-ocr</span>
+                </div>
+                <div class="d-flex justify-content-end mb-2">
+                    <button class="btn btn-sm btn-outline-dark js-copy-btn" type="button" data-copy-target="adminCurlBlock">Copy curl</button>
+                </div>
+                <pre class="api-block mb-3"><code id="adminCurlBlock">curl -X POST "@baseUrl/api/admin/vehicle-registration/extract-ocr" \
+  -H "Authorization: Bearer &lt;admin_token&gt;" \
+  -F "image=@@vehicle-registration.jpg"</code></pre>
+
+                <div class="d-flex justify-content-end mb-2">
+                    <button class="btn btn-sm btn-outline-dark js-copy-btn" type="button" data-copy-target="adminRequestJsonBlock">Copy request JSON</button>
+                </div>
+                <pre class="api-block api-block--light mb-3"><code id="adminRequestJsonBlock">{
+  "image": "multipart file (jpg/png)"
+}</code></pre>
+
+                <h2 class="h5 mb-3">2. API cho đối tác tích hợp</h2>
+                <div class="integration-guide__chips mb-3">
+                    <span class="request-chip request-chip--post">POST</span>
+                    <span class="request-chip">/api/partner/vehicle-registration/extract-ocr</span>
+                </div>
+                <div class="d-flex justify-content-end mb-2">
+                    <button class="btn btn-sm btn-outline-dark js-copy-btn" type="button" data-copy-target="partnerCurlBlock">Copy curl</button>
+                </div>
+                <pre class="api-block mb-3"><code id="partnerCurlBlock">curl -X POST "@baseUrl/api/partner/vehicle-registration/extract-ocr" \
+  -H "X-Api-Key: YOUR_PARTNER_API_KEY" \
+  -F "image=@@vehicle-registration.jpg"</code></pre>
+
+                <div class="d-flex justify-content-end mb-2">
+                    <button class="btn btn-sm btn-outline-dark js-copy-btn" type="button" data-copy-target="partnerRequestJsonBlock">Copy request JSON</button>
+                </div>
+                <pre class="api-block api-block--light mb-3"><code id="partnerRequestJsonBlock">{
+  "image": "multipart file (jpg/png)"
+}</code></pre>
+
+                <h2 class="h5 mb-3">3. Mẫu response</h2>
+                <pre class="api-block api-block--light mb-3"><code>{
+  "applied": true,
+  "needsReview": false,
+  "status": "success",
+  "message": "OCR giấy đăng ký xe thành công.",
+  "provider": "openai",
+  "rawText": "...",
+  "confidence": 0.93,
+  "fields": {
+    "license_plate": "30A-123.45",
+    "registration_number": "012345",
+    "owner_name": "NGUYEN VAN A",
+    "owner_address": "...",
+    "vehicle_brand": "TOYOTA",
+    "vehicle_type": "O TO CON",
+    "engine_number": "1NZ1234567",
+    "chassis_number": "RL4ABCD1234567890",
+    "color": "TRANG",
+    "seat_count": "5",
+    "issue_date": "2024-03-21"
+  },
+  "lines": []
+}</code></pre>
+
+                <div class="alert alert-warning mb-0" role="alert">
+                    <strong>Lưu ý:</strong> Trường <code>needsReview</code> là cờ bắt buộc để quyết định có cần kiểm duyệt thủ công trước khi sử dụng xuống hệ thống nghiệp vụ hay không.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var historyStorageKey = "vehicle-ocr-test-history-v1";
+            var form = document.getElementById("vehicleOcrForm");
+            if (!form) {
+                return;
+            }
+
+            // Disable legacy local test history and remove previously saved records.
+            localStorage.removeItem(historyStorageKey);
+
+            var status = document.getElementById("vehicleOcrStatus");
+            var result = document.getElementById("vehicleOcrResult");
+
+            function htmlEncode(value) {
+                if (value === null || value === undefined) {
+                    return "";
+                }
+
+                return String(value)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/\"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+            }
+
+            function formatConfidence(confidence) {
+                if (typeof confidence !== "number" || Number.isNaN(confidence)) {
+                    return "-";
+                }
+
+                return confidence.toFixed(4);
+            }
+
+            async function postOcr(formData) {
+                var response = await fetch("/api/admin/vehicle-registration/extract-ocr", {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin"
+                });
+
+                var text = await response.text();
+                var body;
+                try {
+                    body = text ? JSON.parse(text) : {};
+                }
+                catch {
+                    body = { raw: text };
+                }
+
+                if (!response.ok) {
+                    throw {
+                        status: response.status,
+                        statusText: response.statusText,
+                        body: body
+                    };
+                }
+
+                return body;
+            }
+
+            document.addEventListener("click", function (event) {
+                var copyBtn = event.target.closest(".js-copy-btn");
+                if (copyBtn) {
+                    var targetId = copyBtn.getAttribute("data-copy-target");
+                    var targetNode = targetId ? document.getElementById(targetId) : null;
+                    if (!targetNode) {
+                        return;
+                    }
+
+                    navigator.clipboard.writeText(targetNode.textContent || "")
+                        .then(function () {
+                            var originalText = copyBtn.textContent;
+                            copyBtn.textContent = "Đã copy";
+                            setTimeout(function () {
+                                copyBtn.textContent = originalText;
+                            }, 1000);
+                        })
+                        .catch(function () {
+                            copyBtn.textContent = "Copy lỗi";
+                        });
+                    return;
+                }
+
+            });
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                var imageInput = document.getElementById("vehicleOcrImage");
+                if (!imageInput || !imageInput.files || imageInput.files.length === 0) {
+                    status.textContent = "Vui lòng chọn ảnh giấy đăng ký xe trước khi gửi.";
+                    return;
+                }
+
+                var formData = new FormData(form);
+                status.textContent = "Đang gọi API OCR (OpenAI)...";
+
+                postOcr(formData)
+                    .then(function (payload) {
+                        status.textContent = "OCR thành công.";
+                        result.textContent = JSON.stringify(payload, null, 2);
+                    })
+                    .catch(function (error) {
+                        var statusPrefix = error && error.status
+                            ? ("Gọi API thất bại (HTTP " + error.status + ").")
+                            : "Gọi API thất bại.";
+                        status.textContent = statusPrefix;
+                        result.textContent = JSON.stringify(error, null, 2);
+                    });
+            });
+        })();
+    </script>
+}

@@ -16,6 +16,7 @@ public sealed class PartnerController : ControllerBase
     private readonly LogActionDefinitionService _logActionDefinitionService;
     private readonly PartnerUserActionLimitService _partnerUserActionLimitService;
     private readonly CitizenIdDetectionService _citizenIdDetectionService;
+    private readonly VehicleRegistrationOcrService _vehicleRegistrationOcrService;
 
     public PartnerController(
         PartnerService partnerService,
@@ -23,7 +24,8 @@ public sealed class PartnerController : ControllerBase
         ActivityLogIngestQueueService activityLogIngestQueueService,
         LogActionDefinitionService logActionDefinitionService,
         PartnerUserActionLimitService partnerUserActionLimitService,
-        CitizenIdDetectionService citizenIdDetectionService)
+        CitizenIdDetectionService citizenIdDetectionService,
+        VehicleRegistrationOcrService vehicleRegistrationOcrService)
     {
         _partnerService = partnerService;
         _activityLogService = activityLogService;
@@ -31,6 +33,7 @@ public sealed class PartnerController : ControllerBase
         _logActionDefinitionService = logActionDefinitionService;
         _partnerUserActionLimitService = partnerUserActionLimitService;
         _citizenIdDetectionService = citizenIdDetectionService;
+        _vehicleRegistrationOcrService = vehicleRegistrationOcrService;
     }
 
     [HttpPost("activity")]
@@ -132,7 +135,7 @@ public sealed class PartnerController : ControllerBase
         }
 
         await using var stream = request.Image.OpenReadStream();
-        var result = await _citizenIdDetectionService.DetectSideAsync(stream, request.IncludeOcr, cancellationToken);
+        var result = await _citizenIdDetectionService.DetectSideAsync(stream, cancellationToken);
 
         SetPartnerContext(partner);
         return Ok(result);
@@ -167,6 +170,40 @@ public sealed class PartnerController : ControllerBase
 
         await using var stream = request.Image.OpenReadStream();
         var result = await _citizenIdDetectionService.ExtractOcrAsync(stream, cancellationToken);
+
+        SetPartnerContext(partner);
+        return Ok(result);
+    }
+
+    [HttpPost("vehicle-registration/extract-ocr")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)]
+    public async Task<IActionResult> ExtractVehicleRegistrationOcr([FromForm] VehicleRegistrationOcrRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var partner = await ValidatePartnerAsync(cancellationToken);
+        if (partner is null)
+        {
+            return Unauthorized(new { message = "API key không hợp lệ." });
+        }
+
+        if (request.Image is null || request.Image.Length == 0)
+        {
+            return BadRequest(new { message = "Thiếu file ảnh giấy đăng ký xe." });
+        }
+
+        if (request.Image.Length > 10 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "Kích thước ảnh vượt quá 10MB." });
+        }
+
+        await using var stream = request.Image.OpenReadStream();
+        var result = await _vehicleRegistrationOcrService.ExtractAsync(stream, "openai", openAiApiKeyOverride: null, cancellationToken);
 
         SetPartnerContext(partner);
         return Ok(result);

@@ -4,6 +4,8 @@ using LoggingActivity.Web.Options;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
+using MongoDB.Driver.Core;
 
 namespace LoggingActivity.Web.Services;
 
@@ -168,18 +170,49 @@ public sealed class AuthService
                 new AuthenticationProperties { IsPersistent = isPersistent });
         }
 
-        var replacedExistingSession = await _systemAccessAuditService.ActivateSessionAsync(httpContext, user, sessionId, httpContext.RequestAborted);
-        await _systemAccessAuditService.RecordLoginAsync(httpContext, user, sessionId, replacedExistingSession, httpContext.RequestAborted);
+        try
+        {
+            var replacedExistingSession = await _systemAccessAuditService.ActivateSessionAsync(httpContext, user, sessionId, httpContext.RequestAborted);
+            await _systemAccessAuditService.RecordLoginAsync(httpContext, user, sessionId, replacedExistingSession, httpContext.RequestAborted);
+        }
+        catch (Exception ex) when (IsMongoUnavailable(ex))
+        {
+            _logger.LogWarning(ex, "MongoDB unavailable while writing login audit for user {UserName}. Continue sign-in without audit persistence.", safeUserName);
+        }
     }
 
     public async Task SignOutAsync(HttpContext httpContext)
     {
-        await _systemAccessAuditService.RecordLogoutAsync(httpContext, httpContext.RequestAborted);
+        try
+        {
+            await _systemAccessAuditService.RecordLogoutAsync(httpContext, httpContext.RequestAborted);
+        }
+        catch (Exception ex) when (IsMongoUnavailable(ex))
+        {
+            _logger.LogWarning(ex, "MongoDB unavailable while writing logout audit.");
+        }
 
         var userName = httpContext.User.Identity?.Name;
         var sessionId = httpContext.User.FindFirst(SystemAccessAuditService.SessionClaimType)?.Value;
-        await _systemAccessAuditService.DeactivateSessionAsync(userName, sessionId, httpContext.RequestAborted);
+        try
+        {
+            await _systemAccessAuditService.DeactivateSessionAsync(userName, sessionId, httpContext.RequestAborted);
+        }
+        catch (Exception ex) when (IsMongoUnavailable(ex))
+        {
+            _logger.LogWarning(ex, "MongoDB unavailable while deactivating session for user {UserName}.", userName);
+        }
 
         await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    }
+
+    private static bool IsMongoUnavailable(Exception exception)
+    {
+        if (exception is TimeoutException or MongoConnectionException or MongoException)
+        {
+            return true;
+        }
+
+        return exception.InnerException is not null && IsMongoUnavailable(exception.InnerException);
     }
 }

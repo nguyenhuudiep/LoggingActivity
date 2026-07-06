@@ -2,6 +2,8 @@ using LoggingActivity.Web.Services;
 using LoggingActivity.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
+using MongoDB.Driver.Core;
 
 namespace LoggingActivity.Web.Controllers;
 
@@ -52,6 +54,15 @@ public sealed class AuthController : Controller
         {
             var traceId = HttpContext.TraceIdentifier;
             _logger.LogError(ex, "Login failed for user {UserName}. TraceId: {TraceId}", model.UserName, traceId);
+
+            if (IsMongoUnavailable(ex))
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    $"Không thể kết nối MongoDB local (localhost:27017). Vui lòng bật MongoDB rồi đăng nhập lại. Mã lỗi: {traceId}");
+                return View(model);
+            }
+
             ModelState.AddModelError(string.Empty, $"Hệ thống đang bận, vui lòng thử lại sau. Mã lỗi: {traceId} ({ex.GetType().Name})");
             return View(model);
         }
@@ -77,5 +88,15 @@ public sealed class AuthController : Controller
     public IActionResult AccessDenied()
     {
         return View();
+    }
+
+    private static bool IsMongoUnavailable(Exception exception)
+    {
+        if (exception is TimeoutException or MongoConnectionException or MongoException)
+        {
+            return true;
+        }
+
+        return exception.InnerException is not null && IsMongoUnavailable(exception.InnerException);
     }
 }
