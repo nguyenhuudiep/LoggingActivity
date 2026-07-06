@@ -16,6 +16,8 @@ namespace LoggingActivity.Web.Services;
 
 public sealed class CitizenIdOpenAiService
 {
+    private const string InvalidDocumentMessage = "Ảnh không đúng loại giấy tờ yêu cầu.";
+
     private static readonly string[] RequiredOcrKeys =
     {
         "id_number",
@@ -181,16 +183,16 @@ public sealed class CitizenIdOpenAiService
 
         var prompt = "Trich xuat OCR CCCD Viet Nam. "
             + "Chi tra ve JSON hop le theo schema: "
-            + "{\"is_citizen_id\":boolean,\"document_type\":\"citizen_id|other|unknown\",\"rejection_reason\":string,"
+            + "{\"is_citizen_id\":boolean,"
             + "\"confidence\":number(0..1),\"rawText\":string,\"lines\":string[],\"fields\":{"
             + "\"id_number\":string,\"full_name\":string,\"date_of_birth\":string,\"sex\":string,"
             + "\"nationality\":string,\"place_of_origin\":string,\"place_of_residence\":string,"
             + "\"issue_date\":string,\"expiry_date\":string}}. "
-            + "Neu anh khong phai CCCD Viet Nam thi dat is_citizen_id=false, document_type='other', dien rejection_reason,"
+            + "Neu anh khong phai CCCD Viet Nam thi dat is_citizen_id=false"
             + " va de rawText rong, lines rong, fields rong. Neu khong thay truong thi de chuoi rong."
             + " Khong them markdown, khong giai thich.";
 
-        var payload = await ExecuteOpenAiAsync(endpoint, options, imageBytes, prompt, ocrModel, maxOutputTokens: 700, cancellationToken);
+        var payload = await ExecuteOpenAiAsync(endpoint, options, imageBytes, prompt, ocrModel, maxOutputTokens: 620, cancellationToken);
         if (!payload.IsSuccess)
         {
             return new CitizenIdOcrResult
@@ -208,7 +210,6 @@ public sealed class CitizenIdOpenAiService
         if (!TryParseOcr(
             payload.Text,
             out var isCitizenId,
-            out var rejectionReason,
             out var rawText,
             out var baseConfidence,
             out var fields,
@@ -232,9 +233,7 @@ public sealed class CitizenIdOpenAiService
             {
                 Applied = false,
                 Status = "invalid_document",
-                Message = string.IsNullOrWhiteSpace(rejectionReason)
-                    ? "Ảnh tải lên không phải CCCD Việt Nam hợp lệ. Vui lòng dùng đúng ảnh CCCD."
-                    : rejectionReason,
+                Message = InvalidDocumentMessage,
                 RawText = string.Empty,
                 Confidence = 0,
                 Fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
@@ -519,14 +518,12 @@ public sealed class CitizenIdOpenAiService
     private static bool TryParseOcr(
         string responseText,
         out bool isCitizenId,
-        out string rejectionReason,
         out string rawText,
         out double confidence,
         out Dictionary<string, string> fields,
         out IReadOnlyList<string> lines)
     {
         isCitizenId = true;
-        rejectionReason = string.Empty;
         rawText = string.Empty;
         confidence = 0;
         fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -546,26 +543,6 @@ public sealed class CitizenIdOpenAiService
         {
             isCitizenId = parsedIsCitizenId;
             hasDocumentDecision = true;
-        }
-
-        if (TryGetString(root, "document_type", out var documentType))
-        {
-            var normalizedType = documentType.Trim().ToLowerInvariant();
-            if (normalizedType is "other" or "vehicle_registration" or "registration")
-            {
-                isCitizenId = false;
-                hasDocumentDecision = true;
-            }
-            else if (normalizedType is "citizen_id" or "cccd")
-            {
-                isCitizenId = true;
-                hasDocumentDecision = true;
-            }
-        }
-
-        if (TryGetString(root, "rejection_reason", out var parsedRejectionReason))
-        {
-            rejectionReason = parsedRejectionReason.Trim();
         }
 
         rawText = TryGetString(root, "rawText", out var raw)

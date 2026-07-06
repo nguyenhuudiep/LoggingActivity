@@ -15,6 +15,8 @@ namespace LoggingActivity.Web.Services;
 
 public sealed partial class VehicleRegistrationOcrService
 {
+    private const string InvalidDocumentMessage = "Ảnh không đúng loại giấy tờ yêu cầu.";
+
     private static readonly string[] RequiredKeys =
     {
         "license_plate",
@@ -174,20 +176,20 @@ public sealed partial class VehicleRegistrationOcrService
 
         var base64Image = Convert.ToBase64String(imageBytes);
         var prompt = "Trich xuat OCR giay dang ky xe o to Viet Nam. Chi tra ve JSON object hop le voi schema: "
-            + "{\"is_vehicle_registration\": boolean, \"document_type\": \"vehicle_registration|other|unknown\", \"rejection_reason\": string,"
+            + "{\"is_vehicle_registration\": boolean,"
             + " \"confidence\": number(0..1), \"rawText\": string, \"lines\": string[], \"fields\": {"
             + "\"license_plate\": string, \"registration_number\": string, \"owner_name\": string, \"owner_address\": string, "
             + "\"vehicle_brand\": string, \"vehicle_type\": string, \"engine_number\": string, \"chassis_number\": string, "
             + "\"color\": string, \"seat_count\": string, \"issue_date\": string, \"expiry_date\": string}}. "
-            + "Neu anh khong phai giay dang ky xe o to Viet Nam thi dat is_vehicle_registration=false, document_type='other',"
-            + " dien rejection_reason va de rawText rong, lines rong, fields rong."
+            + "Neu anh khong phai giay dang ky xe o to Viet Nam thi dat is_vehicle_registration=false"
+            + " va de rawText rong, lines rong, fields rong."
             + " Neu khong thay truong thi de chuoi rong. Khong them markdown, khong giai thich.";
 
         var payload = new
         {
             model = providerConfig.Model,
             temperature = 0,
-            max_output_tokens = 900,
+            max_output_tokens = 820,
             input = new object[]
             {
                 new
@@ -219,17 +221,14 @@ public sealed partial class VehicleRegistrationOcrService
             return VehicleOcrExecution.NoData("OpenAI OCR phản hồi thành công nhưng không có output text.");
         }
 
-        if (!TryParseModelPrediction(responseText, out var prediction, out var isVehicleRegistration, out var rejectionReason))
+        if (!TryParseModelPrediction(responseText, out var prediction, out var isVehicleRegistration))
         {
             return VehicleOcrExecution.Failed("Không parse được JSON OCR từ OpenAI response.");
         }
 
         if (!isVehicleRegistration)
         {
-            return VehicleOcrExecution.InvalidDocument(
-                string.IsNullOrWhiteSpace(rejectionReason)
-                    ? "Ảnh tải lên không phải giấy đăng ký xe ô tô hợp lệ."
-                    : rejectionReason);
+            return VehicleOcrExecution.InvalidDocument(InvalidDocumentMessage);
         }
 
         return VehicleOcrExecution.Success(prediction);
@@ -267,19 +266,13 @@ public sealed partial class VehicleRegistrationOcrService
         var root = document.RootElement;
         if (TryGetBoolean(root, "is_vehicle_registration", out var isVehicleRegistration) && !isVehicleRegistration)
         {
-            var reason = TryGetString(root, "rejection_reason", out var rejectionReason)
-                ? rejectionReason
-                : "Ảnh tải lên không phải giấy đăng ký xe ô tô hợp lệ.";
-            return VehicleOcrExecution.InvalidDocument(reason);
+            return VehicleOcrExecution.InvalidDocument(InvalidDocumentMessage);
         }
 
         if (TryGetString(root, "status", out var statusValue)
             && string.Equals(statusValue, "invalid_document", StringComparison.OrdinalIgnoreCase))
         {
-            var reason = TryGetString(root, "message", out var message)
-                ? message
-                : "Ảnh tải lên không phải giấy đăng ký xe ô tô hợp lệ.";
-            return VehicleOcrExecution.InvalidDocument(reason);
+            return VehicleOcrExecution.InvalidDocument(InvalidDocumentMessage);
         }
 
         var rawText = TryGetString(root, "rawText", out var raw)
@@ -657,12 +650,10 @@ public sealed partial class VehicleRegistrationOcrService
     private static bool TryParseModelPrediction(
         string responseText,
         out VehicleOcrPrediction prediction,
-        out bool isVehicleRegistration,
-        out string rejectionReason)
+        out bool isVehicleRegistration)
     {
         prediction = new VehicleOcrPrediction();
         isVehicleRegistration = true;
-        rejectionReason = string.Empty;
         var hasDocumentDecision = false;
 
         var json = ExtractFirstJsonObject(responseText);
@@ -678,26 +669,6 @@ public sealed partial class VehicleRegistrationOcrService
         {
             isVehicleRegistration = parsedIsVehicleRegistration;
             hasDocumentDecision = true;
-        }
-
-        if (TryGetString(root, "document_type", out var documentType))
-        {
-            var normalizedType = documentType.Trim().ToLowerInvariant();
-            if (normalizedType is "other" or "citizen_id" or "cccd")
-            {
-                isVehicleRegistration = false;
-                hasDocumentDecision = true;
-            }
-            else if (normalizedType is "vehicle_registration" or "car_registration")
-            {
-                isVehicleRegistration = true;
-                hasDocumentDecision = true;
-            }
-        }
-
-        if (TryGetString(root, "rejection_reason", out var parsedRejectionReason))
-        {
-            rejectionReason = parsedRejectionReason.Trim();
         }
 
         var confidence = TryGetDouble(root, "confidence", out var parsedConfidence)
