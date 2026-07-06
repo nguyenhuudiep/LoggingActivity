@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http;
 
 namespace LoggingActivity.Web.Contracts;
@@ -17,7 +18,8 @@ public sealed class CitizenIdSideDetectResponse
 
     public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
 
-    public CitizenIdSideDetectSignals Signals { get; init; } = new();
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CitizenIdSideDetectSignals? Signals { get; init; }
 }
 
 public sealed class CitizenIdOcrResult
@@ -35,6 +37,19 @@ public sealed class CitizenIdOcrResult
     public IReadOnlyDictionary<string, string> Fields { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<string> Lines { get; init; } = Array.Empty<string>();
+}
+
+public sealed class CitizenIdDetectAndOcrResult
+{
+    public bool Applied { get; init; }
+
+    public string Status { get; init; } = "no_data";
+
+    public string Message { get; init; } = string.Empty;
+
+    public CitizenIdSideDetectResponse Detect { get; init; } = new();
+
+    public CitizenIdOcrResult Ocr { get; init; } = new();
 }
 
 public sealed class CitizenIdSideDetectSignals

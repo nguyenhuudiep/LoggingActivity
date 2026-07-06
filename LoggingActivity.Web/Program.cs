@@ -156,6 +156,44 @@ builder.Services
         settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 1, 30);
     });
 builder.Services
+    .AddOptions<CitizenIdOpenAiOptions>()
+    .Bind(builder.Configuration.GetSection(CitizenIdOpenAiOptions.SectionName))
+    .PostConfigure(settings =>
+    {
+        // Use the same OpenAI key variable as vehicle registration OCR.
+        var sharedOpenAiKey = ResolveSetting(
+            builder.Configuration["VEHICLE_REG_OCR_OPENAI_API_KEY"],
+            builder.Configuration["VehicleRegistrationOcr:OpenAiApiKey"],
+            builder.Configuration["VehicleRegistrationOcr:ApiKey"]);
+
+        settings.ApiKey = ResolveSetting(sharedOpenAiKey, settings.ApiKey);
+        settings.Endpoint = ResolveSetting(
+            settings.Endpoint,
+            builder.Configuration["CITIZEN_ID_OPENAI_ENDPOINT"],
+            "https://api.openai.com/v1/responses");
+        settings.Model = ResolveSetting(
+            settings.Model,
+            builder.Configuration["CITIZEN_ID_OPENAI_MODEL"],
+            "gpt-4.1");
+        settings.DetectModel = ResolveSetting(
+            settings.DetectModel,
+            builder.Configuration["CITIZEN_ID_OPENAI_DETECT_MODEL"],
+            "gpt-4.1-mini");
+        settings.OcrModel = ResolveSetting(
+            settings.OcrModel,
+            builder.Configuration["CITIZEN_ID_OPENAI_OCR_MODEL"],
+            settings.Model,
+            "gpt-4.1");
+
+        if (!string.IsNullOrWhiteSpace(settings.ApiKey))
+        {
+            settings.Enabled = true;
+        }
+
+        settings.TimeoutSeconds = Math.Clamp(settings.TimeoutSeconds, 3, 45);
+        settings.MinConfidence = Math.Clamp(settings.MinConfidence, 0.5, 0.99);
+    });
+builder.Services
     .AddOptions<VehicleRegistrationOcrOptions>()
     .Bind(builder.Configuration.GetSection(VehicleRegistrationOcrOptions.SectionName))
     .PostConfigure(settings =>
@@ -261,6 +299,7 @@ builder.Services.AddScoped<AlertHistoryService>();
 builder.Services.AddScoped<LogActionDefinitionService>();
 builder.Services.AddScoped<PartnerUserActionLimitService>();
 builder.Services.AddScoped<CitizenIdDetectionService>();
+builder.Services.AddHttpClient<CitizenIdOpenAiService>();
 builder.Services.AddHttpClient<VehicleRegistrationOcrService>();
 builder.Services.AddHttpClient<CitizenIdHybridModelClient>();
 builder.Services.AddHttpClient<CitizenIdOcrClient>();
@@ -285,6 +324,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
