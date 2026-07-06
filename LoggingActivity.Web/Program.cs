@@ -205,9 +205,10 @@ builder.Services
             settings.Provider = "openai";
         }
 
-        // Minimal production setup: when only VEHICLE_REG_OCR_OPENAI_API_KEY is provided,
-        // auto-enable OCR and use OpenAI defaults without requiring extra config.
-        if (!string.IsNullOrWhiteSpace(openAiApiKeyFromEnv))
+        // Minimal production setup: auto-enable OCR whenever an OpenAI key is available
+        // (from dedicated env var or any bound configuration source).
+        if (!string.IsNullOrWhiteSpace(openAiApiKeyFromEnv)
+            || !string.IsNullOrWhiteSpace(settings.OpenAiApiKey))
         {
             settings.Enabled = true;
             settings.Provider = "openai";

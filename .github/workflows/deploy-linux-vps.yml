@@ -49,7 +49,7 @@ jobs:
       APP_SEEDADMIN_USERNAME: ${{ secrets.PROD_APP_SEEDADMIN_USERNAME || '' }}
       APP_SEEDADMIN_EMAIL: ${{ secrets.PROD_APP_SEEDADMIN_EMAIL || '' }}
       APP_SEEDADMIN_PASSWORD: ${{ secrets.PROD_APP_SEEDADMIN_PASSWORD || '' }}
-      APP_VEHICLE_REG_OCR_OPENAI_API_KEY: ${{ secrets.PROD_APP_VEHICLE_REG_OCR_OPENAI_API_KEY || '' }}
+      APP_VEHICLE_REG_OCR_OPENAI_API_KEY: ${{ secrets.PROD_APP_VEHICLE_REG_OCR_OPENAI_API_KEY || secrets.PROD_VEHICLE_REG_OCR_OPENAI_API_KEY || '' }}
 
   deploy-staging:
     if: github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'staging' || github.event.inputs.target == 'both')
@@ -74,4 +74,4 @@ jobs:
       APP_SEEDADMIN_USERNAME: ${{ secrets.STAGING_APP_SEEDADMIN_USERNAME || '' }}
       APP_SEEDADMIN_EMAIL: ${{ secrets.STAGING_APP_SEEDADMIN_EMAIL || '' }}
       APP_SEEDADMIN_PASSWORD: ${{ secrets.STAGING_APP_SEEDADMIN_PASSWORD || '' }}
-      APP_VEHICLE_REG_OCR_OPENAI_API_KEY: ${{ secrets.STAGING_APP_VEHICLE_REG_OCR_OPENAI_API_KEY || '' }}
+      APP_VEHICLE_REG_OCR_OPENAI_API_KEY: ${{ secrets.STAGING_APP_VEHICLE_REG_OCR_OPENAI_API_KEY || secrets.STAGING_VEHICLE_REG_OCR_OPENAI_API_KEY || '' }}
