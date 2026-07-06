@@ -170,6 +170,14 @@ public sealed class PartnerController : ControllerBase
 
         await using var stream = request.Image.OpenReadStream();
         var result = await _citizenIdOpenAiService.ExtractOcrAsync(stream, cancellationToken);
+        if (string.Equals(result.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                status = result.Status,
+                message = result.Message
+            });
+        }
 
         SetPartnerContext(partner);
         return Ok(result);
@@ -204,6 +212,15 @@ public sealed class PartnerController : ControllerBase
 
         await using var stream = request.Image.OpenReadStream();
         var combined = await _citizenIdOpenAiService.DetectAndOcrAsync(stream, cancellationToken);
+        if (string.Equals(combined.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                status = combined.Status,
+                message = combined.Message,
+                detect = combined.Detect
+            });
+        }
 
         SetPartnerContext(partner);
         return Ok(combined);
@@ -238,6 +255,14 @@ public sealed class PartnerController : ControllerBase
 
         await using var stream = request.Image.OpenReadStream();
         var result = await _vehicleRegistrationOcrService.ExtractAsync(stream, "openai", openAiApiKeyOverride: null, cancellationToken);
+        if (string.Equals(result.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                status = result.Status,
+                message = result.Message
+            });
+        }
 
         SetPartnerContext(partner);
         return Ok(result);

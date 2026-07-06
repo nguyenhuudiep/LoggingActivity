@@ -181,11 +181,14 @@ public sealed class CitizenIdOpenAiService
 
         var prompt = "Trich xuat OCR CCCD Viet Nam. "
             + "Chi tra ve JSON hop le theo schema: "
-            + "{\"confidence\":number(0..1),\"rawText\":string,\"lines\":string[],\"fields\":{"
+            + "{\"is_citizen_id\":boolean,\"document_type\":\"citizen_id|other|unknown\",\"rejection_reason\":string,"
+            + "\"confidence\":number(0..1),\"rawText\":string,\"lines\":string[],\"fields\":{"
             + "\"id_number\":string,\"full_name\":string,\"date_of_birth\":string,\"sex\":string,"
             + "\"nationality\":string,\"place_of_origin\":string,\"place_of_residence\":string,"
             + "\"issue_date\":string,\"expiry_date\":string}}. "
-            + "Neu khong thay truong thi de chuoi rong. Khong them markdown, khong giai thich.";
+            + "Neu anh khong phai CCCD Viet Nam thi dat is_citizen_id=false, document_type='other', dien rejection_reason,"
+            + " va de rawText rong, lines rong, fields rong. Neu khong thay truong thi de chuoi rong."
+            + " Khong them markdown, khong giai thich.";
 
         var payload = await ExecuteOpenAiAsync(endpoint, options, imageBytes, prompt, ocrModel, maxOutputTokens: 700, cancellationToken);
         if (!payload.IsSuccess)
@@ -202,13 +205,36 @@ public sealed class CitizenIdOpenAiService
             };
         }
 
-        if (!TryParseOcr(payload.Text, out var rawText, out var baseConfidence, out var fields, out var lines))
+        if (!TryParseOcr(
+            payload.Text,
+            out var isCitizenId,
+            out var rejectionReason,
+            out var rawText,
+            out var baseConfidence,
+            out var fields,
+            out var lines))
         {
             return new CitizenIdOcrResult
             {
                 Applied = false,
                 Status = "no_data",
                 Message = "OpenAI OCR phản hồi thành công nhưng không parse được JSON kết quả.",
+                RawText = string.Empty,
+                Confidence = 0,
+                Fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Lines = Array.Empty<string>()
+            };
+        }
+
+        if (!isCitizenId)
+        {
+            return new CitizenIdOcrResult
+            {
+                Applied = false,
+                Status = "invalid_document",
+                Message = string.IsNullOrWhiteSpace(rejectionReason)
+                    ? "Ảnh tải lên không phải CCCD Việt Nam hợp lệ. Vui lòng dùng đúng ảnh CCCD."
+                    : rejectionReason,
                 RawText = string.Empty,
                 Confidence = 0,
                 Fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
@@ -341,7 +367,9 @@ public sealed class CitizenIdOpenAiService
         {
             Applied = ocr.Applied,
             Status = ocr.Status,
-            Message = ocr.Applied
+            Message = ocr.Status == "invalid_document"
+                ? ocr.Message
+                : ocr.Applied
                 ? "Nhận diện + OCR CCCD thành công."
                 : "Nhận diện thành công nhưng OCR chưa áp dụng được.",
             Detect = detect,
@@ -490,15 +518,20 @@ public sealed class CitizenIdOpenAiService
 
     private static bool TryParseOcr(
         string responseText,
+        out bool isCitizenId,
+        out string rejectionReason,
         out string rawText,
         out double confidence,
         out Dictionary<string, string> fields,
         out IReadOnlyList<string> lines)
     {
+        isCitizenId = true;
+        rejectionReason = string.Empty;
         rawText = string.Empty;
         confidence = 0;
         fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         lines = Array.Empty<string>();
+        var hasDocumentDecision = false;
 
         var json = ExtractFirstJsonObject(responseText);
         if (string.IsNullOrWhiteSpace(json))
@@ -508,6 +541,32 @@ public sealed class CitizenIdOpenAiService
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+
+        if (TryGetBoolean(root, "is_citizen_id", out var parsedIsCitizenId))
+        {
+            isCitizenId = parsedIsCitizenId;
+            hasDocumentDecision = true;
+        }
+
+        if (TryGetString(root, "document_type", out var documentType))
+        {
+            var normalizedType = documentType.Trim().ToLowerInvariant();
+            if (normalizedType is "other" or "vehicle_registration" or "registration")
+            {
+                isCitizenId = false;
+                hasDocumentDecision = true;
+            }
+            else if (normalizedType is "citizen_id" or "cccd")
+            {
+                isCitizenId = true;
+                hasDocumentDecision = true;
+            }
+        }
+
+        if (TryGetString(root, "rejection_reason", out var parsedRejectionReason))
+        {
+            rejectionReason = parsedRejectionReason.Trim();
+        }
 
         rawText = TryGetString(root, "rawText", out var raw)
             ? raw
@@ -528,7 +587,7 @@ public sealed class CitizenIdOpenAiService
                 .ToArray();
         }
 
-        return !string.IsNullOrWhiteSpace(rawText) || fields.Count > 0 || lines.Count > 0;
+        return hasDocumentDecision || !string.IsNullOrWhiteSpace(rawText) || fields.Count > 0 || lines.Count > 0;
     }
 
     private static string BuildCacheKey(string kind, byte[] imageBytes, string? model)

@@ -88,6 +88,15 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
         {
             await using var stream = request.Image.OpenReadStream();
             var result = await _citizenIdOpenAiService.ExtractOcrAsync(stream, cancellationToken);
+            if (string.Equals(result.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    status = result.Status,
+                    message = result.Message
+                });
+            }
+
             return Ok(result);
         }
         catch (Exception ex)
@@ -125,6 +134,16 @@ public sealed class CitizenIdDetectionApiController : ControllerBase
         {
             await using var stream = request.Image.OpenReadStream();
             var combined = await _citizenIdOpenAiService.DetectAndOcrAsync(stream, cancellationToken);
+            if (string.Equals(combined.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    status = combined.Status,
+                    message = combined.Message,
+                    detect = combined.Detect
+                });
+            }
+
             return Ok(combined);
         }
         catch (Exception ex)

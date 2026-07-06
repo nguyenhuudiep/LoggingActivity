@@ -47,6 +47,15 @@ public sealed class VehicleRegistrationOcrApiController : ControllerBase
         {
             await using var stream = request.Image.OpenReadStream();
             var result = await _ocrService.ExtractAsync(stream, "openai", openAiApiKeyOverride: null, cancellationToken);
+            if (string.Equals(result.Status, "invalid_document", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    status = result.Status,
+                    message = result.Message
+                });
+            }
+
             return Ok(result);
         }
         catch (Exception ex)
@@ -109,6 +118,16 @@ public sealed class VehicleRegistrationOcrApiController : ControllerBase
             var results = await Task.WhenAll(tasks);
             var successCount = results.Count(item => string.Equals(item.Result.Status, "success", StringComparison.OrdinalIgnoreCase));
             var appliedAny = results.Any(item => item.Result.Applied);
+            var invalidDocument = results.FirstOrDefault(item => string.Equals(item.Result.Status, "invalid_document", StringComparison.OrdinalIgnoreCase));
+            if (invalidDocument is not null)
+            {
+                return BadRequest(new
+                {
+                    status = "invalid_document",
+                    message = invalidDocument.Result.Message,
+                    provider = invalidDocument.Provider
+                });
+            }
 
             return Ok(new VehicleRegistrationOcrCompareResult
             {
