@@ -128,6 +128,50 @@
                     <li><strong>Bước 6 - Tính confidence:</strong> confidence tăng theo độ chênh điểm và độ mạnh tín hiệu tổng, sau đó chuẩn hóa về khoảng 0-1.</li>
                 </ol>
 
+                <h2 class="h5 mb-3">Pipeline OCR CCCD (chi tiết)</h2>
+                <ol class="mb-4">
+                    <li><strong>Bước 1 - Tiền kiểm tài liệu:</strong> model xác định ảnh có phải CCCD Việt Nam hay không; nếu không phù hợp sẽ trả <code>invalid_document</code>.</li>
+                    <li><strong>Bước 2 - OCR theo schema:</strong> gọi OpenAI Vision và ép output JSON để giữ ổn định format giữa các lần gọi.</li>
+                    <li><strong>Bước 3 - Chuẩn hóa dữ liệu:</strong> map dữ liệu thô vào các trường chuẩn như <code>id_number</code>, <code>full_name</code>, <code>date_of_birth</code>, <code>gender</code>, <code>nationality</code>, <code>place_of_origin</code>, <code>place_of_residence</code>, <code>issue_date</code>, <code>expiry_date</code>.</li>
+                    <li><strong>Bước 4 - Chấm chất lượng:</strong> tổng hợp confidence OCR và độ đầy đủ field bắt buộc để phân loại <code>success</code> hoặc <code>needs_review</code>.</li>
+                    <li><strong>Bước 5 - Trả kết quả vận hành:</strong> trả thêm <code>rawText</code>, <code>lines</code>, <code>message</code> để BA/QC dễ hậu kiểm và debug.</li>
+                </ol>
+
+                <h2 class="h5 mb-3">Trạng thái OCR và cách xử lý</h2>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th style="min-width: 180px;">Trạng thái</th>
+                                <th style="min-width: 220px;">Ý nghĩa</th>
+                                <th>Hành động đề xuất</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>success</code></td>
+                                <td>OCR đọc được đủ dữ liệu và confidence đạt ngưỡng.</td>
+                                <td>Có thể đưa vào luồng tự động, vẫn nên lưu log để audit.</td>
+                            </tr>
+                            <tr>
+                                <td><code>needs_review</code></td>
+                                <td>OCR đọc được một phần nhưng thiếu field hoặc confidence thấp.</td>
+                                <td>Đưa vào hàng chờ hậu kiểm thủ công trước khi dùng nghiệp vụ.</td>
+                            </tr>
+                            <tr>
+                                <td><code>invalid_document</code></td>
+                                <td>Ảnh không phải CCCD hoặc không đủ tín hiệu tài liệu hợp lệ.</td>
+                                <td>Yêu cầu upload lại ảnh đúng loại giấy tờ và chất lượng tốt hơn.</td>
+                            </tr>
+                            <tr>
+                                <td><code>failed</code></td>
+                                <td>Lỗi kỹ thuật khi gọi OCR endpoint hoặc xử lý ảnh.</td>
+                                <td>Kiểm tra cấu hình API key/endpoint và retry có kiểm soát.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
                 <h2 class="h5 mb-3">Nguyên tắc phân tích thuật toán</h2>
                 <ul class="mb-4">
                     <li>Ưu tiên <strong>độ tin cậy</strong> hơn ép buộc dự đoán: tín hiệu yếu hoặc mâu thuẫn sẽ trả <code>unknown</code>.</li>
