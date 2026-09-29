@@ -201,12 +201,13 @@ public sealed class UsersController : AppController
             Role = user.Role,
             SelectedPermissionGroupIds = user.PermissionGroupIds.ToList(),
             AvailablePermissionGroups = await _permissionGroupService.GetActiveAsync(cancellationToken),
-            SelectedPermissions = string.Equals(user.Role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
-                ? user.FunctionPermissions
-                    .Concat(await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds, cancellationToken))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-                : new List<string>(),
+            // Quyền riêng + quyền nhóm hiện tại; không dùng bản chụp FunctionPermissions vì có thể còn quyền của nhóm đã bị bỏ tick.
+            SelectedPermissions = AdminFunctionPermissions.FilterForRole(
+                user.Role,
+                (user.CustomFunctionPermissions.Count == 0 && user.PermissionGroupIds.Count == 0
+                        ? user.FunctionPermissions
+                        : user.CustomFunctionPermissions)
+                    .Concat(await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(user.PermissionGroupIds, cancellationToken))),
             IsActive = user.IsActive
         });
     }

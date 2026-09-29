@@ -73,6 +73,18 @@ public sealed class UserActiveSessionRepository : IUserActiveSessionRepository
             cancellationToken: cancellationToken);
     }
 
+    public Task RemoveByNormalizedUserNamesAsync(IReadOnlyCollection<string> normalizedUserNames, CancellationToken cancellationToken = default)
+    {
+        if (normalizedUserNames.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _context.UserActiveSessions.DeleteManyAsync(
+            Builders<UserActiveSession>.Filter.In(session => session.NormalizedUserName, normalizedUserNames),
+            cancellationToken);
+    }
+
     public Task RemoveIfMatchesAsync(string normalizedUserName, string sessionId, CancellationToken cancellationToken = default)
     {
         return _context.UserActiveSessions.DeleteOneAsync(

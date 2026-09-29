@@ -48,6 +48,18 @@ public sealed class SystemAccessAuditService
         return replacedExistingSession;
     }
 
+    // Xóa phiên đang hoạt động để lần request kế tiếp bị yêu cầu đăng nhập lại và nhận quyền mới.
+    public Task RevokeSessionsAsync(IEnumerable<string?> userNames, CancellationToken cancellationToken = default)
+    {
+        var normalizedUserNames = userNames
+            .Where(userName => !string.IsNullOrWhiteSpace(userName))
+            .Select(NormalizeUserNameKey)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return _userActiveSessionRepository.RemoveByNormalizedUserNamesAsync(normalizedUserNames, cancellationToken);
+    }
+
     public Task<bool> IsSessionActiveAsync(string? userName, string? sessionId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(sessionId))

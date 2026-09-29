@@ -1,3 +1,4 @@
+using LoggingActivity.Web.Infrastructure;
 using LoggingActivity.Web.Contracts;
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Services;
@@ -8,6 +9,7 @@ namespace LoggingActivity.Web.Controllers;
 
 [ApiController]
 [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]
+[RequireFunctionPermission(AdminFunctionPermissions.CitizenIdDetection, AllowAuditor = true)]
 [Route("api/admin/citizen-id")]
 public sealed class CitizenIdDetectionApiController : ControllerBase
 {

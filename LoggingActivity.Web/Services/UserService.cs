@@ -9,16 +9,19 @@ public sealed class UserService
 {
     private readonly IUserRepository _userRepository;
     private readonly PermissionGroupService _permissionGroupService;
+    private readonly SystemAccessAuditService _systemAccessAuditService;
     private readonly ILogger<UserService> _logger;
     private readonly PasswordHasher<AppUser> _passwordHasher = new();
 
     public UserService(
         IUserRepository userRepository,
         PermissionGroupService permissionGroupService,
+        SystemAccessAuditService systemAccessAuditService,
         ILogger<UserService> logger)
     {
         _userRepository = userRepository;
         _permissionGroupService = permissionGroupService;
+        _systemAccessAuditService = systemAccessAuditService;
         _logger = logger;
     }
 
@@ -79,6 +82,8 @@ public sealed class UserService
             return (false, "Không tìm thấy tài khoản.");
         }
 
+        var accessBefore = BuildAccessSignature(existingUser);
+
         existingUser.DisplayName = user.DisplayName;
         existingUser.Email = user.Email;
         existingUser.Role = user.Role;
@@ -98,6 +103,13 @@ public sealed class UserService
         }
 
         await _userRepository.UpdateAsync(existingUser, cancellationToken);
+
+        // Quyền nằm trong cookie đăng nhập; khi role/nhóm/quyền/trạng thái đổi thì buộc đăng nhập lại để áp dụng ngay.
+        if (!string.Equals(accessBefore, BuildAccessSignature(existingUser), StringComparison.Ordinal))
+        {
+            await _systemAccessAuditService.RevokeSessionsAsync(new[] { existingUser.UserName }, cancellationToken);
+        }
+
         return (true, null);
     }
 
@@ -125,6 +137,7 @@ public sealed class UserService
         }
 
         await _userRepository.DeleteAsync(id, cancellationToken);
+        await _systemAccessAuditService.RevokeSessionsAsync(new[] { existingUser.UserName }, cancellationToken);
         return (true, null);
     }
 
@@ -156,26 +169,19 @@ public sealed class UserService
 
     private static List<string> NormalizeFunctionPermissions(string role, IEnumerable<string>? permissions)
     {
-        if (!string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
-        {
-            return new List<string>();
-        }
+        return AdminFunctionPermissions.FilterForRole(role, permissions);
+    }
 
-        var requestedPermissions = permissions?
-            .Where(code => !string.IsNullOrWhiteSpace(code))
-            .Select(code => code.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase)
-            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        return AdminFunctionPermissions.All
-            .Where(permission => requestedPermissions.Contains(permission.Code))
-            .Select(permission => permission.Code)
-            .ToList();
+    private static string BuildAccessSignature(AppUser user)
+    {
+        static string Join(IEnumerable<string>? values) => string.Join(",", (values ?? Array.Empty<string>()).OrderBy(value => value, StringComparer.Ordinal));
+        return $"{user.Role}|{user.IsActive}|{Join(user.PermissionGroupIds)}|{Join(user.CustomFunctionPermissions)}";
     }
 
     private async Task<List<string>> NormalizePermissionGroupIdsAsync(string role, IEnumerable<string>? permissionGroupIds, CancellationToken cancellationToken)
     {
-        if (!string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(role, SystemRoles.Auditor, StringComparison.OrdinalIgnoreCase))
         {
             return new List<string>();
         }

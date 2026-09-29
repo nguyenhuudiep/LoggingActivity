@@ -54,7 +54,7 @@
         <h1 class="page-title">Giám sát hàng đợi ingest</h1>
         <p class="page-subtitle">Theo dõi các request log đang chờ retry, đang xử lý hoặc thất bại để admin xử lý sự cố kịp thời.</p>
     </div>
-    @if (User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard))
+    @if (User.HasAdminFunctionPermission(AdminFunctionPermissions.IngestQueue))
     {
         <div class="page-toolbar">
             @if (Model.Summary.FailedCount > 0)
@@ -232,7 +232,7 @@
                             }
                         </td>
                         <td class="text-end">
-                            @if (item.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard))
+                            @if (item.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.IngestQueue))
                             {
                                 <form id="@retryFormId" asp-action="RetryFailed" method="post" class="d-inline">
                                     @Html.AntiForgeryToken()
@@ -362,7 +362,7 @@
     </div>
 }
 
-@foreach (var item in Model.Items.Items.Where(queueItem => queueItem.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.LogDashboard)))
+@foreach (var item in Model.Items.Items.Where(queueItem => queueItem.Status == ActivityLogIngestQueueStatuses.Failed && User.HasAdminFunctionPermission(AdminFunctionPermissions.IngestQueue)))
 {
     var retryModalId = BuildRetryModalId(item.Id);
     var retryFormId = $"retryFailedForm-{item.Id}";

@@ -10,7 +10,7 @@ public sealed class VehicleRegistrationOcrController : AppController
     [HttpGet]
     public IActionResult Index()
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.VehicleRegistrationOcr, allowAuditor: true);
         if (accessDenied is not null)
         {
             return accessDenied;

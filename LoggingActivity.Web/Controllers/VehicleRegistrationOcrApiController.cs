@@ -1,3 +1,4 @@
+using LoggingActivity.Web.Infrastructure;
 using LoggingActivity.Web.Contracts;
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Services;
@@ -8,6 +9,7 @@ namespace LoggingActivity.Web.Controllers;
 
 [ApiController]
 [Authorize(Roles = SystemRoles.Admin + "," + SystemRoles.Auditor)]
+[RequireFunctionPermission(AdminFunctionPermissions.VehicleRegistrationOcr, AllowAuditor = true)]
 [Route("api/admin/vehicle-registration")]
 public sealed class VehicleRegistrationOcrApiController : ControllerBase
 {

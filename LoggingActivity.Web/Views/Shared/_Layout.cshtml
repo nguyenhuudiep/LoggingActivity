@@ -19,18 +19,18 @@
     var isLoginPage = string.Equals(currentController, "Auth", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "Login", StringComparison.OrdinalIgnoreCase);
     var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
-    var canManagePermissionGroups = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
+    var canManagePermissionGroups = User.HasAdminFunctionPermission(AdminFunctionPermissions.PermissionGroupManagement);
     var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessSystemAccessHistory = User.HasFeatureAccess(AdminFunctionPermissions.SystemAccessHistory, allowAuditor: true);
-    var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+    var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.IngestQueue, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
     var canAccessCustomerBehavior = User.HasFeatureAccess(AdminFunctionPermissions.CustomerBehaviorReport, allowAuditor: true);
-    var canAccessCitizenIdDetection = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
-    var canAccessVehicleRegistrationOcr = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
+    var canAccessCitizenIdDetection = User.HasFeatureAccess(AdminFunctionPermissions.CitizenIdDetection, allowAuditor: true);
+    var canAccessVehicleRegistrationOcr = User.HasFeatureAccess(AdminFunctionPermissions.VehicleRegistrationOcr, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
     var canManagePartners = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerManagement);
     var canManageAlertRules = User.HasAdminFunctionPermission(AdminFunctionPermissions.AlertRuleManagement);
-    var canManagePartnerActionLimits = canManagePartners;
+    var canManagePartnerActionLimits = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerActionLimit);
     var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules || canManagePermissionGroups || canManagePartnerActionLimits;
 
     string SidebarLinkClass(string controller, string? action = null)

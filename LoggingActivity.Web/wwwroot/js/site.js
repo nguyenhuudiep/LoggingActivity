@@ -501,6 +501,14 @@
 				});
 			}
 
+			// Quyền đang tick sẵn mà không đến từ nhóm là quyền riêng: giữ nguyên khi đồng bộ theo nhóm.
+			var initialRequired = getRequiredPermissionCodes();
+			permissionCheckboxes.forEach(function (checkbox) {
+				if (checkbox.checked && !initialRequired.has(checkbox.value)) {
+					manuallyTouchedPermissions.add(checkbox.value);
+				}
+			});
+
 			groupCheckboxes.forEach(function (checkbox) {
 				checkbox.addEventListener("change", function () {
 					syncPermissions();

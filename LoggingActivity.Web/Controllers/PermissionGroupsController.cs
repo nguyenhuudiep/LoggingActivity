@@ -23,7 +23,7 @@ public sealed class PermissionGroupsController : AppController
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] PermissionGroupFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -48,7 +48,7 @@ public sealed class PermissionGroupsController : AppController
     [HttpGet]
     public async Task<IActionResult> Export([FromQuery] PermissionGroupFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -83,7 +83,7 @@ public sealed class PermissionGroupsController : AppController
     [HttpGet]
     public IActionResult Create()
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -96,7 +96,7 @@ public sealed class PermissionGroupsController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(PermissionGroupEditViewModel model, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -133,7 +133,7 @@ public sealed class PermissionGroupsController : AppController
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -159,7 +159,7 @@ public sealed class PermissionGroupsController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(PermissionGroupEditViewModel model, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -198,7 +198,7 @@ public sealed class PermissionGroupsController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(string id, PermissionGroupFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.UserManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PermissionGroupManagement);
         if (accessDenied is not null)
         {
             return accessDenied;

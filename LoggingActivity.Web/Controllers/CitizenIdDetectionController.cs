@@ -10,7 +10,7 @@ public sealed class CitizenIdDetectionController : AppController
     [HttpGet]
     public IActionResult Index()
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.CitizenIdDetection, allowAuditor: true);
         if (accessDenied is not null)
         {
             return accessDenied;

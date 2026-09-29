@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Caching.Memory;
+using LoggingActivity.Web.Models;
 using MongoDB.Driver;
 
 namespace LoggingActivity.Web.Services;
@@ -30,6 +31,14 @@ public sealed class SingleSessionCookieEvents : CookieAuthenticationEvents
         var principal = context.Principal;
         if (principal?.Identity?.IsAuthenticated != true)
         {
+            return;
+        }
+
+        // Cookie cấp theo cơ chế phân quyền cũ (0 quyền = toàn quyền) phải đăng nhập lại để nhận đúng quyền.
+        if (principal.FindFirst(AdminFunctionPermissions.VersionClaimType)?.Value != AdminFunctionPermissions.CurrentVersion)
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return;
         }
 

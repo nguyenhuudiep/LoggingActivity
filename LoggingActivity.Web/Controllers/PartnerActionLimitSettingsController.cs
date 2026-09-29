@@ -27,7 +27,7 @@ public sealed class PartnerActionLimitSettingsController : AppController
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] PartnerActionLimitFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerActionLimit);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -51,7 +51,7 @@ public sealed class PartnerActionLimitSettingsController : AppController
         [FromForm] int filterPageSize,
         CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerActionLimit);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -113,7 +113,7 @@ public sealed class PartnerActionLimitSettingsController : AppController
         [FromForm] int filterPageSize,
         CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerManagement);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.PartnerActionLimit);
         if (accessDenied is not null)
         {
             return accessDenied;

@@ -23,7 +23,7 @@ public sealed class IngestQueueController : AppController
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue, allowAuditor: true);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -63,7 +63,7 @@ public sealed class IngestQueueController : AppController
     [HttpGet]
     public async Task<IActionResult> Export([FromQuery] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue, allowAuditor: true);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -114,7 +114,7 @@ public sealed class IngestQueueController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SeedDemo([FromForm] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -143,7 +143,7 @@ public sealed class IngestQueueController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteDemo([FromForm] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -169,7 +169,7 @@ public sealed class IngestQueueController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RetryFailed([FromForm] string id, [FromForm] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue);
         if (accessDenied is not null)
         {
             return accessDenied;
@@ -195,7 +195,7 @@ public sealed class IngestQueueController : AppController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RetryFailedBulk([FromForm] ActivityLogIngestQueueFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.LogDashboard);
+        var accessDenied = ForbidIfMissingPermission(AdminFunctionPermissions.IngestQueue);
         if (accessDenied is not null)
         {
             return accessDenied;

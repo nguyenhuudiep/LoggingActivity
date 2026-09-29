@@ -14,5 +14,7 @@ public interface IUserActiveSessionRepository
 
     Task TouchAsync(string normalizedUserName, string sessionId, DateTime seenAtUtc, CancellationToken cancellationToken = default);
 
+    Task RemoveByNormalizedUserNamesAsync(IReadOnlyCollection<string> normalizedUserNames, CancellationToken cancellationToken = default);
+
     Task RemoveIfMatchesAsync(string normalizedUserName, string sessionId, CancellationToken cancellationToken = default);
 }

@@ -64,6 +64,39 @@ public sealed class AuthService
         }
     }
 
+    // Quyền hiệu lực = quyền riêng của tài khoản + quyền của các nhóm đang active, tính lại mỗi lần đăng nhập.
+    // Riêng tài khoản seed admin luôn có toàn quyền để không bao giờ bị khóa khỏi hệ thống.
+    private async Task<IReadOnlyList<string>> ResolveEffectivePermissionsAsync(AppUser user, string userName, string role, CancellationToken cancellationToken)
+    {
+        if (IsSeedAdmin(userName) && string.Equals(role, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            return AdminFunctionPermissions.AllCodes;
+        }
+
+        var permissionGroupIds = user.PermissionGroupIds ?? new List<string>();
+        var customPermissions = user.CustomFunctionPermissions ?? new List<string>();
+
+        // Tài khoản cũ (trước khi có nhóm quyền) chỉ lưu FunctionPermissions; khi đã có nhóm thì không dùng bản chụp này
+        // vì nó có thể chứa quyền của nhóm từ trước khi nhóm bị bỏ tick.
+        if (customPermissions.Count == 0 && permissionGroupIds.Count == 0)
+        {
+            customPermissions = user.FunctionPermissions ?? new List<string>();
+        }
+
+        var groupPermissions = permissionGroupIds.Count == 0
+            ? new List<string>()
+            : await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(permissionGroupIds, cancellationToken);
+
+        return AdminFunctionPermissions.FilterForRole(role, customPermissions.Concat(groupPermissions));
+    }
+
+    private bool IsSeedAdmin(string userName)
+    {
+        var seedUserName = _seedAdminOptions.Value.UserName;
+        return !string.IsNullOrWhiteSpace(seedUserName)
+            && string.Equals(seedUserName.Trim(), userName, StringComparison.OrdinalIgnoreCase);
+    }
+
     private AppUser? TryValidateSeedAdmin(string userName, string password)
     {
         var options = _seedAdminOptions.Value;
@@ -98,9 +131,7 @@ public sealed class AuthService
         var safeDisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? safeUserName : user.DisplayName.Trim();
         var safeRole = string.IsNullOrWhiteSpace(user.Role) ? SystemRoles.Auditor : user.Role.Trim();
         var sessionId = Guid.NewGuid().ToString("N");
-        var safePermissionGroupIds = user.PermissionGroupIds ?? new List<string>();
-        var safeCustomPermissions = user.CustomFunctionPermissions ?? new List<string>();
-        var safeFunctionPermissions = user.FunctionPermissions ?? new List<string>();
+        var effectivePermissions = await ResolveEffectivePermissionsAsync(user, safeUserName, safeRole, httpContext.RequestAborted);
 
         var claims = new List<Claim>
         {
@@ -108,35 +139,11 @@ public sealed class AuthService
             new(ClaimTypes.Name, safeUserName),
             new(ClaimTypes.GivenName, safeDisplayName),
             new(ClaimTypes.Role, safeRole),
-            new(SystemAccessAuditService.SessionClaimType, sessionId)
+            new(SystemAccessAuditService.SessionClaimType, sessionId),
+            new(AdminFunctionPermissions.VersionClaimType, AdminFunctionPermissions.CurrentVersion)
         };
 
-        if (string.Equals(safeRole, SystemRoles.Admin, StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var allowedPermissions = AdminFunctionPermissions.All
-                    .Select(permission => permission.Code)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                var groupPermissions = await _permissionGroupService.ResolveActiveFunctionPermissionsAsync(safePermissionGroupIds);
-                var customPermissions = safeCustomPermissions.Count > 0
-                    ? safeCustomPermissions
-                    : safeFunctionPermissions;
-                var effectivePermissions = customPermissions.Concat(groupPermissions);
-
-                claims.AddRange(effectivePermissions
-                    .Where(permission => !string.IsNullOrWhiteSpace(permission))
-                    .Select(permission => permission.Trim())
-                    .Where(permission => allowedPermissions.Contains(permission))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to resolve function permissions for user {UserName}", safeUserName);
-            }
-        }
+        claims.AddRange(effectivePermissions.Select(permission => new Claim(AdminFunctionPermissions.ClaimType, permission)));
 
         var principal = new ClaimsPrincipal(
             new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
@@ -160,7 +167,8 @@ public sealed class AuthService
                         new Claim(ClaimTypes.Name, safeUserName),
                         new Claim(ClaimTypes.GivenName, safeDisplayName),
                         new Claim(ClaimTypes.Role, safeRole),
-                        new Claim(SystemAccessAuditService.SessionClaimType, sessionId)
+                        new Claim(SystemAccessAuditService.SessionClaimType, sessionId),
+                        new Claim(AdminFunctionPermissions.VersionClaimType, AdminFunctionPermissions.CurrentVersion)
                     },
                     CookieAuthenticationDefaults.AuthenticationScheme));
 
