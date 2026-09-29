@@ -121,8 +121,8 @@
                 {
                     <tr>
                         <td class="table-stt-cell">@(rowNumber++)</td>
-                        <td>@alert.OccurredAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
-                        <td>@alert.AlertDateUtc.ToVietnamTime().ToString("dd/MM/yyyy")</td>
+                        <td class="text-nowrap">@alert.OccurredAtUtc.ToVietnamTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td class="text-nowrap">@alert.AlertDateUtc.ToVietnamTime().ToString("dd/MM/yyyy")</td>
                         <td>@alert.PartnerName</td>
                         <td>
                             <a href="#" class="alert-history-detail-trigger" 

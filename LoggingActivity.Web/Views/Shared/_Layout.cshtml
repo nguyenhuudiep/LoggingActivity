@@ -33,6 +33,28 @@
     var canManagePartnerActionLimits = User.HasAdminFunctionPermission(AdminFunctionPermissions.PartnerActionLimit);
     var hasAdminConfigurationAccess = canManageLogActions || canManagePartners || canManageAlertRules || canManagePermissionGroups || canManagePartnerActionLimits;
 
+    var sidebarIconPaths = new Dictionary<string, string>
+    {
+        ["dashboard"] = "<rect x=\"3\" y=\"3\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\" rx=\"1.5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\" rx=\"1.5\"/>",
+        ["users"] = "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
+        ["logs"] = "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/><path d=\"M8 13h8\"/><path d=\"M8 17h5\"/>",
+        ["history"] = "<path d=\"M3 12a9 9 0 1 0 3-6.7L3 8\"/><path d=\"M3 3v5h5\"/><path d=\"M12 7v5l3 2\"/>",
+        ["queue"] = "<path d=\"M22 12h-6l-2 3h-4l-2-3H2\"/><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/>",
+        ["bell"] = "<path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\"/><path d=\"M10.3 21a1.94 1.94 0 0 0 3.4 0\"/>",
+        ["chart"] = "<path d=\"M3 3v18h18\"/><path d=\"M7 15l4-4 3 3 5-6\"/>",
+        ["idcard"] = "<rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><circle cx=\"8\" cy=\"12\" r=\"2.5\"/><path d=\"M13 10h5\"/><path d=\"M13 14h3\"/>",
+        ["car"] = "<path d=\"M5 17h14M5 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm14 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0z\"/><path d=\"M3 17v-5l2-5h14l2 5v5\"/><path d=\"M3 12h18\"/>",
+        ["tag"] = "<path d=\"M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z\"/><circle cx=\"7\" cy=\"7\" r=\"1.5\"/>",
+        ["shield"] = "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><path d=\"m9 12 2 2 4-4\"/>",
+        ["partner"] = "<rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2\"/><path d=\"M3 13h18\"/>",
+        ["gauge"] = "<path d=\"M12 14l4-4\"/><path d=\"M3.34 19a10 10 0 1 1 17.32 0\"/>",
+        ["alert"] = "<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>"
+    };
+
+    Microsoft.AspNetCore.Html.IHtmlContent SidebarIcon(string name) => new Microsoft.AspNetCore.Html.HtmlString(
+        "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">"
+        + sidebarIconPaths[name] + "</svg>");
+
     string SidebarLinkClass(string controller, string? action = null)
     {
         var isActive = string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase)
@@ -79,62 +101,62 @@
                     <div class="sidebar-section__label">Overview</div>
                     <nav class="sidebar-nav">
                         <a class="@SidebarLinkClass("Home", "Index")" asp-controller="Home" asp-action="Index">
-                            <span class="sidebar-link__icon">D</span>
+                            <span class="sidebar-link__icon">@SidebarIcon("dashboard")</span>
                             <span class="sidebar-link__text">Dashboard</span>
                         </a>
                         @if (User.IsInRole(SystemRoles.Admin) && canManageUsers)
                         {
                             <a class="@SidebarLinkClass("Users")" asp-controller="Users" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">U</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("users")</span>
                                 <span class="sidebar-link__text">Tài khoản</span>
                             </a>
                         }
                         @if (canAccessLogs)
                         {
                             <a class="@SidebarLinkClass("Logs")" asp-controller="Logs" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">L</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("logs")</span>
                                 <span class="sidebar-link__text">Log &amp; Thống kê</span>
                             </a>
                         }
                         @if (canAccessSystemAccessHistory)
                         {
                             <a class="@SidebarLinkClass("SystemAccess")" asp-controller="SystemAccess" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">S</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("history")</span>
                                 <span class="sidebar-link__text">Lịch sử truy cập</span>
                             </a>
                         }
                         @if (canAccessIngestQueue)
                         {
                             <a class="@SidebarLinkClass("IngestQueue")" asp-controller="IngestQueue" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">Q</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("queue")</span>
                                 <span class="sidebar-link__text">Hàng đợi ingest</span>
                             </a>
                         }
                         @if (canAccessAlertHistory)
                         {
                             <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">H</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("bell")</span>
                                 <span class="sidebar-link__text">Lịch sử cảnh báo</span>
                             </a>
                         }
                         @if (canAccessCustomerBehavior)
                         {
                             <a class="@SidebarLinkClass("CustomerBehavior")" asp-controller="CustomerBehavior" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">B</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("chart")</span>
                                 <span class="sidebar-link__text">Hành vi khách hàng</span>
                             </a>
                         }
                         @if (canAccessCitizenIdDetection)
                         {
                             <a class="@SidebarLinkClass("CitizenIdDetection")" asp-controller="CitizenIdDetection" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">I</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("idcard")</span>
                                 <span class="sidebar-link__text">Test nhận diện CCCD</span>
                             </a>
                         }
                         @if (canAccessVehicleRegistrationOcr)
                         {
                             <a class="@SidebarLinkClass("VehicleRegistrationOcr")" asp-controller="VehicleRegistrationOcr" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">V</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("car")</span>
                                 <span class="sidebar-link__text">OCR đăng ký xe</span>
                             </a>
                         }
@@ -149,35 +171,35 @@
                             @if (canManageLogActions)
                             {
                             <a class="@SidebarLinkClass("LogActions")" asp-controller="LogActions" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">A</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("tag")</span>
                                 <span class="sidebar-link__text">Action log</span>
                             </a>
                             }
                             @if (canManagePermissionGroups)
                             {
                             <a class="@SidebarLinkClass("PermissionGroups")" asp-controller="PermissionGroups" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">G</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("shield")</span>
                                 <span class="sidebar-link__text">Nhóm quyền</span>
                             </a>
                             }
                             @if (canManagePartners)
                             {
                             <a class="@SidebarLinkClass("Partners")" asp-controller="Partners" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">P</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("partner")</span>
                                 <span class="sidebar-link__text">Partner</span>
                             </a>
                             }
                             @if (canManagePartnerActionLimits)
                             {
                             <a class="@SidebarLinkClass("PartnerActionLimitSettings")" asp-controller="PartnerActionLimitSettings" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">U</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("gauge")</span>
                                 <span class="sidebar-link__text">Hạn mức user-action</span>
                             </a>
                             }
                             @if (canManageAlertRules)
                             {
                             <a class="@SidebarLinkClass("AlertRules")" asp-controller="AlertRules" asp-action="Index" data-show-loading-nav="true">
-                                <span class="sidebar-link__icon">C</span>
+                                <span class="sidebar-link__icon">@SidebarIcon("alert")</span>
                                 <span class="sidebar-link__text">Cảnh báo log</span>
                             </a>
                             }
@@ -238,12 +260,15 @@
     else
     {
         <div class="auth-layout-shell @(isLoginPage ? "auth-layout-shell--login" : string.Empty)">
-            <header class="auth-layout-header">
-                <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
-                    <img class="brand-mark__logo" src="~/img/tima-logo.svg" alt="Tima - Vay trong ngày" />
-                    <span class="visually-hidden">Tima - Vay trong ngày</span>
-                </a>
-            </header>
+            @if (!isLoginPage)
+            {
+                <header class="auth-layout-header">
+                    <a class="brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
+                        <img class="brand-mark__logo" src="~/img/tima-logo.svg" alt="Tima - Vay trong ngày" />
+                        <span class="visually-hidden">Tima - Vay trong ngày</span>
+                    </a>
+                </header>
+            }
 
             <div class="auth-layout-content">
                 <main role="main">
