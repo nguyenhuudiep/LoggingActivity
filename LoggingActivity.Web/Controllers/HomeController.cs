@@ -27,17 +27,23 @@ public class HomeController : AppController
         ViewData["DisplayName"] = User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value ?? User.Identity?.Name;
         try
         {
+            var statisticsTask = _activityLogService.GetStatisticsAsync(new LogQuery
+            {
+                FromUtc = today.AddDays(-6),
+                ToUtc = today.AddDays(1).AddTicks(-1),
+                Page = 1,
+                PageSize = 10
+            }, cancellationToken);
+            var activeWarningsTask = _alertRuleService.GetActiveWarningsAsync(cancellationToken);
+            var unconfiguredActionWarningsTask = _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken);
+
+            await Task.WhenAll(statisticsTask, activeWarningsTask, unconfiguredActionWarningsTask);
+
             return View(new HomeDashboardViewModel
             {
-                OverviewStatistics = await _activityLogService.GetStatisticsAsync(new LogQuery
-                {
-                    FromUtc = today.AddDays(-6),
-                    ToUtc = today.AddDays(1).AddTicks(-1),
-                    Page = 1,
-                    PageSize = 10
-                }, cancellationToken),
-                ActiveWarnings = await _alertRuleService.GetActiveWarningsAsync(cancellationToken),
-                UnconfiguredActionWarnings = await _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken)
+                OverviewStatistics = statisticsTask.Result,
+                ActiveWarnings = activeWarningsTask.Result,
+                UnconfiguredActionWarnings = unconfiguredActionWarningsTask.Result
             });
         }
         catch (Exception ex)

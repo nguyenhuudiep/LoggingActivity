@@ -15,6 +15,30 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
         _context = context;
     }
 
+    public Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
+    {
+        var indexes = new[]
+        {
+            new CreateIndexModel<AlertHistory>(
+                Builders<AlertHistory>.IndexKeys
+                    .Ascending(item => item.AlertDateUtc)
+                    .Ascending(item => item.Action)
+                    .Ascending(item => item.ActorIdentifier),
+                new CreateIndexOptions { Name = "ix_alert_histories_date_action_actor" }),
+            new CreateIndexModel<AlertHistory>(
+                Builders<AlertHistory>.IndexKeys
+                    .Ascending(item => item.AlertDateUtc)
+                    .Ascending(item => item.Action)
+                    .Ascending(item => item.UserId),
+                new CreateIndexOptions { Name = "ix_alert_histories_date_action_user" }),
+            new CreateIndexModel<AlertHistory>(
+                Builders<AlertHistory>.IndexKeys.Descending(item => item.OccurredAtUtc),
+                new CreateIndexOptions { Name = "ix_alert_histories_occurred_at_desc" })
+        };
+
+        return _context.AlertHistories.Indexes.CreateManyAsync(indexes, cancellationToken);
+    }
+
     public Task AddAsync(AlertHistory history, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(history.Id))

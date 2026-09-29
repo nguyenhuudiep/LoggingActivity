@@ -4,6 +4,8 @@ namespace LoggingActivity.Web.Repositories;
 
 public interface IAlertHistoryRepository
 {
+    Task EnsureIndexesAsync(CancellationToken cancellationToken = default);
+
     Task AddAsync(AlertHistory history, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsAsync(DateTime alertDateUtc, string actorIdentifier, string action, CancellationToken cancellationToken = default);

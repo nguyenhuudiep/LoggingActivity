@@ -1,29 +1,36 @@
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Repositories;
 using LoggingActivity.Web.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace LoggingActivity.Web.Services;
 
 public sealed class AlertRuleService
 {
+    private const string AllTimeActionCountsCacheKey = "alert-rules:all-time-action-counts";
+    private static readonly TimeSpan AllTimeActionCountsCacheDuration = TimeSpan.FromMinutes(5);
+
     private readonly IAlertRuleRepository _alertRuleRepository;
     private readonly IActivityLogRepository _activityLogRepository;
     private readonly ILogActionDefinitionRepository _logActionDefinitionRepository;
     private readonly AlertHistoryService _alertHistoryService;
     private readonly ThresholdNotificationService _thresholdNotificationService;
+    private readonly IMemoryCache _cache;
 
     public AlertRuleService(
         IAlertRuleRepository alertRuleRepository,
         IActivityLogRepository activityLogRepository,
         ILogActionDefinitionRepository logActionDefinitionRepository,
         AlertHistoryService alertHistoryService,
-        ThresholdNotificationService thresholdNotificationService)
+        ThresholdNotificationService thresholdNotificationService,
+        IMemoryCache cache)
     {
         _alertRuleRepository = alertRuleRepository;
         _activityLogRepository = activityLogRepository;
         _logActionDefinitionRepository = logActionDefinitionRepository;
         _alertHistoryService = alertHistoryService;
         _thresholdNotificationService = thresholdNotificationService;
+        _cache = cache;
     }
 
     public Task<IReadOnlyList<AlertRule>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -309,7 +316,12 @@ public sealed class AlertRuleService
             .Where(code => !string.IsNullOrWhiteSpace(code))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var actionCounts = await _activityLogRepository.GetActionCountsAsync(cancellationToken);
+        // Aggregation này quét toàn bộ activity_logs nên cache ngắn hạn để dashboard không phải chạy lại mỗi request.
+        var actionCounts = await _cache.GetOrCreateAsync(AllTimeActionCountsCacheKey, entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = AllTimeActionCountsCacheDuration;
+            return _activityLogRepository.GetActionCountsAsync(CancellationToken.None);
+        }) ?? new Dictionary<string, long>();
 
         return actionCounts
             .Where(item => !configuredCodes.Contains(item.Key))
