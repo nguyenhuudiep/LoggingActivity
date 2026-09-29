@@ -1,15 +1,22 @@
 using LoggingActivity.Web.Models;
 using LoggingActivity.Web.Repositories;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace LoggingActivity.Web.Services;
 
 public sealed class LogActionDefinitionService
 {
-    private readonly ILogActionDefinitionRepository _repository;
+    // Luồng ingest tra danh mục action cho mọi log nên cache ngắn hạn; mọi thao tác ghi đều xóa cache.
+    private const string AllDefinitionsCacheKey = "log-action-definitions:all";
+    private static readonly TimeSpan AllDefinitionsCacheDuration = TimeSpan.FromSeconds(60);
 
-    public LogActionDefinitionService(ILogActionDefinitionRepository repository)
+    private readonly ILogActionDefinitionRepository _repository;
+    private readonly IMemoryCache _cache;
+
+    public LogActionDefinitionService(ILogActionDefinitionRepository repository, IMemoryCache cache)
     {
         _repository = repository;
+        _cache = cache;
     }
 
     public Task<IReadOnlyList<LogActionDefinition>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -40,8 +47,8 @@ public sealed class LogActionDefinitionService
         }
 
         var normalizedCode = actionCode.Trim();
-        var activeActions = await _repository.GetActiveAsync(cancellationToken);
-        return activeActions.Any(item => string.Equals(item.Code, normalizedCode, StringComparison.OrdinalIgnoreCase));
+        var allActions = await GetAllCachedAsync(cancellationToken);
+        return allActions.Any(item => item.IsActive && string.Equals(item.Code, normalizedCode, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<(bool Success, string? NormalizedCode, string? Error)> EnsureApiActionReadyAsync(string actionCode, CancellationToken cancellationToken = default)
@@ -52,7 +59,7 @@ public sealed class LogActionDefinitionService
             return (false, null, "Mã action không được để trống.");
         }
 
-        var allActions = await _repository.GetAllAsync(cancellationToken);
+        var allActions = await GetAllCachedAsync(cancellationToken);
         var existing = allActions.FirstOrDefault(item => string.Equals(item.Code, normalizedCode, StringComparison.OrdinalIgnoreCase));
 
         if (existing is null)
@@ -65,6 +72,7 @@ public sealed class LogActionDefinitionService
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow
             }, cancellationToken: cancellationToken);
+            InvalidateCache();
 
             return (true, normalizedCode, null);
         }
@@ -80,6 +88,7 @@ public sealed class LogActionDefinitionService
                 IsActive = existing.IsActive,
                 CreatedAtUtc = existing.CreatedAtUtc
             }, existing.Code, cancellationToken);
+            InvalidateCache();
         }
 
         if (!existing.IsActive)
@@ -124,6 +133,7 @@ public sealed class LogActionDefinitionService
             IsActive = editingAction?.IsActive ?? existing?.IsActive ?? isActive,
             CreatedAtUtc = editingAction?.CreatedAtUtc ?? existing?.CreatedAtUtc ?? DateTime.UtcNow
         }, editingAction?.Code, cancellationToken);
+        InvalidateCache();
 
         return (true, null);
     }
@@ -138,12 +148,31 @@ public sealed class LogActionDefinitionService
 
         existing.IsActive = !existing.IsActive;
         await _repository.UpsertAsync(existing, cancellationToken: cancellationToken);
+        InvalidateCache();
         return true;
     }
 
-    public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
-        return _repository.DeleteAsync(id, cancellationToken);
+        await _repository.DeleteAsync(id, cancellationToken);
+        InvalidateCache();
+    }
+
+    private async Task<IReadOnlyList<LogActionDefinition>> GetAllCachedAsync(CancellationToken cancellationToken)
+    {
+        if (_cache.TryGetValue(AllDefinitionsCacheKey, out IReadOnlyList<LogActionDefinition>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var allActions = await _repository.GetAllAsync(cancellationToken);
+        _cache.Set(AllDefinitionsCacheKey, allActions, AllDefinitionsCacheDuration);
+        return allActions;
+    }
+
+    private void InvalidateCache()
+    {
+        _cache.Remove(AllDefinitionsCacheKey);
     }
 
     private static string NormalizeActionCode(string code)

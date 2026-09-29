@@ -49,6 +49,11 @@ public sealed class ActivityLogService
         return _activityLogRepository.GetStatisticsAsync(query, cancellationToken);
     }
 
+    public Task<LogStatistics> GetSummaryCountsAsync(LogQuery query, CancellationToken cancellationToken = default)
+    {
+        return _activityLogRepository.GetSummaryCountsAsync(query, cancellationToken);
+    }
+
     public Task<LogStatistics> GetStatisticsByUserAsync(string userId, LogQuery query, CancellationToken cancellationToken = default)
     {
         return _activityLogRepository.GetStatisticsByUserAsync(userId, query, cancellationToken);

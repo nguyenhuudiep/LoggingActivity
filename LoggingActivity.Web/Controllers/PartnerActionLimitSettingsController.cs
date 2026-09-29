@@ -147,16 +147,15 @@ public sealed class PartnerActionLimitSettingsController : AppController
 
     private async Task<PartnerActionLimitSettingsViewModel> BuildViewModelAsync(PartnerActionLimitFilterViewModel filter, CancellationToken cancellationToken)
     {
-        var availableActions = await _logActionDefinitionService.GetAllAsync(cancellationToken);
-        var allRules = await _partnerUserActionLimitService.GetAllAsync(cancellationToken);
+        var availableActionsTask = _logActionDefinitionService.GetAllAsync(cancellationToken);
+        var allRulesTask = _partnerUserActionLimitService.GetAllAsync(cancellationToken);
+        var partnersTask = _partnerService.GetAllAsync(cancellationToken);
 
-        var partners = await ReadAllPagesAsync(
-            (page, pageSize, token) => _partnerService.GetPagedAsync(new PartnerQuery
-            {
-                Page = page,
-                PageSize = pageSize
-            }, token),
-            cancellationToken);
+        await Task.WhenAll(availableActionsTask, allRulesTask, partnersTask);
+
+        var availableActions = availableActionsTask.Result;
+        var allRules = allRulesTask.Result;
+        var partners = partnersTask.Result;
 
         var partnerOptions = partners
             .Select(item => new PartnerOptionViewModel

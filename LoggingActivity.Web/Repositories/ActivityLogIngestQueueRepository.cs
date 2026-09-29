@@ -26,7 +26,20 @@ public sealed class ActivityLogIngestQueueRepository : IActivityLogIngestQueueRe
                 .Ascending(item => item.LeaseExpiresAtUtc),
             new CreateIndexOptions { Name = "ix_ingest_queue_status_schedule" });
 
-        await _context.ActivityLogIngestQueue.Indexes.CreateManyAsync(new[] { dedupIndex, processingIndex }, cancellationToken);
+        // Hỗ trợ sort (AvailableAtUtc, ReceivedAtUtc) khi lease để không phải sort trong bộ nhớ lúc hàng đợi tồn đọng.
+        var leaseOrderIndex = new CreateIndexModel<ActivityLogIngestQueueItem>(
+            Builders<ActivityLogIngestQueueItem>.IndexKeys
+                .Ascending(item => item.Status)
+                .Ascending(item => item.AvailableAtUtc)
+                .Ascending(item => item.ReceivedAtUtc),
+            new CreateIndexOptions { Name = "ix_ingest_queue_status_available_received" });
+
+        // Trang quản trị hàng đợi lọc và sort theo ReceivedAtUtc.
+        var receivedIndex = new CreateIndexModel<ActivityLogIngestQueueItem>(
+            Builders<ActivityLogIngestQueueItem>.IndexKeys.Descending(item => item.ReceivedAtUtc),
+            new CreateIndexOptions { Name = "ix_ingest_queue_received_desc" });
+
+        await _context.ActivityLogIngestQueue.Indexes.CreateManyAsync(new[] { dedupIndex, processingIndex, leaseOrderIndex, receivedIndex }, cancellationToken);
     }
 
     public async Task<bool> EnqueueAsync(ActivityLogIngestQueueItem item, CancellationToken cancellationToken = default)
@@ -56,20 +69,22 @@ public sealed class ActivityLogIngestQueueRepository : IActivityLogIngestQueueRe
     public async Task<PagedResult<ActivityLogIngestQueueItem>> GetPagedAsync(ActivityLogIngestQueueQuery query, CancellationToken cancellationToken = default)
     {
         var filter = BuildFilter(query);
-        var totalCount = await _context.ActivityLogIngestQueue.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var page = Math.Max(query.Page, 1);
+        var page = Math.Clamp(query.Page, 1, 10_000);
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
-        var items = await _context.ActivityLogIngestQueue
+        var totalCountTask = _context.ActivityLogIngestQueue.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var itemsTask = _context.ActivityLogIngestQueue
             .Find(filter)
             .SortByDescending(item => item.ReceivedAtUtc)
             .Skip((page - 1) * pageSize)
             .Limit(pageSize)
             .ToListAsync(cancellationToken);
 
+        await Task.WhenAll(totalCountTask, itemsTask);
+
         return new PagedResult<ActivityLogIngestQueueItem>
         {
-            Items = items,
-            TotalCount = totalCount,
+            Items = itemsTask.Result,
+            TotalCount = totalCountTask.Result,
             Page = page,
             PageSize = pageSize
         };
@@ -77,28 +92,25 @@ public sealed class ActivityLogIngestQueueRepository : IActivityLogIngestQueueRe
 
     public async Task<ActivityLogIngestQueueSummary> GetSummaryAsync(ActivityLogIngestQueueQuery query, CancellationToken cancellationToken = default)
     {
+        // Một aggregation group theo Status thay cho 5 lần CountDocuments tuần tự.
         var filter = BuildFilter(query);
-        var total = await _context.ActivityLogIngestQueue.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var pending = await _context.ActivityLogIngestQueue.CountDocumentsAsync(
-            filter & Builders<ActivityLogIngestQueueItem>.Filter.Eq(item => item.Status, ActivityLogIngestQueueStatuses.Pending),
-            cancellationToken: cancellationToken);
-        var processing = await _context.ActivityLogIngestQueue.CountDocumentsAsync(
-            filter & Builders<ActivityLogIngestQueueItem>.Filter.Eq(item => item.Status, ActivityLogIngestQueueStatuses.Processing),
-            cancellationToken: cancellationToken);
-        var failed = await _context.ActivityLogIngestQueue.CountDocumentsAsync(
-            filter & Builders<ActivityLogIngestQueueItem>.Filter.Eq(item => item.Status, ActivityLogIngestQueueStatuses.Failed),
-            cancellationToken: cancellationToken);
-        var completed = await _context.ActivityLogIngestQueue.CountDocumentsAsync(
-            filter & Builders<ActivityLogIngestQueueItem>.Filter.Eq(item => item.Status, ActivityLogIngestQueueStatuses.Completed),
-            cancellationToken: cancellationToken);
+        var groups = await _context.ActivityLogIngestQueue.Aggregate()
+            .Match(filter)
+            .Group(item => item.Status, group => new { Status = group.Key, Count = group.LongCount() })
+            .ToListAsync(cancellationToken);
+        var countsByStatus = groups
+            .Where(item => item.Status is not null)
+            .ToDictionary(item => item.Status, item => item.Count, StringComparer.Ordinal);
+
+        long CountOf(string status) => countsByStatus.TryGetValue(status, out var count) ? count : 0;
 
         return new ActivityLogIngestQueueSummary
         {
-            TotalCount = total,
-            PendingCount = pending,
-            ProcessingCount = processing,
-            FailedCount = failed,
-            CompletedCount = completed
+            TotalCount = groups.Sum(item => item.Count),
+            PendingCount = CountOf(ActivityLogIngestQueueStatuses.Pending),
+            ProcessingCount = CountOf(ActivityLogIngestQueueStatuses.Processing),
+            FailedCount = CountOf(ActivityLogIngestQueueStatuses.Failed),
+            CompletedCount = CountOf(ActivityLogIngestQueueStatuses.Completed)
         };
     }
 

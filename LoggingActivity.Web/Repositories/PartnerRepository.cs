@@ -13,6 +13,16 @@ public sealed class PartnerRepository : IPartnerRepository
         _context = context;
     }
 
+    public Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
+    {
+        // Mọi request của API partner tra partner theo ApiKey.
+        var apiKeyIndex = new CreateIndexModel<Partner>(
+            Builders<Partner>.IndexKeys.Ascending(partner => partner.ApiKey),
+            new CreateIndexOptions { Name = "ix_partners_api_key" });
+
+        return _context.Partners.Indexes.CreateOneAsync(apiKeyIndex, cancellationToken: cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Partner>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Partners.Find(FilterDefinition<Partner>.Empty)
@@ -23,7 +33,7 @@ public sealed class PartnerRepository : IPartnerRepository
     public async Task<PagedResult<Partner>> GetPagedAsync(PartnerQuery query, CancellationToken cancellationToken = default)
     {
         var safePage = Math.Max(1, query.Page);
-        var safePageSize = Math.Max(1, query.PageSize);
+        var safePageSize = Math.Clamp(query.PageSize, 1, 100);
         var filter = FilterDefinition<Partner>.Empty;
 
         var totalCount = await _context.Partners.CountDocumentsAsync(filter, cancellationToken: cancellationToken);

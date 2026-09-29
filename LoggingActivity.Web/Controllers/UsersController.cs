@@ -41,8 +41,11 @@ public sealed class UsersController : AppController
             PageSize = filter.PageSize
         };
 
-        var users = await _userService.GetPagedAsync(query, cancellationToken);
-        var statistics = await _userService.GetStatisticsAsync(query, cancellationToken);
+        var usersTask = _userService.GetPagedAsync(query, cancellationToken);
+        var statisticsTask = _userService.GetStatisticsAsync(query, cancellationToken);
+        await Task.WhenAll(usersTask, statisticsTask);
+        var users = usersTask.Result;
+        var statistics = statisticsTask.Result;
         var permissionGroupIds = users.Items
             .SelectMany(user => user.PermissionGroupIds)
             .Where(id => !string.IsNullOrWhiteSpace(id))

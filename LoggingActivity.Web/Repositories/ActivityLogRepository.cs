@@ -16,6 +16,9 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         ActivityLogSources.LegacyPartnerApi
     ];
 
+    // Giới hạn trang để skip không tràn số và không bắt MongoDB duyệt quá sâu.
+    private const int MaxPage = 10_000;
+
     private readonly MongoDbContext _context;
 
     public ActivityLogRepository(MongoDbContext context)
@@ -95,6 +98,29 @@ public sealed class ActivityLogRepository : IActivityLogRepository
     public async Task<LogStatistics> GetStatisticsAsync(LogQuery query, CancellationToken cancellationToken = default)
     {
         return await GetStatisticsInternalAsync(BuildFilter(query), cancellationToken);
+    }
+
+    public async Task<LogStatistics> GetSummaryCountsAsync(LogQuery query, CancellationToken cancellationToken = default)
+    {
+        var filter = BuildFilter(query);
+        var today = DateTime.UtcNow.Date;
+
+        var totalLogsTask = _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var todayLogsTask = _context.ActivityLogs.CountDocumentsAsync(
+            filter & Builders<ActivityLog>.Filter.Gte(log => log.CreatedAtUtc, today),
+            cancellationToken: cancellationToken);
+        var integratedLogsTask = _context.ActivityLogs.CountDocumentsAsync(
+            filter & Builders<ActivityLog>.Filter.In(log => log.Source, IntegratedSources),
+            cancellationToken: cancellationToken);
+
+        await Task.WhenAll(totalLogsTask, todayLogsTask, integratedLogsTask);
+
+        return new LogStatistics
+        {
+            TotalLogs = totalLogsTask.Result,
+            TodayLogs = todayLogsTask.Result,
+            IntegratedLogs = integratedLogsTask.Result
+        };
     }
 
     public async Task<LogStatistics> GetStatisticsByUserAsync(string userId, LogQuery query, CancellationToken cancellationToken = default)
@@ -332,10 +358,31 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         return _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
     }
 
-    public async Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyDictionary<string, long>> GetActionCountsExcludingAsync(IReadOnlySet<string> excludedActions, CancellationToken cancellationToken = default)
     {
-        var filter = Builders<ActivityLog>.Filter.Ne(log => log.Action, string.Empty);
-        return await AggregateActionCountsAsync(filter, cancellationToken);
+        // Distinct chạy DISTINCT_SCAN trên ix_activity_logs_action_created_at, sau đó chỉ đếm các action cần thiết
+        // thay vì aggregate toàn bộ collection.
+        var distinctActions = await _context.ActivityLogs
+            .Distinct(log => log.Action, Builders<ActivityLog>.Filter.Empty, cancellationToken: cancellationToken)
+            .ToListAsync(cancellationToken);
+
+        var candidates = distinctActions
+            .Where(action => !string.IsNullOrWhiteSpace(action))
+            .Where(action => !excludedActions.Contains(action.Trim()))
+            .ToList();
+
+        var countTasks = candidates.Select(async action => new
+        {
+            Key = action.Trim().ToUpperInvariant(),
+            Count = await _context.ActivityLogs.CountDocumentsAsync(
+                Builders<ActivityLog>.Filter.Eq(log => log.Action, action),
+                cancellationToken: cancellationToken)
+        });
+
+        var counts = await Task.WhenAll(countTasks);
+        return counts
+            .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<PagedResult<ActivityLog>> GetPagedInternalAsync(
@@ -343,19 +390,21 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         LogQuery query,
         CancellationToken cancellationToken)
     {
-        var normalizedPage = Math.Max(query.Page, 1);
+        var normalizedPage = Math.Clamp(query.Page, 1, MaxPage);
         var normalizedPageSize = Math.Clamp(query.PageSize, 5, 100);
-        var totalCount = await _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var items = await _context.ActivityLogs.Find(filter)
+        var totalCountTask = _context.ActivityLogs.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var itemsTask = _context.ActivityLogs.Find(filter)
             .SortByDescending(log => log.CreatedAtUtc)
             .Skip((normalizedPage - 1) * normalizedPageSize)
             .Limit(normalizedPageSize)
             .ToListAsync(cancellationToken);
 
+        await Task.WhenAll(totalCountTask, itemsTask);
+
         return new PagedResult<ActivityLog>
         {
-            Items = items,
-            TotalCount = totalCount,
+            Items = itemsTask.Result,
+            TotalCount = totalCountTask.Result,
             Page = normalizedPage,
             PageSize = normalizedPageSize
         };
@@ -385,13 +434,14 @@ public sealed class ActivityLogRepository : IActivityLogRepository
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var term = query.SearchTerm.Trim();
+            var pattern = System.Text.RegularExpressions.Regex.Escape(term);
             var searchFilters = new List<FilterDefinition<ActivityLog>>
             {
-                new BsonDocument("ActorIdentifier", new BsonDocument("$regex", term).Add("$options", "i")),
-                builder.Regex(log => log.UserName, new BsonRegularExpression(term, "i")),
-                builder.Regex(log => log.PartnerName, new BsonRegularExpression(term, "i")),
-                builder.Regex(log => log.Description, new BsonRegularExpression(term, "i")),
-                builder.Regex(log => log.Endpoint, new BsonRegularExpression(term, "i"))
+                new BsonDocument("ActorIdentifier", new BsonDocument("$regex", pattern).Add("$options", "i")),
+                builder.Regex(log => log.UserName, new BsonRegularExpression(pattern, "i")),
+                builder.Regex(log => log.PartnerName, new BsonRegularExpression(pattern, "i")),
+                builder.Regex(log => log.Description, new BsonRegularExpression(pattern, "i")),
+                builder.Regex(log => log.Endpoint, new BsonRegularExpression(pattern, "i"))
             };
 
             if (int.TryParse(term, out var legacyUserId))

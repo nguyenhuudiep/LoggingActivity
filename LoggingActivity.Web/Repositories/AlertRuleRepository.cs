@@ -95,7 +95,7 @@ public sealed class AlertRuleRepository : IAlertRuleRepository
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
-            var regex = new BsonRegularExpression(query.SearchTerm.Trim(), "i");
+            var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(query.SearchTerm.Trim()), "i");
             filters.Add(builder.Regex(rule => rule.Action, regex));
         }
 

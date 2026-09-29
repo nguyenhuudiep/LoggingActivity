@@ -118,7 +118,7 @@ public sealed class PermissionGroupRepository : IPermissionGroupRepository
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var searchTerm = query.SearchTerm.Trim();
-            var regex = new BsonRegularExpression(searchTerm, "i");
+            var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(searchTerm), "i");
 
             filters.Add(builder.Or(
                 builder.Regex(group => group.Name, regex),

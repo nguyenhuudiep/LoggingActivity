@@ -4,6 +4,8 @@ namespace LoggingActivity.Web.Repositories;
 
 public interface IPartnerRepository
 {
+    Task EnsureIndexesAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Partner>> GetAllAsync(CancellationToken cancellationToken = default);
 
     Task<PagedResult<Partner>> GetPagedAsync(PartnerQuery query, CancellationToken cancellationToken = default);

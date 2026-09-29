@@ -22,6 +22,11 @@ public sealed class AlertHistoryService
         return _alertHistoryRepository.ExistsAsync(alertDateUtc, actorIdentifier, action, cancellationToken);
     }
 
+    public Task<IReadOnlyList<AlertHistory>> GetByAlertDateAsync(DateTime alertDateUtc, IReadOnlyCollection<string> actions, CancellationToken cancellationToken = default)
+    {
+        return _alertHistoryRepository.GetByAlertDateAsync(alertDateUtc, actions, cancellationToken);
+    }
+
     public Task<PagedResult<AlertHistory>> GetPagedAsync(AlertHistoryQuery query, CancellationToken cancellationToken = default)
     {
         return _alertHistoryRepository.GetPagedAsync(query, cancellationToken);

@@ -14,6 +14,8 @@ public interface IActivityLogRepository
 
     Task<LogStatistics> GetStatisticsAsync(LogQuery query, CancellationToken cancellationToken = default);
 
+    Task<LogStatistics> GetSummaryCountsAsync(LogQuery query, CancellationToken cancellationToken = default);
+
     Task<LogStatistics> GetStatisticsByUserAsync(string userId, LogQuery query, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
@@ -26,5 +28,5 @@ public interface IActivityLogRepository
 
     Task<long> GetPartnerUserActionCountAsync(string partnerId, string actorIdentifier, string? actorIdentifierType, string action, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyDictionary<string, long>> GetActionCountsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, long>> GetActionCountsExcludingAsync(IReadOnlySet<string> excludedActions, CancellationToken cancellationToken = default);
 }

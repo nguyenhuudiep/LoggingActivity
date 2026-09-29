@@ -325,6 +325,14 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
+// Chỉ nén tài nguyên tĩnh/JSON; HTML chứa antiforgery token nên không nén để tránh rủi ro BREACH.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    options.MimeTypes = new[] { "text/css", "application/javascript", "text/javascript", "application/json", "image/svg+xml" };
+});
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -353,7 +361,17 @@ if (!app.Environment.IsDevelopment())
         app.UseHttpsRedirection();
     }
 }
-app.UseStaticFiles();
+app.UseResponseCompression();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        // File có ?v= (asp-append-version) đổi URL khi nội dung đổi nên cache dài hạn được.
+        context.Context.Response.Headers.CacheControl = context.Context.Request.Query.ContainsKey("v")
+            ? "public,max-age=31536000,immutable"
+            : "public,max-age=604800";
+    }
+});
 
 app.UseRouting();
 app.UseAuthentication();

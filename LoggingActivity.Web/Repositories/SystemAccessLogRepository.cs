@@ -68,7 +68,7 @@ public sealed class SystemAccessLogRepository : ISystemAccessLogRepository
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var term = query.SearchTerm.Trim();
-            var regex = new BsonRegularExpression(term, "i");
+            var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(term), "i");
             filters.Add(builder.Or(
                 builder.Regex(log => log.UserName, regex),
                 builder.Regex(log => log.DisplayName, regex),

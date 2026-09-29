@@ -83,19 +83,21 @@ public sealed class UserRepository : IUserRepository
     {
         var filter = BuildFilter(query);
 
-        var totalUsers = await _context.Users.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var activeUsers = await _context.Users.CountDocumentsAsync(
+        var totalUsersTask = _context.Users.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var activeUsersTask = _context.Users.CountDocumentsAsync(
             filter & Builders<AppUser>.Filter.Eq(user => user.IsActive, true),
             cancellationToken: cancellationToken);
-        var inactiveUsers = await _context.Users.CountDocumentsAsync(
+        var inactiveUsersTask = _context.Users.CountDocumentsAsync(
             filter & Builders<AppUser>.Filter.Eq(user => user.IsActive, false),
             cancellationToken: cancellationToken);
 
+        await Task.WhenAll(totalUsersTask, activeUsersTask, inactiveUsersTask);
+
         return new UserStatistics
         {
-            TotalUsers = totalUsers,
-            ActiveUsers = activeUsers,
-            InactiveUsers = inactiveUsers
+            TotalUsers = totalUsersTask.Result,
+            ActiveUsers = activeUsersTask.Result,
+            InactiveUsers = inactiveUsersTask.Result
         };
     }
 
@@ -141,7 +143,7 @@ public sealed class UserRepository : IUserRepository
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var searchTerm = query.SearchTerm.Trim();
-            var regex = new BsonRegularExpression(searchTerm, "i");
+            var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(searchTerm), "i");
 
             filters.Add(builder.Or(
                 builder.Regex(user => user.UserName, regex),

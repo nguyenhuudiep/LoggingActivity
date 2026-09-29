@@ -70,6 +70,20 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
         return _context.AlertHistories.Find(filter).AnyAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AlertHistory>> GetByAlertDateAsync(DateTime alertDateUtc, IReadOnlyCollection<string> actions, CancellationToken cancellationToken = default)
+    {
+        var builder = Builders<AlertHistory>.Filter;
+        var filter = builder.Eq(item => item.AlertDateUtc, alertDateUtc)
+            & builder.In(item => item.Action, actions);
+
+        return await _context.AlertHistories.Find(filter)
+            .Project<AlertHistory>(Builders<AlertHistory>.Projection
+                .Include(item => item.ActorIdentifier)
+                .Include(item => item.UserId)
+                .Include(item => item.Action))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<PagedResult<AlertHistory>> GetPagedAsync(AlertHistoryQuery query, CancellationToken cancellationToken = default)
     {
         var builder = Builders<AlertHistory>.Filter;
@@ -78,7 +92,7 @@ public sealed class AlertHistoryRepository : IAlertHistoryRepository
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
             var term = query.SearchTerm.Trim();
-            var regex = new BsonRegularExpression(term, "i");
+            var regex = new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(term), "i");
             if (int.TryParse(term, out var userId))
             {
                 filters.Add(builder.Or(

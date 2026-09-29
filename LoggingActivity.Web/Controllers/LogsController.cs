@@ -40,16 +40,18 @@ public sealed class LogsController : AppController
 
         var query = BuildLogQuery(filter);
 
-        var logs = await _activityLogService.GetPagedAsync(query, cancellationToken);
-        var availableActions = await _logActionDefinitionService.GetActiveAsync(cancellationToken);
-        var availablePartners = await _partnerService.GetAllAsync(cancellationToken);
+        var logsTask = _activityLogService.GetPagedAsync(query, cancellationToken);
+        var availableActionsTask = _logActionDefinitionService.GetActiveAsync(cancellationToken);
+        var availablePartnersTask = _partnerService.GetAllAsync(cancellationToken);
+
+        await Task.WhenAll(logsTask, availableActionsTask, availablePartnersTask);
 
         return View(new LogDashboardViewModel
         {
             Filter = filter,
-            Logs = logs,
-            AvailableActions = availableActions,
-            AvailablePartners = availablePartners
+            Logs = logsTask.Result,
+            AvailableActions = availableActionsTask.Result,
+            AvailablePartners = availablePartnersTask.Result
         });
     }
 
@@ -66,7 +68,8 @@ public sealed class LogsController : AppController
         filter.To ??= DateTime.Today;
         var query = BuildLogQuery(filter);
 
-        var statisticsTask = _activityLogService.GetStatisticsAsync(query, cancellationToken);
+        // _Insights chỉ hiển thị 3 chỉ số đếm, không cần chạy toàn bộ aggregation thống kê.
+        var statisticsTask = _activityLogService.GetSummaryCountsAsync(query, cancellationToken);
         var activeWarningsTask = _alertRuleService.GetActiveWarningsAsync(cancellationToken);
         var unconfiguredActionWarningsTask = _alertRuleService.GetUnconfiguredActionWarningsAsync(cancellationToken);
 

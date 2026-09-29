@@ -25,11 +25,13 @@ public sealed class ActivityLogInfrastructureHostedService : IHostedService
             var userActiveSessionRepository = scope.ServiceProvider.GetRequiredService<IUserActiveSessionRepository>();
             var partnerUserActionLimitRuleRepository = scope.ServiceProvider.GetRequiredService<IPartnerUserActionLimitRuleRepository>();
             var alertHistoryRepository = scope.ServiceProvider.GetRequiredService<IAlertHistoryRepository>();
+            var partnerRepository = scope.ServiceProvider.GetRequiredService<IPartnerRepository>();
             await activityLogRepository.EnsureIndexesAsync(cancellationToken);
             await systemAccessLogRepository.EnsureIndexesAsync(cancellationToken);
             await userActiveSessionRepository.EnsureIndexesAsync(cancellationToken);
             await partnerUserActionLimitRuleRepository.EnsureIndexesAsync(cancellationToken);
             await alertHistoryRepository.EnsureIndexesAsync(cancellationToken);
+            await partnerRepository.EnsureIndexesAsync(cancellationToken);
         }
         catch (Exception ex)
         {

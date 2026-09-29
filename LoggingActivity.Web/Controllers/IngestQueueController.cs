@@ -45,12 +45,18 @@ public sealed class IngestQueueController : AppController
             PageSize = filter.PageSize
         };
 
+        var itemsTask = _queueService.GetPagedAsync(query, cancellationToken);
+        var summaryTask = _queueService.GetSummaryAsync(query, cancellationToken);
+        var availablePartnersTask = _partnerService.GetAllAsync(cancellationToken);
+
+        await Task.WhenAll(itemsTask, summaryTask, availablePartnersTask);
+
         return View(new ActivityLogIngestQueueDashboardViewModel
         {
             Filter = filter,
-            Items = await _queueService.GetPagedAsync(query, cancellationToken),
-            Summary = await _queueService.GetSummaryAsync(query, cancellationToken),
-            AvailablePartners = await _partnerService.GetAllAsync(cancellationToken)
+            Items = itemsTask.Result,
+            Summary = summaryTask.Result,
+            AvailablePartners = availablePartnersTask.Result
         });
     }
 

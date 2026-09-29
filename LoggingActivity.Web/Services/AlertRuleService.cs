@@ -9,6 +9,7 @@ public sealed class AlertRuleService
 {
     private const string AllTimeActionCountsCacheKey = "alert-rules:all-time-action-counts";
     private static readonly TimeSpan AllTimeActionCountsCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly SemaphoreSlim AllTimeActionCountsLock = new(1, 1);
 
     private readonly IAlertRuleRepository _alertRuleRepository;
     private readonly IActivityLogRepository _activityLogRepository;
@@ -213,11 +214,15 @@ public sealed class AlertRuleService
         }
 
         var todayUtc = VietnamTimeExtensions.VietnamDateToUtcStart(VietnamTimeExtensions.TodayInVietnamDate());
+
+        // Đọc một lần toàn bộ lịch sử cảnh báo hôm nay của các action liên quan thay vì gọi ExistsAsync cho từng cảnh báo.
+        var actions = warnings.Select(item => item.Action).Distinct(StringComparer.Ordinal).ToList();
+        var existingHistories = await _alertHistoryService.GetByAlertDateAsync(todayUtc, actions, cancellationToken);
+
         foreach (var warning in warnings.Where(item => !string.IsNullOrWhiteSpace(item.DisplayActorIdentifier)))
         {
             var actorIdentifier = warning.DisplayActorIdentifier;
-            var alreadyRecorded = await _alertHistoryService.ExistsAsync(todayUtc, actorIdentifier, warning.Action, cancellationToken);
-            if (alreadyRecorded)
+            if (IsAlreadyRecorded(existingHistories, actorIdentifier, warning.Action))
             {
                 continue;
             }
@@ -237,6 +242,45 @@ public sealed class AlertRuleService
                 OccurredAtUtc = DateTime.UtcNow,
                 Message = BuildAlertMessage(actorIdentifier, warning.DisplayActorIdentifierType, warning.UserName, warning.PartnerName, warning.Action, warning.DailyLimit, warning.CurrentCount)
             }, cancellationToken);
+        }
+    }
+
+    // Cùng điều kiện với AlertHistoryRepository.ExistsAsync.
+    private static bool IsAlreadyRecorded(IReadOnlyList<AlertHistory> histories, string actorIdentifier, string action)
+    {
+        var normalizedActorIdentifier = ActorIdentityHelper.NormalizeIdentifier(actorIdentifier);
+        var hasLegacyUserId = ActorIdentityHelper.TryGetLegacyExternalUserId(normalizedActorIdentifier, out var legacyUserId);
+
+        return histories.Any(history =>
+            string.Equals(history.Action, action, StringComparison.Ordinal)
+            && (string.Equals(history.ActorIdentifier, normalizedActorIdentifier, StringComparison.Ordinal)
+                || (hasLegacyUserId && history.UserId == legacyUserId)));
+    }
+
+    // Đếm log toàn thời gian là truy vấn nặng nên cache ngắn hạn; semaphore tránh nhiều request cùng chạy lại khi cache hết hạn.
+    // Kết quả vẫn được lọc lại theo danh mục action hiện tại nên action vừa cấu hình sẽ biến mất ngay.
+    private async Task<IReadOnlyDictionary<string, long>> GetCachedUnconfiguredActionCountsAsync(IReadOnlySet<string> configuredCodes)
+    {
+        if (_cache.TryGetValue(AllTimeActionCountsCacheKey, out IReadOnlyDictionary<string, long>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        await AllTimeActionCountsLock.WaitAsync();
+        try
+        {
+            if (_cache.TryGetValue(AllTimeActionCountsCacheKey, out cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            var counts = await _activityLogRepository.GetActionCountsExcludingAsync(configuredCodes, CancellationToken.None);
+            _cache.Set(AllTimeActionCountsCacheKey, counts, AllTimeActionCountsCacheDuration);
+            return counts;
+        }
+        finally
+        {
+            AllTimeActionCountsLock.Release();
         }
     }
 
@@ -316,12 +360,7 @@ public sealed class AlertRuleService
             .Where(code => !string.IsNullOrWhiteSpace(code))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Aggregation này quét toàn bộ activity_logs nên cache ngắn hạn để dashboard không phải chạy lại mỗi request.
-        var actionCounts = await _cache.GetOrCreateAsync(AllTimeActionCountsCacheKey, entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = AllTimeActionCountsCacheDuration;
-            return _activityLogRepository.GetActionCountsAsync(CancellationToken.None);
-        }) ?? new Dictionary<string, long>();
+        var actionCounts = await GetCachedUnconfiguredActionCountsAsync(configuredCodes);
 
         return actionCounts
             .Where(item => !configuredCodes.Contains(item.Key))
