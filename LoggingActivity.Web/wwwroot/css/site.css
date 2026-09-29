@@ -1685,6 +1685,23 @@ pre {
   color: #c1174f !important;
 }
 
+/* Bootstrap 5.1 chưa có các class *-subtle / *-emphasis cho info và warning. */
+.bg-info-subtle {
+  background: rgba(114, 57, 234, 0.12) !important;
+}
+
+.text-info-emphasis {
+  color: #5b21b6 !important;
+}
+
+.bg-warning-subtle {
+  background: rgba(255, 199, 0, 0.2) !important;
+}
+
+.text-warning-emphasis {
+  color: #8a6100 !important;
+}
+
 .alert-soft {
   border: 1px solid rgba(80, 205, 137, 0.2);
   border-radius: 1rem;
