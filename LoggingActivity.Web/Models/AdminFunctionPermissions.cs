@@ -33,6 +33,7 @@ public static class AdminFunctionPermissions
     public const string PartnerManagement = "partner_management";
     public const string AlertRuleManagement = "alert_rule_management";
     public const string IntegrationGuide = "integration_guide";
+    public const string CustomerBehaviorReport = "customer_behavior_report";
 
     public static readonly IReadOnlyList<AdminFunctionPermissionDefinition> All = new[]
     {
@@ -43,7 +44,8 @@ public static class AdminFunctionPermissions
         new AdminFunctionPermissionDefinition(LogActionManagement, "Action log", "Danh mục action", "Quản lý danh mục action log và trạng thái từng action."),
         new AdminFunctionPermissionDefinition(PartnerManagement, "Partner", "Partner", "Quản lý danh sách partner, trạng thái và API key tích hợp."),
         new AdminFunctionPermissionDefinition(AlertRuleManagement, "Cảnh báo log", "Rule cảnh báo", "Thiết lập ngưỡng cảnh báo theo action và quản lý rule cảnh báo."),
-        new AdminFunctionPermissionDefinition(IntegrationGuide, "Hướng dẫn tích hợp API", "Hướng dẫn API", "Xem tài liệu chi tiết, curl mẫu và payload example cho API tích hợp.")
+        new AdminFunctionPermissionDefinition(IntegrationGuide, "Hướng dẫn tích hợp API", "Hướng dẫn API", "Xem tài liệu chi tiết, curl mẫu và payload example cho API tích hợp."),
+        new AdminFunctionPermissionDefinition(CustomerBehaviorReport, "Báo cáo hành vi khách hàng", "Hành vi KH", "Xem báo cáo hành vi khách hàng gọi API LOS: xu hướng, action, khung giờ và top khách hàng.")
     };
 }
 

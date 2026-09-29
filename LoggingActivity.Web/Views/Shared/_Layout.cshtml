@@ -24,6 +24,7 @@
     var canAccessSystemAccessHistory = User.HasFeatureAccess(AdminFunctionPermissions.SystemAccessHistory, allowAuditor: true);
     var canAccessIngestQueue = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canAccessAlertHistory = User.HasFeatureAccess(AdminFunctionPermissions.AlertHistory, allowAuditor: true);
+    var canAccessCustomerBehavior = User.HasFeatureAccess(AdminFunctionPermissions.CustomerBehaviorReport, allowAuditor: true);
     var canAccessCitizenIdDetection = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
     var canAccessVehicleRegistrationOcr = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
     var canManageLogActions = User.HasAdminFunctionPermission(AdminFunctionPermissions.LogActionManagement);
@@ -114,6 +115,13 @@
                             <a class="@SidebarLinkClass("AlertHistory")" asp-controller="AlertHistory" asp-action="Index" data-show-loading-nav="true">
                                 <span class="sidebar-link__icon">H</span>
                                 <span class="sidebar-link__text">Lịch sử cảnh báo</span>
+                            </a>
+                        }
+                        @if (canAccessCustomerBehavior)
+                        {
+                            <a class="@SidebarLinkClass("CustomerBehavior")" asp-controller="CustomerBehavior" asp-action="Index" data-show-loading-nav="true">
+                                <span class="sidebar-link__icon">B</span>
+                                <span class="sidebar-link__text">Hành vi khách hàng</span>
                             </a>
                         }
                         @if (canAccessCitizenIdDetection)

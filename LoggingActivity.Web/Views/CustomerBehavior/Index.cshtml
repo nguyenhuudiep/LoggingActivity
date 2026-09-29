@@ -1,0 +1,576 @@
+@using System.Globalization
+@using System.Text.Json
+@model CustomerBehaviorReportViewModel
+
+@{
+    ViewData["Title"] = "Báo cáo hành vi khách hàng";
+    var filter = Model.Filter;
+    var fromText = filter.From?.ToString("yyyy-MM-dd");
+    var toText = filter.To?.ToString("yyyy-MM-dd");
+    var periodLabel = $"{filter.From:dd/MM/yyyy} - {filter.To:dd/MM/yyyy}";
+    var periodDays = filter.From.HasValue && filter.To.HasValue ? (int)(filter.To.Value - filter.From.Value).TotalDays + 1 : 0;
+    var today = VietnamTimeExtensions.TodayInVietnamDate();
+    var vi = CultureInfo.GetCultureInfo("vi-VN");
+    var hasData = Model.TotalCalls > 0;
+    var hasActiveFilter = filter.ActionCall.HasValue || filter.ProductId.HasValue || filter.Status.HasValue
+        || filter.Partner is not null || filter.SearchTerm is not null;
+
+    var records = Model.Records;
+    var currentPage = records.Page;
+    var totalPages = Math.Max(records.TotalPages, 1);
+    var startPage = Math.Max(1, currentPage - 2);
+    var endPage = Math.Min(totalPages, startPage + 4);
+    startPage = Math.Max(1, endPage - 4);
+    var rowNumber = ((records.Page - 1) * records.PageSize) + 1;
+    var topCustomerMax = Model.TopCustomers.Count == 0 ? 1 : Model.TopCustomers.Max(item => item.Calls);
+
+    Dictionary<string, string?> BaseRoute() => new()
+    {
+        ["from"] = fromText,
+        ["to"] = toText,
+        ["actionCall"] = filter.ActionCall?.ToString(CultureInfo.InvariantCulture),
+        ["productId"] = filter.ProductId?.ToString(CultureInfo.InvariantCulture),
+        ["status"] = filter.Status?.ToString(CultureInfo.InvariantCulture),
+        ["partner"] = filter.Partner,
+        ["searchTerm"] = filter.SearchTerm
+    };
+
+    string BuildUrl(string action, Action<Dictionary<string, string?>>? mutate = null)
+    {
+        var route = BaseRoute();
+        mutate?.Invoke(route);
+        var clean = route.Where(pair => !string.IsNullOrEmpty(pair.Value)).ToDictionary(pair => pair.Key, pair => pair.Value);
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Url.Action(action)!, clean);
+    }
+
+    string PageUrl(int page) => BuildUrl("Index", route =>
+    {
+        route["page"] = page.ToString(CultureInfo.InvariantCulture);
+        route["pageSize"] = records.PageSize.ToString(CultureInfo.InvariantCulture);
+    }) + "#cbRecords";
+
+    string RangeUrl(int days) => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Url.Action("Index")!, new Dictionary<string, string?>
+    {
+        ["from"] = today.AddDays(-(days - 1)).ToString("yyyy-MM-dd"),
+        ["to"] = today.ToString("yyyy-MM-dd")
+    });
+
+    bool IsRange(int days) => filter.To == today && periodDays == days;
+
+    string Number(double value) => value.ToString("N0", vi);
+    string Decimal1(double value) => value.ToString("N1", vi);
+
+    var chartData = new
+    {
+        dailyLabels = Model.DailyLabels,
+        dailyTotals = Model.DailyTotals,
+        dailyUniqueLoans = Model.DailyUniqueLoans,
+        dailySeries = Model.DailyActionSeries.Select(series => new { label = series.Label, values = series.Values }),
+        hourlyTotals = Model.HourlyTotals,
+        actions = Model.ActionBreakdown.Select(item => new { label = item.Label, value = item.Value }),
+        products = Model.ProductBreakdown.Select(item => new { label = item.Label, value = item.Value }),
+        statuses = Model.StatusBreakdown.Select(item => new { label = item.Label, value = item.Value }),
+        partners = Model.PartnerBreakdown.Select(item => new { label = item.Label, value = item.Value })
+    };
+}
+
+<section class="page-hero cb-hero">
+    <div class="page-hero__content">
+        <span class="page-eyebrow">Customer insights</span>
+        <h1 class="page-title">Báo cáo hành vi khách hàng</h1>
+        <p class="page-subtitle">Phân tích các lượt khách hàng gọi API trên hệ thống LOS: xu hướng theo ngày, action được dùng nhiều nhất, khung giờ cao điểm và nhóm khách hàng tương tác nhiều.</p>
+    </div>
+    <div class="page-toolbar">
+        <span class="cb-period-pill" title="Khoảng thời gian báo cáo">
+            <span class="cb-period-pill__dot" aria-hidden="true"></span>
+            @periodLabel · @periodDays ngày
+        </span>
+        @if (hasData)
+        {
+            <a class="btn btn-outline-dark text-nowrap" href="@BuildUrl("Export")">Export CSV</a>
+        }
+    </div>
+</section>
+
+<div class="card border-0 shadow-sm mb-4 surface-panel">
+    <div class="card-body p-4">
+        <div class="cb-range-chips mb-3" role="group" aria-label="Chọn nhanh khoảng thời gian">
+            <span class="cb-range-chips__label">Chọn nhanh</span>
+            <a class="cb-chip @(IsRange(1) ? "active" : null)" href="@RangeUrl(1)">Hôm nay</a>
+            <a class="cb-chip @(IsRange(7) ? "active" : null)" href="@RangeUrl(7)">7 ngày</a>
+            <a class="cb-chip @(IsRange(14) ? "active" : null)" href="@RangeUrl(14)">14 ngày</a>
+            <a class="cb-chip @(IsRange(Model.MaxRangeDays) ? "active" : null)" href="@RangeUrl(Model.MaxRangeDays)">@Model.MaxRangeDays ngày</a>
+        </div>
+        <form method="get" class="row g-3 align-items-end" data-auto-submit-selects>
+            <input type="hidden" name="pageSize" value="@filter.PageSize" />
+            <div class="col-xl-2 col-md-4 col-6">
+                <label class="form-label" for="cbFrom">Từ ngày</label>
+                <input id="cbFrom" name="from" class="form-control" type="date" value="@fromText" max="@today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-xl-2 col-md-4 col-6">
+                <label class="form-label" for="cbTo">Đến ngày</label>
+                <input id="cbTo" name="to" class="form-control" type="date" value="@toText" max="@today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-xl-2 col-md-4">
+                <label class="form-label" for="cbAction">Action</label>
+                <select id="cbAction" name="actionCall" class="form-select" data-enhanced-select data-placeholder="Tất cả action">
+                    <option value="">Tất cả action</option>
+                    @foreach (var option in Model.ActionOptions)
+                    {
+                        <option value="@option.Value" selected="@(option.Value == filter.ActionCall?.ToString(CultureInfo.InvariantCulture))">@option.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-xl-2 col-md-4">
+                <label class="form-label" for="cbProduct">Sản phẩm</label>
+                <select id="cbProduct" name="productId" class="form-select" data-enhanced-select data-placeholder="Tất cả sản phẩm">
+                    <option value="">Tất cả sản phẩm</option>
+                    @foreach (var option in Model.ProductOptions)
+                    {
+                        <option value="@option.Value" selected="@(option.Value == filter.ProductId?.ToString(CultureInfo.InvariantCulture))">@option.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-xl-2 col-md-4">
+                <label class="form-label" for="cbStatus">Trạng thái hồ sơ</label>
+                <select id="cbStatus" name="status" class="form-select" data-enhanced-select data-placeholder="Tất cả trạng thái">
+                    <option value="">Tất cả trạng thái</option>
+                    @foreach (var option in Model.StatusOptions)
+                    {
+                        <option value="@option.Value" selected="@(option.Value == filter.Status?.ToString(CultureInfo.InvariantCulture))">@option.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-xl-2 col-md-4">
+                <label class="form-label" for="cbPartner">Đối tác giải ngân</label>
+                <select id="cbPartner" name="partner" class="form-select" data-enhanced-select data-placeholder="Tất cả đối tác">
+                    <option value="">Tất cả đối tác</option>
+                    @foreach (var option in Model.PartnerOptions)
+                    {
+                        <option value="@option.Value" selected="@(string.Equals(option.Value, filter.Partner, StringComparison.OrdinalIgnoreCase))">@option.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-xl-4 col-md-8">
+                <label class="form-label" for="cbSearch">Khách hàng / Mã HĐ</label>
+                <input id="cbSearch" name="searchTerm" class="form-control" value="@filter.SearchTerm" placeholder="Nhập tên khách hàng hoặc mã hồ sơ (loanBriefId)" />
+            </div>
+            <div class="col-xl-8 col-md-4">
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-dark">Xem báo cáo</button>
+                    @if (hasActiveFilter)
+                    {
+                        <a class="btn btn-outline-secondary" href="@Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Url.Action("Index")!, new Dictionary<string, string?> { ["from"] = fromText, ["to"] = toText })">Bỏ lọc</a>
+                    }
+                </div>
+            </div>
+        </form>
+        <div class="cb-filter-note">
+            Tối đa @Model.MaxRangeDays ngày mỗi lần xem. Dữ liệu được lấy từ API LOS và lưu tạm vài phút để các thao tác lọc phản hồi nhanh.
+            @if (Model.ErrorMessage is null && hasActiveFilter)
+            {
+                <span>Đang hiển thị <strong>@Number(Model.TotalCalls)</strong> / @Number(Model.SourceTotalCalls) lượt gọi trong khoảng ngày.</span>
+            }
+        </div>
+    </div>
+</div>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert alert-danger alert-soft mb-4" role="alert">
+        <strong>Không tải được dữ liệu báo cáo.</strong> @Model.ErrorMessage
+    </div>
+}
+else if (!hasData)
+{
+    <div class="card border-0 shadow-sm surface-panel mb-4">
+        <div class="card-body cb-empty">
+            <div class="cb-empty__icon" aria-hidden="true">∅</div>
+            <h2 class="section-header__title">Chưa có lượt gọi API nào</h2>
+            <p class="text-secondary mb-0">Không có dữ liệu trong khoảng @periodLabel với bộ lọc hiện tại. Hãy mở rộng khoảng ngày hoặc bỏ bớt điều kiện lọc.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4 cb-kpi-grid">
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--primary">
+                <div class="cb-kpi__label">Tổng lượt gọi API</div>
+                <div class="cb-kpi__value">@Number(Model.TotalCalls)</div>
+                <div class="cb-kpi__meta">TB @Decimal1(Model.TotalCalls / (double)Math.Max(periodDays, 1)) lượt/ngày</div>
+                <canvas class="cb-kpi__spark" data-cb-spark="dailyTotals" data-cb-color="#3699ff" aria-hidden="true"></canvas>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--teal">
+                <div class="cb-kpi__label">Hồ sơ tương tác</div>
+                <div class="cb-kpi__value">@Number(Model.UniqueLoans)</div>
+                <div class="cb-kpi__meta">@Number(Model.UniqueCustomers) khách hàng khác nhau</div>
+                <canvas class="cb-kpi__spark" data-cb-spark="dailyUniqueLoans" data-cb-color="#0f766e" aria-hidden="true"></canvas>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--violet">
+                <div class="cb-kpi__label">Lượt gọi / hồ sơ</div>
+                <div class="cb-kpi__value">@Decimal1(Model.AverageCallsPerLoan)</div>
+                <div class="cb-kpi__meta">Mức độ tương tác trung bình</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--green">
+                <div class="cb-kpi__label">Hồ sơ đã giải ngân</div>
+                <div class="cb-kpi__value">@Decimal1(Model.DisbursedLoanRate)%</div>
+                <div class="cb-kpi__meta">@Number(Model.DisbursedLoans) / @Number(Model.UniqueLoans) hồ sơ</div>
+                <div class="cb-kpi__bar"><span style="width:@(Model.DisbursedLoanRate.ToString(CultureInfo.InvariantCulture))%"></span></div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--amber">
+                <div class="cb-kpi__label">Khách quay lại</div>
+                <div class="cb-kpi__value">@Number(Model.ReturningLoans)</div>
+                <div class="cb-kpi__meta">Hồ sơ gọi API từ 2 ngày trở lên</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4 col-xxl-2">
+            <div class="cb-kpi cb-kpi--rose">
+                <div class="cb-kpi__label">Khung giờ cao điểm</div>
+                <div class="cb-kpi__value cb-kpi__value--sm">@Model.PeakHourLabel</div>
+                <div class="cb-kpi__meta">@Number(Model.PeakHourCalls) lượt gọi</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-xl-8">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <div class="section-header mb-3">
+                        <div>
+                            <span class="page-eyebrow">Xu hướng</span>
+                            <h2 class="section-header__title">Lượt gọi API theo ngày</h2>
+                            <p class="section-header__subtitle">Cột chồng theo 5 action phổ biến nhất, đường thể hiện số hồ sơ tương tác mỗi ngày.</p>
+                        </div>
+                    </div>
+                    <div class="chart-stage cb-chart cb-chart--lg">
+                        <canvas id="cbDailyChart" aria-label="Biểu đồ lượt gọi API theo ngày"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <div class="section-header mb-3">
+                        <div>
+                            <span class="page-eyebrow">Cơ cấu</span>
+                            <h2 class="section-header__title">Action khách hàng sử dụng</h2>
+                            <p class="section-header__subtitle">Tỷ trọng lượt gọi theo từng action.</p>
+                        </div>
+                    </div>
+                    <div class="chart-stage cb-chart cb-chart--donut">
+                        <canvas id="cbActionChart" aria-label="Biểu đồ cơ cấu action"></canvas>
+                    </div>
+                    <ul class="cb-legend" id="cbActionLegend"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-xl-8">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <div class="section-header mb-3">
+                        <div>
+                            <span class="page-eyebrow">Nhịp hoạt động</span>
+                            <h2 class="section-header__title">Bản đồ nhiệt theo thứ và giờ</h2>
+                            <p class="section-header__subtitle">Ô càng đậm, khách hàng gọi API càng nhiều trong khung giờ đó (giờ Việt Nam).</p>
+                        </div>
+                    </div>
+                    <div class="cb-heatmap" role="table" aria-label="Bản đồ nhiệt lượt gọi theo thứ và giờ">
+                        <div class="cb-heatmap__row cb-heatmap__row--head" role="row">
+                            <span class="cb-heatmap__day" role="columnheader"></span>
+                            @for (var hour = 0; hour < 24; hour++)
+                            {
+                                <span class="cb-heatmap__hour" role="columnheader">@(hour % 3 == 0 ? hour.ToString("00") : string.Empty)</span>
+                            }
+                        </div>
+                        @foreach (var row in Model.Heatmap)
+                        {
+                            <div class="cb-heatmap__row" role="row">
+                                <span class="cb-heatmap__day" role="rowheader">@row.DayLabel</span>
+                                @for (var hour = 0; hour < row.Cells.Count; hour++)
+                                {
+                                    var value = row.Cells[hour];
+                                    var intensity = Model.HeatmapMax == 0 ? 0 : Math.Round(value / (double)Model.HeatmapMax, 3);
+                                    <span class="cb-heatmap__cell @(value == 0 ? "is-empty" : null)" role="cell"
+                                          style="--cb-heat:@intensity.ToString(CultureInfo.InvariantCulture)"
+                                          title="@row.DayLabel, @hour.ToString("00"):00 - @hour.ToString("00"):59: @Number(value) lượt gọi"></span>
+                                }
+                            </div>
+                        }
+                        <div class="cb-heatmap__scale">
+                            <span>Ít</span>
+                            <span class="cb-heatmap__cell" style="--cb-heat:0.15"></span>
+                            <span class="cb-heatmap__cell" style="--cb-heat:0.4"></span>
+                            <span class="cb-heatmap__cell" style="--cb-heat:0.7"></span>
+                            <span class="cb-heatmap__cell" style="--cb-heat:1"></span>
+                            <span>Nhiều</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <div class="section-header mb-3">
+                        <div>
+                            <span class="page-eyebrow">Điểm nhấn</span>
+                            <h2 class="section-header__title">Nhận định nhanh</h2>
+                        </div>
+                    </div>
+                    <ul class="cb-insights">
+                        <li>
+                            <span class="cb-insights__icon cb-insights__icon--blue" aria-hidden="true">★</span>
+                            <div>
+                                <div class="cb-insights__title">Action nổi bật: @Model.TopActionName</div>
+                                <div class="cb-insights__text">Chiếm @Decimal1(Model.TopActionShare)% tổng lượt gọi trong kỳ.</div>
+                            </div>
+                        </li>
+                        @if (Model.BusiestDayLabel is not null)
+                        {
+                            <li>
+                                <span class="cb-insights__icon cb-insights__icon--amber" aria-hidden="true">▲</span>
+                                <div>
+                                    <div class="cb-insights__title">Ngày cao điểm: @Model.BusiestDayLabel</div>
+                                    <div class="cb-insights__text">@Number(Model.BusiestDayCalls) lượt gọi, gấp @Decimal1(Model.BusiestDayCalls / Math.Max(Model.TotalCalls / (double)Math.Max(periodDays, 1), 1)) lần trung bình ngày.</div>
+                                </div>
+                            </li>
+                        }
+                        <li>
+                            <span class="cb-insights__icon cb-insights__icon--rose" aria-hidden="true">◷</span>
+                            <div>
+                                <div class="cb-insights__title">Giờ cao điểm: @Model.PeakHourLabel</div>
+                                <div class="cb-insights__text">@Number(Model.PeakHourCalls) lượt gọi, nên ưu tiên tài nguyên hệ thống vào khung giờ này.</div>
+                            </div>
+                        </li>
+                        <li>
+                            <span class="cb-insights__icon cb-insights__icon--teal" aria-hidden="true">↻</span>
+                            <div>
+                                <div class="cb-insights__title">@Decimal1(Model.UniqueLoans == 0 ? 0 : Model.ReturningLoans * 100d / Model.UniqueLoans)% hồ sơ quay lại</div>
+                                <div class="cb-insights__text">@Number(Model.ReturningLoans) hồ sơ có lượt gọi API trong từ 2 ngày khác nhau trở lên.</div>
+                            </div>
+                        </li>
+                    </ul>
+                    <div class="cb-hourly">
+                        <div class="cb-kpi__label mb-2">Phân bổ 24 giờ</div>
+                        <div class="chart-stage cb-chart cb-chart--xs">
+                            <canvas id="cbHourlyChart" aria-label="Biểu đồ lượt gọi theo giờ"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <span class="page-eyebrow">Sản phẩm</span>
+                    <h2 class="section-header__title mb-3">Lượt gọi theo sản phẩm vay</h2>
+                    <div class="chart-stage cb-chart cb-chart--md"><canvas id="cbProductChart" aria-label="Biểu đồ lượt gọi theo sản phẩm"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <span class="page-eyebrow">Vòng đời hồ sơ</span>
+                    <h2 class="section-header__title mb-3">Lượt gọi theo trạng thái hồ sơ</h2>
+                    <div class="chart-stage cb-chart cb-chart--md"><canvas id="cbStatusChart" aria-label="Biểu đồ lượt gọi theo trạng thái"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm surface-panel h-100">
+                <div class="card-body p-4">
+                    <span class="page-eyebrow">Đối tác</span>
+                    <h2 class="section-header__title mb-3">Lượt gọi theo đối tác giải ngân</h2>
+                    <div class="chart-stage cb-chart cb-chart--md"><canvas id="cbPartnerChart" aria-label="Biểu đồ lượt gọi theo đối tác giải ngân"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="data-card__header">
+            <div>
+                <h2 class="data-card__title">Top 10 khách hàng tương tác nhiều nhất</h2>
+                <p class="data-card__subtitle">Xếp hạng theo tổng lượt gọi API trong kỳ; bấm "Xem chi tiết" để lọc toàn bộ lịch sử của hồ sơ.</p>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 cb-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="table-stt-col">#</th>
+                        <th>Khách hàng</th>
+                        <th>Sản phẩm / Trạng thái</th>
+                        <th class="text-end">Số tiền vay</th>
+                        <th style="min-width:150px">Lượt gọi</th>
+                        <th>Action nhiều nhất</th>
+                        <th class="text-center">Ngày hoạt động</th>
+                        <th>Lần gọi gần nhất</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rank = 1; }
+                    @foreach (var customer in Model.TopCustomers)
+                    {
+                        <tr>
+                            <td class="table-stt-cell"><span class="cb-rank @(rank <= 3 ? "cb-rank--top" : null)">@(rank++)</span></td>
+                            <td class="text-nowrap">
+                                <div class="fw-semibold">@customer.FullName</div>
+                                <div class="small text-secondary">Mã HĐ @customer.LoanBriefId</div>
+                            </td>
+                            <td>
+                                <div class="small fw-semibold">@customer.ProductName</div>
+                                <span class="badge bg-primary-subtle text-primary-emphasis">@customer.StatusName</span>
+                            </td>
+                            <td class="text-end text-nowrap">@(customer.LoanAmount.HasValue ? customer.LoanAmount.Value.ToString("N0", vi) + " đ" : "-")</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="cb-progress"><span style="width:@((customer.Calls * 100d / topCustomerMax).ToString("0.#", CultureInfo.InvariantCulture))%"></span></div>
+                                    <span class="fw-semibold">@Number(customer.Calls)</span>
+                                </div>
+                                <div class="small text-secondary">@customer.DistinctActions action khác nhau</div>
+                            </td>
+                            <td style="min-width:140px">
+                                <div class="small fw-semibold">@customer.TopAction</div>
+                                <div class="small text-secondary">@Number(customer.TopActionCalls) lượt</div>
+                            </td>
+                            <td class="text-center">@customer.ActiveDays</td>
+                            <td class="text-nowrap">@customer.LastCallAt.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-dark text-nowrap" href="@BuildUrl("Index", route => route["searchTerm"] = customer.LoanBriefId.ToString(CultureInfo.InvariantCulture))#cbRecords">Chi tiết</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm" id="cbRecords">
+        <div class="data-card__header">
+            <div>
+                <h2 class="data-card__title">Nhật ký lượt gọi API</h2>
+                <p class="data-card__subtitle">@Number(records.TotalCount) lượt gọi, sắp xếp mới nhất trước.</p>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 cb-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="table-stt-col">STT</th>
+                        <th>Thời gian gọi</th>
+                        <th>Khách hàng</th>
+                        <th>Action</th>
+                        <th>Trạng thái</th>
+                        <th>Sản phẩm</th>
+                        <th class="text-end">Số tiền vay</th>
+                        <th>Kỳ hạn / Lãi</th>
+                        <th>Đối tác GN</th>
+                        <th>Ngày giải ngân</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in records.Items)
+                    {
+                        <tr>
+                            <td class="table-stt-cell">@(rowNumber++)</td>
+                            <td class="text-nowrap">@log.CreatedTimeLog.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td class="text-nowrap">
+                                <div class="fw-semibold">@log.FullName</div>
+                                <div class="small text-secondary">Mã HĐ @log.LoanBriefId</div>
+                            </td>
+                            <td><span class="badge bg-info-subtle text-info-emphasis">@log.ActionCallName</span></td>
+                            <td>@log.StatusName</td>
+                            <td>@log.ProductName</td>
+                            <td class="text-end text-nowrap">@(log.LoanAmount.HasValue ? log.LoanAmount.Value.ToString("N0", vi) + " đ" : "-")</td>
+                            <td class="small">@(log.LoanTime.HasValue ? $"{log.LoanTime} tháng" : "-")<div class="text-secondary">@log.RateTypeName</div></td>
+                            <td>@(string.IsNullOrWhiteSpace(log.DisbursementPartner) ? "-" : log.DisbursementPartner)</td>
+                            <td class="text-nowrap">@(log.DisbursementAt?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (records.TotalCount > 0)
+        {
+            <div class="card-footer bg-white d-flex flex-wrap gap-3 justify-content-between align-items-center">
+                <div class="text-secondary small">Trang @currentPage / @totalPages - Tổng @Number(records.TotalCount) bản ghi</div>
+                <div class="pagination-toolbar">
+                    <form method="get" class="page-size-form" data-auto-submit-selects action="@Url.Action("Index")#cbRecords">
+                        @foreach (var pair in BaseRoute().Where(pair => !string.IsNullOrEmpty(pair.Value)))
+                        {
+                            <input type="hidden" name="@pair.Key" value="@pair.Value" />
+                        }
+                        <input type="hidden" name="page" value="1" />
+                        <label class="page-size-form__label" for="cbPageSize">Hiển thị</label>
+                        <select id="cbPageSize" name="pageSize" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="20">
+                            @foreach (var size in new[] { 10, 20, 50, 100 })
+                            {
+                                <option value="@size" selected="@(records.PageSize == size)">@size</option>
+                            }
+                        </select>
+                        <span class="page-size-form__suffix">bản ghi</span>
+                    </form>
+                    @if (totalPages > 1)
+                    {
+                        <nav aria-label="Phân trang nhật ký">
+                            <ul class="pagination mb-0">
+                                <li class="page-item @(currentPage <= 1 ? "disabled" : null)"><a class="page-link" href="@PageUrl(currentPage - 1)">Trước</a></li>
+                                @if (startPage > 1)
+                                {
+                                    <li class="page-item"><a class="page-link" href="@PageUrl(1)">1</a></li>
+                                    @if (startPage > 2)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                                    }
+                                }
+                                @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                                {
+                                    <li class="page-item @(pageNumber == currentPage ? "active" : null)"><a class="page-link" href="@PageUrl(pageNumber)">@pageNumber</a></li>
+                                }
+                                @if (endPage < totalPages)
+                                {
+                                    @if (endPage < totalPages - 1)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                                    }
+                                    <li class="page-item"><a class="page-link" href="@PageUrl(totalPages)">@totalPages</a></li>
+                                }
+                                <li class="page-item @(currentPage >= totalPages ? "disabled" : null)"><a class="page-link" href="@PageUrl(currentPage + 1)">Sau</a></li>
+                            </ul>
+                        </nav>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <script type="application/json" id="customerBehaviorData">@Html.Raw(JsonSerializer.Serialize(chartData))</script>
+}
+
+@section Scripts {
+    @if (hasData)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+        <script src="~/js/customer-behavior.js" asp-append-version="true"></script>
+    }
+}

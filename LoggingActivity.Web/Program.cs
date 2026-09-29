@@ -117,6 +117,9 @@ builder.Services
     .AddOptions<ThresholdNotificationOptions>()
     .Bind(builder.Configuration.GetSection(ThresholdNotificationOptions.SectionName));
 builder.Services
+    .AddOptions<CustomerBehaviorReportOptions>()
+    .Bind(builder.Configuration.GetSection(CustomerBehaviorReportOptions.SectionName));
+builder.Services
     .AddOptions<CitizenIdHybridModelOptions>()
     .Bind(builder.Configuration.GetSection(CitizenIdHybridModelOptions.SectionName))
     .PostConfigure(settings =>
@@ -304,6 +307,8 @@ builder.Services.AddHttpClient<VehicleRegistrationOcrService>();
 builder.Services.AddHttpClient<CitizenIdHybridModelClient>();
 builder.Services.AddHttpClient<CitizenIdOcrClient>();
 builder.Services.AddHttpClient<ThresholdNotificationService>();
+builder.Services.AddHttpClient<CustomerBehaviorApiClient>();
+builder.Services.AddScoped<CustomerBehaviorReportService>();
 builder.Services.AddHostedService<ActivityLogInfrastructureHostedService>();
 builder.Services.AddHostedService<SeedAdminHostedService>();
 if (!disableMongoBackgroundWorkers)
