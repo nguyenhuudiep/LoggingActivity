@@ -1,20 +1,64 @@
-﻿@using System.Text.Json
-@model HomeDashboardViewModel
+﻿@model HomeDashboardViewModel
 
 @{
     ViewData["Title"] = "Dashboard";
     var canAccessLogs = User.HasFeatureAccess(AdminFunctionPermissions.LogDashboard, allowAuditor: true);
     var canManageUsers = User.HasAdminFunctionPermission(AdminFunctionPermissions.UserManagement);
     var canAccessIntegrationGuide = User.HasFeatureAccess(AdminFunctionPermissions.IntegrationGuide, allowAuditor: true);
-    var peakHour = Model.OverviewStatistics.HourlyActivity
+    var stats = Model.OverviewStatistics;
+    var vi = System.Globalization.CultureInfo.GetCultureInfo("vi-VN");
+    var invariant = System.Globalization.CultureInfo.InvariantCulture;
+    string Number(double value) => value.ToString("N0", vi);
+    string Decimal1(double value) => value.ToString("N1", vi);
+
+    var peakHour = stats.HourlyActivity
         .OrderByDescending(point => point.Value)
         .ThenBy(point => point.Label)
         .FirstOrDefault();
-    var topAction = Model.OverviewStatistics.TopActions.FirstOrDefault();
-    var hourlyAverage = Model.OverviewStatistics.HourlyActivity.Count == 0
-        ? 0
-        : Math.Round(Model.OverviewStatistics.HourlyActivity.Average(point => point.Value), 1);
+    var elapsedHoursToday = Math.Max(1, DateTime.UtcNow.ToVietnamTime().Hour + 1);
+    var hourlyAverage = Math.Round(stats.TodayLogs / (double)elapsedHoursToday, 1);
+    var dailyAverage = stats.DailyActivity.Count == 0 ? 0 : stats.DailyActivity.Average(point => point.Value);
+    var todayVsAverage = dailyAverage <= 0 ? (double?)null : Math.Round((stats.TodayLogs - dailyAverage) * 100 / dailyAverage, 1);
+    var integratedShare = stats.TotalLogs == 0 ? 0 : Math.Round(stats.IntegratedLogs * 100d / stats.TotalLogs, 1);
+    var topAction = stats.TopActions.FirstOrDefault();
+    var topActionShare = topAction is null || stats.TotalLogs == 0 ? 0 : Math.Round(topAction.Value * 100d / stats.TotalLogs, 1);
+    var topActionsTodayTotal = stats.TopActionsToday.Sum(item => item.Value);
+    var topUserMax = stats.TopUsersToday.Count == 0 ? 1 : Math.Max(1, stats.TopUsersToday.Max(item => item.TotalActions));
     var todayFilterDate = VietnamTimeExtensions.TodayInVietnamDate().ToString("yyyy-MM-dd");
+
+    // Phần log 7 ngày không thuộc top 5 partner-action được gộp vào "Khác" để cột chồng thể hiện đúng tổng.
+    var dailyLabels = stats.DailyActivity
+        .Select(point => DateTime.TryParse(point.Label, invariant, System.Globalization.DateTimeStyles.None, out var day) ? day.ToString("dd/MM", invariant) : point.Label)
+        .ToList();
+    var dailySeries = stats.ActionDailySeries
+        .Select(series => new { label = series.Action, values = series.Values })
+        .ToList();
+    var dailyOther = stats.DailyActivity
+        .Select((point, index) => Math.Max(0, point.Value - stats.ActionDailySeries.Sum(series => index < series.Values.Count ? series.Values[index] : 0)))
+        .ToList();
+    if (dailyOther.Any(value => value > 0))
+    {
+        dailySeries.Add(new { label = "Khác", values = (IReadOnlyList<long>)dailyOther });
+    }
+
+    var actionShares = stats.TopActions.Select(item => new { label = item.Label, value = item.Value }).ToList();
+    var otherActions = stats.TotalLogs - stats.TopActions.Sum(item => item.Value);
+    if (otherActions > 0)
+    {
+        actionShares.Add(new { label = "Khác", value = otherActions });
+    }
+
+    var chartData = new
+    {
+        dailyLabels,
+        dailyTotals = stats.DailyActivity.Select(point => point.Value),
+        dailySeries,
+        hourlyLabels = stats.HourlyActivity.Select(point => point.Label),
+        hourlyValues = stats.HourlyActivity.Select(point => point.Value),
+        hourlyAverage,
+        actionShares,
+        topUsers = stats.TopUsersToday.Select(item => new { label = item.DisplayLabel, value = item.TotalActions, topAction = item.TopAction, topActionCount = item.TopActionCount })
+    };
 }
 
 <section class="page-hero">
@@ -85,187 +129,236 @@
     </div>
 }
 
-<div class="row g-4">
-    <div class="col-12">
-        <div class="card shadow-sm border-0 surface-panel dashboard-snapshot-panel">
-            <div class="card-body p-3 p-lg-4">
-                <div class="section-header mb-2">
-                    <div>
-                        <span class="page-eyebrow">Tổng quan nhanh</span>
-                        <h2 class="section-header__title">Snapshot vận hành trong một màn hình</h2>
-                        <p class="section-header__subtitle">Các chỉ số cốt lõi để nắm trạng thái hệ thống tức thời.</p>
-                    </div>
-                </div>
-                <div class="row g-2 dashboard-snapshot-grid">
-                    <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card metric-card metric-card--compact border-0 bg-body-tertiary">
-                            <div class="card-body">
-                                <div class="metric-card__label">Tổng log 7 ngày</div>
-                                <div class="metric-card__value">@Model.OverviewStatistics.TotalLogs.ToString("N0")</div>
-                                <div class="metric-card__meta">Toàn bộ nguồn dữ liệu</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card metric-card metric-card--compact border-0 bg-body-tertiary">
-                            <div class="card-body">
-                                <div class="metric-card__label">Log hôm nay</div>
-                                <div class="metric-card__value">@Model.OverviewStatistics.TodayLogs.ToString("N0")</div>
-                                <div class="metric-card__meta">Biến động realtime</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card metric-card metric-card--compact border-0 bg-body-tertiary">
-                            <div class="card-body">
-                                <div class="metric-card__label">User duy nhất</div>
-                                <div class="metric-card__value">@Model.OverviewStatistics.UniqueUsers.ToString("N0")</div>
-                                <div class="metric-card__meta">Trong phạm vi hiện tại</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card metric-card metric-card--compact border-0 bg-body-tertiary">
-                            <div class="card-body">
-                                <div class="metric-card__label">Log tích hợp</div>
-                                <div class="metric-card__value">@Model.OverviewStatistics.IntegratedLogs.ToString("N0")</div>
-                                <div class="metric-card__meta">Integrated + Legacy API</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row g-2 mt-1">
-                    <div class="col-12 col-lg-6">
-                        <div class="card border-0 bg-light h-100 dashboard-snapshot-highlight">
-                            <div class="card-body py-2 px-3 px-lg-4">
-                                <div class="metric-card__label">Khung giờ cao điểm hôm nay</div>
-                                @if (peakHour is null || peakHour.Value == 0)
-                                {
-                                    <div class="metric-card__meta">Chưa có log trong ngày để xác định peak hour.</div>
-                                }
-                                else
-                                {
-                                    <div class="metric-card__value metric-card__value--compact">@peakHour.Label</div>
-                                    <div class="metric-card__meta">@peakHour.Value.ToString("N0") log, TB @hourlyAverage log/giờ</div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        <div class="card border-0 bg-light h-100 dashboard-snapshot-highlight">
-                            <div class="card-body py-2 px-3 px-lg-4">
-                                <div class="metric-card__label">Action nổi bật</div>
-                                @if (topAction is null)
-                                {
-                                    <div class="metric-card__meta">Chưa có dữ liệu action trong phạm vi tổng hợp.</div>
-                                }
-                                else
-                                {
-                                    <div class="metric-card__value metric-card__value--compact">@topAction.Label</div>
-                                    <div class="metric-card__meta">@topAction.Value.ToString("N0") log cao nhất hiện tại</div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="row g-3 mb-4 cb-kpi-grid">
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--primary">
+            <div class="cb-kpi__label">Tổng log 7 ngày</div>
+            <div class="cb-kpi__value">@Number(stats.TotalLogs)</div>
+            <div class="cb-kpi__meta">TB @Number(dailyAverage) log/ngày</div>
+            <canvas class="cb-kpi__spark" data-dashboard-spark="dailyTotals" data-color="#3699ff" aria-hidden="true"></canvas>
         </div>
     </div>
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--teal">
+            <div class="cb-kpi__label">Log hôm nay</div>
+            <div class="cb-kpi__value">@Number(stats.TodayLogs)</div>
+            <div class="cb-kpi__meta">
+                @if (todayVsAverage.HasValue)
+                {
+                    <span class="db-trend @(todayVsAverage >= 0 ? "db-trend--up" : "db-trend--down")">@(todayVsAverage >= 0 ? "▲" : "▼") @Decimal1(Math.Abs(todayVsAverage.Value))%</span>
+                    <span>so với TB 7 ngày</span>
+                }
+                else
+                {
+                    <span>Biến động realtime</span>
+                }
+            </div>
+            <canvas class="cb-kpi__spark" data-dashboard-spark="hourlyValues" data-color="#0f766e" aria-hidden="true"></canvas>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--violet">
+            <div class="cb-kpi__label">User duy nhất</div>
+            <div class="cb-kpi__value">@Number(stats.UniqueUsers)</div>
+            <div class="cb-kpi__meta">Có phát sinh log trong 7 ngày</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--green">
+            <div class="cb-kpi__label">Log tích hợp</div>
+            <div class="cb-kpi__value">@Number(stats.IntegratedLogs)</div>
+            <div class="cb-kpi__meta">@Decimal1(integratedShare)% tổng log</div>
+            <div class="cb-kpi__bar"><span style="width:@(integratedShare.ToString(invariant))%"></span></div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--rose">
+            <div class="cb-kpi__label">Giờ cao điểm hôm nay</div>
+            @if (peakHour is null || peakHour.Value == 0)
+            {
+                <div class="cb-kpi__value cb-kpi__value--sm">Chưa có log</div>
+                <div class="cb-kpi__meta">Chưa đủ dữ liệu trong ngày</div>
+            }
+            else
+            {
+                <div class="cb-kpi__value cb-kpi__value--sm">@peakHour.Label</div>
+                <div class="cb-kpi__meta">@Number(peakHour.Value) log · TB @Decimal1(hourlyAverage) log/giờ</div>
+            }
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xxl-2">
+        <div class="cb-kpi cb-kpi--amber">
+            <div class="cb-kpi__label">Action nổi bật</div>
+            @if (topAction is null)
+            {
+                <div class="cb-kpi__value cb-kpi__value--sm">-</div>
+                <div class="cb-kpi__meta">Chưa có dữ liệu action</div>
+            }
+            else
+            {
+                <div class="cb-kpi__value cb-kpi__value--sm db-ellipsis" title="@topAction.Label">@topAction.Label</div>
+                <div class="cb-kpi__meta">@Number(topAction.Value) log · @Decimal1(topActionShare)% tổng</div>
+            }
+        </div>
+    </div>
+</div>
 
+<div class="row g-4">
     <div class="col-12 col-xl-8">
-        <div class="card shadow-sm border-0 surface-panel h-100 dashboard-equal-card" data-action-trend-chart
-             data-chart-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.DailyActivity.Select(point => point.Label.Substring(5)))'
-             data-chart-datasets='@JsonSerializer.Serialize(Model.OverviewStatistics.ActionDailySeries.Select(series => new { label = series.Action, values = series.Values }))'>
-            <div class="card-body p-4 p-lg-5 dashboard-equal-card__body">
+        <div class="card shadow-sm border-0 surface-panel h-100">
+            <div class="card-body p-4">
                 <div class="section-header mb-3">
                     <div>
-                        <span class="page-eyebrow">Tổng quan log</span>
-                        <h2 class="section-header__title">Biểu đồ log theo ngày, partner và action</h2>
-                        <p class="section-header__subtitle">Theo dõi xu hướng log 7 ngày gần nhất, chỉ hiển thị 5 cặp partner - action có tổng log cao nhất.</p>
+                        <span class="page-eyebrow">Xu hướng</span>
+                        <h2 class="section-header__title">Log 7 ngày theo partner - action</h2>
+                        <p class="section-header__subtitle">Cột chồng theo 5 cặp partner - action nhiều log nhất; phần còn lại gộp vào "Khác".</p>
                     </div>
                 </div>
-                <div class="chart-stage dashboard-equal-card__chart">
-                    <canvas id="actionTrendChart" aria-label="Biểu đồ tổng quan log theo ngày, partner và action"></canvas>
-                </div>
+                @if (stats.TotalLogs > 0)
+                {
+                    <div class="chart-stage cb-chart cb-chart--lg"><canvas id="dashboardTrendChart" aria-label="Biểu đồ log 7 ngày theo partner và action"></canvas></div>
+                }
+                else
+                {
+                    <div class="db-empty">Chưa có log trong 7 ngày gần nhất.</div>
+                }
             </div>
         </div>
     </div>
 
     <div class="col-12 col-xl-4">
-        <div class="card shadow-sm border-0 surface-panel h-100 dashboard-equal-card" data-hourly-trend-chart
-             data-hourly-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.HourlyActivity.Select(point => point.Label))'
-             data-hourly-values='@JsonSerializer.Serialize(Model.OverviewStatistics.HourlyActivity.Select(point => point.Value))'>
-            <div class="card-body p-4 p-lg-5 dashboard-equal-card__body">
+        <div class="card shadow-sm border-0 surface-panel h-100">
+            <div class="card-body p-4">
                 <div class="section-header mb-3">
                     <div>
-                        <span class="page-eyebrow">Phân bổ theo giờ</span>
-                        <h2 class="section-header__title">Biểu đồ log theo giờ trong ngày</h2>
-                        <p class="section-header__subtitle">Theo dõi nhịp phát sinh log trong 24 giờ theo múi giờ Việt Nam để phát hiện khung giờ tăng đột biến.</p>
+                        <span class="page-eyebrow">Cơ cấu</span>
+                        <h2 class="section-header__title">Tỷ trọng action 7 ngày</h2>
+                        <p class="section-header__subtitle">Top 5 action và phần còn lại.</p>
                     </div>
                 </div>
-                <div class="chart-stage dashboard-equal-card__chart">
-                    <canvas id="hourlyTrendChart" aria-label="Biểu đồ log theo giờ trong ngày"></canvas>
-                </div>
-                @if (Model.OverviewStatistics.TopActionsToday.Any())
+                @if (actionShares.Count > 0)
                 {
-                    <div class="mt-3 pt-2 border-top">
-                        <div class="metric-card__label mb-2">Top action hôm nay</div>
-                        @foreach (var actionItem in Model.OverviewStatistics.TopActionsToday.Take(5))
-                        {
-                            <div class="d-flex justify-content-between align-items-center py-1">
-                                <span class="small fw-semibold text-secondary">@actionItem.Label</span>
-                                <span class="badge bg-primary-subtle text-primary-emphasis">@actionItem.Value.ToString("N0")</span>
-                            </div>
-                        }
+                    <div class="chart-stage cb-chart cb-chart--donut"><canvas id="dashboardActionChart" aria-label="Biểu đồ tỷ trọng action"></canvas></div>
+                    <ul class="cb-legend" id="dashboardActionLegend"></ul>
+                }
+                else
+                {
+                    <div class="db-empty">Chưa có dữ liệu action.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+        <div class="card shadow-sm border-0 surface-panel h-100">
+            <div class="card-body p-4">
+                <div class="section-header mb-3">
+                    <div>
+                        <span class="page-eyebrow">Nhịp hoạt động</span>
+                        <h2 class="section-header__title">Log theo giờ hôm nay</h2>
+                        <p class="section-header__subtitle">Theo giờ Việt Nam; cột đỏ là giờ cao điểm, đường nét đứt là trung bình mỗi giờ đã qua.</p>
                     </div>
+                </div>
+                @if (stats.TodayLogs > 0)
+                {
+                    <div class="chart-stage cb-chart cb-chart--md"><canvas id="dashboardHourlyChart" aria-label="Biểu đồ log theo giờ trong ngày"></canvas></div>
+                }
+                else
+                {
+                    <div class="db-empty">Hôm nay chưa có log.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm border-0 surface-panel h-100">
+            <div class="card-body p-4">
+                <div class="section-header mb-3">
+                    <div>
+                        <span class="page-eyebrow">Hôm nay</span>
+                        <h2 class="section-header__title">Top action trong ngày</h2>
+                        <p class="section-header__subtitle">Tỷ trọng trong nhóm 5 action nhiều nhất.</p>
+                    </div>
+                </div>
+                @if (stats.TopActionsToday.Any())
+                {
+                    var actionRank = 1;
+                    <ul class="db-rank-list">
+                        @foreach (var actionItem in stats.TopActionsToday.Take(5))
+                        {
+                            var share = topActionsTodayTotal == 0 ? 0 : actionItem.Value * 100d / topActionsTodayTotal;
+                            <li>
+                                <span class="cb-rank @(actionRank <= 3 ? "cb-rank--top" : null)">@(actionRank++)</span>
+                                <div class="db-rank-list__body">
+                                    <div class="db-rank-list__row">
+                                        <span class="db-rank-list__label" title="@actionItem.Label">@actionItem.Label</span>
+                                        <span class="db-rank-list__value">@Number(actionItem.Value)</span>
+                                    </div>
+                                    <div class="cb-progress"><span style="width:@(share.ToString("0.#", invariant))%"></span></div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="db-empty">Hôm nay chưa có action nào.</div>
                 }
             </div>
         </div>
     </div>
 
     <div class="col-12">
-        <div class="card shadow-sm border-0 surface-panel" data-top-users-today-chart
-             data-user-labels='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.DisplayLabel))'
-             data-user-values='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => item.TotalActions))'
-             data-user-top-actions='@JsonSerializer.Serialize(Model.OverviewStatistics.TopUsersToday.Select(item => $"{item.TopAction} ({item.TopActionCount:N0})"))'>
-            <div class="card-body p-4 p-lg-5">
+        <div class="card shadow-sm border-0 surface-panel">
+            <div class="card-body p-4">
                 <div class="section-header mb-3">
                     <div>
                         <span class="page-eyebrow">Giám sát bất thường</span>
-                        <h2 class="section-header__title">Top 5 user có số action cao nhất hôm nay</h2>
-                        <p class="section-header__subtitle">Hiển thị tổng action theo user và action cao nhất của từng user để nhận diện bất thường nhanh hơn.</p>
+                        <h2 class="section-header__title">Top 5 user có nhiều action nhất hôm nay</h2>
+                        <p class="section-header__subtitle">Tổng action theo user và action được dùng nhiều nhất để nhận diện bất thường nhanh hơn.</p>
                     </div>
                 </div>
-                @if (Model.OverviewStatistics.TopUsersToday.Any())
+                @if (stats.TopUsersToday.Any())
                 {
-                    <div class="chart-stage" style="height: 320px;">
-                        <canvas id="topUsersTodayChart" aria-label="Biểu đồ top 5 user có số action cao nhất hôm nay"></canvas>
-                    </div>
-                    <div class="mt-3 pt-2 border-top">
-                        <div class="metric-card__label mb-2">Tra cứu nhanh theo key và action cao nhất</div>
-                        @foreach (var item in Model.OverviewStatistics.TopUsersToday)
-                        {
-                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center py-2 gap-2">
-                                <div>
-                                    <div class="small fw-semibold text-secondary">@item.DisplayLabel</div>
-                                    <div class="small text-secondary">Action cao nhất: <span class="fw-semibold">@item.TopAction</span> (@item.TopActionCount.ToString("N0")) - Tổng action: @item.TotalActions.ToString("N0")</div>
-                                </div>
-                                <a class="btn btn-sm btn-outline-dark"
-                                   asp-controller="Logs"
-                                   asp-action="Index"
-                                   asp-route-searchTerm="@item.ActorIdentifier"
-                                   asp-route-action="@item.TopAction"
-                                   asp-route-from="@todayFilterDate"
-                                   asp-route-to="@todayFilterDate">
-                                    Xem log theo key
-                                </a>
-                            </div>
-                        }
+                    var userRank = 1;
+                    <div class="row g-4 align-items-center">
+                        <div class="col-12 col-xl-6">
+                            <div class="chart-stage cb-chart cb-chart--md"><canvas id="dashboardTopUsersChart" aria-label="Biểu đồ top 5 user có nhiều action nhất hôm nay"></canvas></div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <ul class="db-rank-list db-rank-list--users">
+                                @foreach (var item in stats.TopUsersToday)
+                                {
+                                    <li>
+                                        <span class="cb-rank @(userRank <= 3 ? "cb-rank--top" : null)">@(userRank++)</span>
+                                        <div class="db-rank-list__body">
+                                            <div class="db-rank-list__row">
+                                                <span class="db-rank-list__label" title="@item.DisplayLabel">@item.DisplayLabel</span>
+                                                <span class="db-rank-list__value">@Number(item.TotalActions)</span>
+                                            </div>
+                                            <div class="cb-progress"><span style="width:@((item.TotalActions * 100d / topUserMax).ToString("0.#", invariant))%"></span></div>
+                                            <div class="db-rank-list__meta">Nhiều nhất: <strong>@item.TopAction</strong> (@Number(item.TopActionCount))</div>
+                                        </div>
+                                        @if (canAccessLogs)
+                                        {
+                                            <a class="btn btn-sm btn-outline-dark text-nowrap"
+                                               asp-controller="Logs"
+                                               asp-action="Index"
+                                               asp-route-searchTerm="@item.ActorIdentifier"
+                                               asp-route-action="@item.TopAction"
+                                               asp-route-from="@todayFilterDate"
+                                               asp-route-to="@todayFilterDate">Xem log</a>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
                     </div>
                 }
                 else
                 {
-                    <div class="text-secondary">Hôm nay chưa có dữ liệu action để thống kê theo user.</div>
+                    <div class="db-empty">Hôm nay chưa có dữ liệu action để thống kê theo user.</div>
                 }
             </div>
         </div>
@@ -302,6 +395,10 @@ GET  /api/partner/statistics?from=2026-05-24&amp;to=2026-05-27</code></pre>
     </div>
 </div>
 
+<script type="application/json" id="dashboardData">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartData))</script>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script src="~/js/insight-charts.js" asp-append-version="true"></script>
+    <script src="~/js/dashboard.js" asp-append-version="true"></script>
 }
