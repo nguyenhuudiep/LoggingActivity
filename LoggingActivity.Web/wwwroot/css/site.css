@@ -3409,3 +3409,192 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .filter-actions .btn {
   min-height: var(--app-control-height);
 }
+
+/* Danh sách tên quyền dưới badge: 1 dòng, xem đầy đủ khi hover (title). */
+.permission-summary__detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+}
+
+/* Màu thẻ thống kê theo ý nghĩa (ưu tiên hơn màu theo vị trí). */
+.metric-card--primary { --metric-accent: #3699ff !important; }
+.metric-card--success { --metric-accent: #50cd89 !important; }
+.metric-card--warning { --metric-accent: #f5a524 !important; }
+.metric-card--info { --metric-accent: #7239ea !important; }
+.metric-card--danger { --metric-accent: #f1416c !important; }
+
+/* Badge và nút trong bảng không bao giờ bị bẻ giữa chữ. */
+.table .badge,
+.table .btn {
+  white-space: nowrap;
+}
+
+/* Bảng hàng đợi ingest: cột tự co giãn theo nội dung thay vì % cố định (9 cột sau khi gộp "Lần thử"). */
+.ingest-queue-table {
+  table-layout: auto;
+}
+
+.ingest-queue-table > :not(caption) > * > * {
+  padding: 0.6rem 0.55rem;
+}
+
+.ingest-queue-table th,
+.ingest-queue-table td {
+  width: auto !important;
+}
+
+.ingest-queue-table td {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.ingest-queue-table td:nth-child(2) > div:first-child,
+.ingest-queue-table td:nth-child(6),
+.ingest-queue-table td:nth-child(9),
+.ingest-queue-table td:nth-child(9) .btn {
+  white-space: nowrap;
+}
+
+.ingest-queue-table td:nth-child(3) {
+  min-width: 9rem;
+  max-width: 11rem;
+  overflow-wrap: anywhere;
+}
+
+.ingest-queue-table td:nth-child(4),
+.ingest-queue-table td:nth-child(5),
+.ingest-queue-table td:nth-child(8) {
+  min-width: 8rem;
+  max-width: 11rem;
+}
+
+.ingest-queue-table td:nth-child(7) {
+  min-width: 8.5rem;
+  max-width: 10rem;
+}
+
+/* Bảng lịch sử cảnh báo: partner/username một dòng, nội dung cảnh báo được xuống dòng. */
+.alert-history-table > :not(caption) > * > * {
+  padding: 0.65rem 0.6rem;
+}
+
+.alert-history-table td:nth-child(4),
+.alert-history-table td:nth-child(6) {
+  white-space: nowrap;
+}
+
+.alert-history-table td:nth-child(10) {
+  min-width: 13rem;
+  max-width: 18rem;
+  white-space: normal;
+}
+
+/* Tab: dạng segmented control thay cho tab viền mặc định của Bootstrap. */
+.nav-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.85rem;
+  background: var(--app-surface-alt);
+}
+
+.nav-tabs .nav-link {
+  margin: 0;
+  padding: 0.5rem 0.95rem;
+  border: 0;
+  border-radius: 0.6rem;
+  color: #5e6278;
+  font-size: 0.86rem;
+  font-weight: 600;
+  background: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link:focus {
+  color: var(--app-heading);
+  background: rgba(255, 255, 255, 0.7);
+  border: 0;
+  isolation: auto;
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-item.show .nav-link {
+  color: var(--app-primary-deep);
+  background: #ffffff;
+  border: 0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+/* Ô chọn file: nút chọn file đồng bộ với nút của hệ thống. */
+.form-control[type="file"] {
+  padding: 0.35rem;
+  line-height: 1.9;
+  cursor: pointer;
+}
+
+.form-control[type="file"]::file-selector-button {
+  margin: 0 0.75rem 0 0;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--app-primary-deep);
+  font-weight: 700;
+  background: rgba(54, 153, 255, 0.12);
+  transition: background-color 0.15s ease;
+}
+
+.form-control[type="file"]:hover::file-selector-button {
+  background: rgba(54, 153, 255, 0.2);
+}
+
+.form-control[type="file"]::-webkit-file-upload-button {
+  margin: 0 0.75rem 0 0;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--app-primary-deep);
+  font-weight: 700;
+  background: rgba(54, 153, 255, 0.12);
+}
+
+/* Cột STT hẹp hơn để nhường chỗ cho dữ liệu. */
+.table-stt-col,
+.table-stt-cell,
+.ingest-queue-table .table-stt-col,
+.ingest-queue-table .table-stt-cell {
+  width: 3rem !important;
+  min-width: 3rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+/* Lịch sử cảnh báo: cho phép tiêu đề cột xuống dòng, nội dung cảnh báo hẹp hơn. */
+.alert-history-table thead th {
+  white-space: normal;
+}
+
+.alert-history-table td:nth-child(10) {
+  min-width: 11rem;
+}
+
+/* Hàng đợi: cột lỗi cuối hẹp hơn. */
+.ingest-queue-table td:nth-child(8) {
+  max-width: 9.5rem;
+}
+
+.ingest-queue-table td:nth-child(4) {
+  max-width: 10rem;
+}
+
+.ingest-queue-table > :not(caption) > * > * {
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}

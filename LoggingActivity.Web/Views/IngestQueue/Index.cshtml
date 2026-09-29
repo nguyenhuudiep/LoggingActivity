@@ -140,13 +140,13 @@
         <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Tổng request</div><div class="metric-card__value">@Model.Summary.TotalCount</div><div class="metric-card__meta">Tổng số yêu cầu đi qua hàng đợi trong phạm vi lọc.</div></div></div>
     </div>
     <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Đang chờ / retry</div><div class="metric-card__value">@Model.Summary.PendingCount</div><div class="metric-card__meta">Các request đang đợi được xử lý lại hoặc chưa tới lượt.</div></div></div>
+        <div class="card border-0 shadow-sm metric-card metric-card--warning h-100"><div class="card-body p-4"><div class="metric-card__label">Đang chờ / retry</div><div class="metric-card__value">@Model.Summary.PendingCount</div><div class="metric-card__meta">Các request đang đợi được xử lý lại hoặc chưa tới lượt.</div></div></div>
     </div>
     <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Đang xử lý</div><div class="metric-card__value">@Model.Summary.ProcessingCount</div><div class="metric-card__meta">Worker đã lease và đang thực thi những request này.</div></div></div>
+        <div class="card border-0 shadow-sm metric-card metric-card--info h-100"><div class="card-body p-4"><div class="metric-card__label">Đang xử lý</div><div class="metric-card__value">@Model.Summary.ProcessingCount</div><div class="metric-card__meta">Worker đã lease và đang thực thi những request này.</div></div></div>
     </div>
     <div class="col-lg-3 col-sm-6">
-        <div class="card border-0 shadow-sm metric-card h-100"><div class="card-body p-4"><div class="metric-card__label">Thất bại</div><div class="metric-card__value">@Model.Summary.FailedCount</div><div class="metric-card__meta">Các request cần admin kiểm tra do đã quá số lần retry.</div></div></div>
+        <div class="card border-0 shadow-sm metric-card metric-card--danger h-100"><div class="card-body p-4"><div class="metric-card__label">Thất bại</div><div class="metric-card__value">@Model.Summary.FailedCount</div><div class="metric-card__meta">Các request cần admin kiểm tra do đã quá số lần retry.</div></div></div>
     </div>
 </div>
 
@@ -167,7 +167,6 @@
                     <th>Partner / User</th>
                     <th>Action</th>
                     <th>Trạng thái</th>
-                    <th>Lần thử</th>
                     <th>Lịch xử lý</th>
                     <th>Lỗi cuối</th>
                     <th class="text-end">Thao tác</th>
@@ -199,12 +198,12 @@
                         </td>
                         <td>
                             <span class="badge @BuildStatusBadgeClass(item.Status)">@item.Status</span>
+                            <div class="text-secondary small">Lần thử: @item.AttemptCount</div>
                             @if (!string.IsNullOrWhiteSpace(item.LeaseOwner))
                             {
                                 <div class="text-secondary small">Lease: @item.LeaseOwner</div>
                             }
                         </td>
-                        <td>@item.AttemptCount</td>
                         <td>
                             @if (item.Status == ActivityLogIngestQueueStatuses.Pending)
                             {
@@ -258,7 +257,7 @@
                 @if (!Model.Items.Items.Any())
                 {
                     <tr>
-                        <td colspan="10" class="text-center text-secondary py-4">Không có request queue phù hợp bộ lọc.</td>
+                        <td colspan="9" class="text-center text-secondary py-4">Không có request queue phù hợp bộ lọc.</td>
                     </tr>
                 }
             </tbody>

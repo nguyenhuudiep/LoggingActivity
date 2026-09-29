@@ -424,6 +424,34 @@
 		});
 	}
 
+	// Khối code trong view bị lẫn khoảng trắng thụt lề của file Razor: bỏ phần thụt lề chung của các dòng sau dòng đầu.
+	function initCodeBlockDedent() {
+		document.querySelectorAll("pre.api-block > code").forEach(function (code) {
+			var lines = code.textContent.split("\n");
+			if (lines.length < 2) {
+				return;
+			}
+
+			var rest = lines.slice(1);
+			var indents = rest
+				.filter(function (line) { return line.trim().length > 0; })
+				.map(function (line) { return line.match(/^ */)[0].length; });
+			if (!indents.length) {
+				return;
+			}
+
+			var common = Math.min.apply(null, indents);
+			var continuation = /^curl\b/.test(lines[0].trim()) ? "    " : "";
+			if (common === 0 && !continuation) {
+				return;
+			}
+
+			code.textContent = [lines[0]].concat(rest.map(function (line) {
+				return line.trim().length ? continuation + line.slice(common) : "";
+			})).join("\n");
+		});
+	}
+
 	function runInitializer(name, initFn) {
 		try {
 			initFn();
@@ -443,5 +471,6 @@
 		runInitializer("initActorLogModal", initActorLogModal);
 		runInitializer("initLogsInsightsAsync", initLogsInsightsAsync);
 		runInitializer("initListLoadingState", initListLoadingState);
+		runInitializer("initCodeBlockDedent", initCodeBlockDedent);
 	});
 })();

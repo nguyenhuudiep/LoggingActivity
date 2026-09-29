@@ -34,13 +34,13 @@
 
 <div class="card border-0 shadow-sm mb-4 surface-panel">
     <div class="card-body p-4">
-        <form method="get" class="row g-3 align-items-end user-filter-form user-filter-form--single-line" data-auto-submit-selects>
+        <form method="get" class="row g-3 align-items-end user-filter-form" data-auto-submit-selects>
             <input type="hidden" name="pageSize" value="@Model.Filter.PageSize" />
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-4 col-md-6">
                 <label class="form-label" for="alertHistorySearchTerm">User</label>
                 <input id="alertHistorySearchTerm" name="searchTerm" value="@Model.Filter.SearchTerm" class="form-control" placeholder="Key hoặc username" />
             </div>
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-4 col-md-6">
                 <label class="form-label" for="alertHistoryPartnerId">Partner</label>
                 <select id="alertHistoryPartnerId" name="partnerId" class="form-select" data-enhanced-select data-placeholder="Tất cả partner">
                     <option value="">Tất cả</option>
@@ -50,7 +50,7 @@
                     }
                 </select>
             </div>
-            <div class="col-lg-2 col-md-6">
+            <div class="col-lg-4 col-md-6">
                 <label class="form-label" for="alertHistoryAction">Action</label>
                 <select id="alertHistoryAction" name="action" class="form-select" data-enhanced-select data-placeholder="Tất cả action">
                     <option value="">Tất cả</option>
@@ -60,7 +60,7 @@
                     }
                 </select>
             </div>
-            <div class="col-lg-2 col-md-6">
+            <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistoryStatus">Trạng thái</label>
                 <select id="alertHistoryStatus" name="status" class="form-select" data-enhanced-select data-hide-search="true" data-placeholder="Tất cả trạng thái">
                     <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Filter.Status))">Tất cả</option>
@@ -68,15 +68,15 @@
                     <option value="exceeded" selected="@(Model.Filter.Status == "exceeded")">Vượt ngưỡng</option>
                 </select>
             </div>
-            <div class="col-lg-2 col-md-6">
+            <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistoryFrom">Từ ngày</label>
                 <input id="alertHistoryFrom" name="from" type="date" value="@Model.Filter.From?.ToString("yyyy-MM-dd")" class="form-control" autocomplete="off" />
             </div>
-            <div class="col-lg-2 col-md-6">
+            <div class="col-lg-3 col-md-6">
                 <label class="form-label" for="alertHistoryTo">Đến ngày</label>
                 <input id="alertHistoryTo" name="to" type="date" value="@Model.Filter.To?.ToString("yyyy-MM-dd")" class="form-control" autocomplete="off" />
             </div>
-            <div class="col-lg-12 col-md-8">
+            <div class="col-lg-3 col-md-12">
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-dark">Lọc dữ liệu</button>
                     <a class="btn btn-outline-secondary"

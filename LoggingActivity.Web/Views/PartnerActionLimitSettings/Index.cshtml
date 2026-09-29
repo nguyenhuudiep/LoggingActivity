@@ -171,8 +171,8 @@
                         <td class="table-stt-cell">@(rowNumber++)</td>
                         <td class="fw-semibold">@rule.PartnerName</td>
                         <td>@rule.ActorIdentifier</td>
-                        <td>@rule.ActorIdentifierType</td>
-                        <td>@rule.Action</td>
+                        <td class="text-nowrap">@(Model.UserKeyTypeOptions.FirstOrDefault(option => string.Equals(option.Value, rule.ActorIdentifierType, StringComparison.OrdinalIgnoreCase))?.Label ?? rule.ActorIdentifierType)</td>
+                        <td><span class="badge bg-primary-subtle text-primary-emphasis">@rule.Action</span></td>
                         <td>@rule.DailyLimit</td>
                         <td>
                             @if (rule.IsActive)
